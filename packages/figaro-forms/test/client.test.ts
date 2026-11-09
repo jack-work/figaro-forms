@@ -46,6 +46,18 @@ describe("FormsClient against a fake door", () => {
     client.close();
   });
 
+  it("updates status before it calls a path subscriber", async () => {
+    const { door, client } = setup();
+    const f = client.form("@f1");
+    await f.ready();
+    const seen: number[] = [];
+    f.subscribe("a.b", () => seen.push(f.status.version));
+    door.write("@f1", { object: { Update: { a: { object: { Update: { b: { scalar: { Before: 1, After: 5 } } } } } } } });
+    await settle();
+    expect(seen).toEqual([2]);
+    client.close();
+  });
+
   it("replaces a whole subtree when one patch deletes then sets the same key", async () => {
     const { door, client } = setup();
     const f = client.form("@f1");

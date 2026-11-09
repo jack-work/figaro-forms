@@ -370,12 +370,11 @@ export class Replica {
   private commit(next: State): void {
     const prev = this.s;
     this.s = next;
-    if (next.shown !== prev.shown) this.tree.replace(next.shown);
     const status = this.computeStatus(next);
-    if (!sameStatus(status, this.statusValue)) {
-      this.statusValue = status;
-      for (const fn of [...this.statusListeners]) fn();
-    }
+    const statusMoved = !sameStatus(status, this.statusValue);
+    if (statusMoved) this.statusValue = status;
+    if (next.shown !== prev.shown) this.tree.replace(next.shown);
+    if (statusMoved) for (const fn of [...this.statusListeners]) fn();
   }
 
   private computeStatus(s: State): FormStatus {
