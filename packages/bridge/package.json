@@ -1,0 +1,33 @@
+{
+  "name": "figaro-forms-bridge",
+  "version": "0.1.0",
+  "description": "Loopback WebSocket bridge from a browser page to a figaro daemon's unix socket",
+  "license": "UNLICENSED",
+  "type": "module",
+  "bin": {
+    "figaro-forms-bridge": "dist/main.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/bridge.d.ts",
+      "default": "./dist/bridge.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/ws": "^8.18.2",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
+  },
+  "dependencies": {
+    "ws": "^8.22.2"
+  }
+}
