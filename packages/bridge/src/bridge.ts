@@ -19,6 +19,7 @@ export interface BridgeOptions {
   readonly writeSystem?: boolean;
   readonly origins?: readonly string[];
   readonly staticDir?: string;
+  readonly frameOrigins?: readonly string[];
   readonly token?: string;
   readonly maxFrameBytes?: number;
 }
@@ -41,7 +42,31 @@ const types: Record<string, string> = {
   ".png": "image/png",
   ".ico": "image/x-icon",
   ".map": "application/json",
+  ".pdf": "application/pdf",
+  ".txt": "text/plain; charset=utf-8",
+  ".tex": "text/plain; charset=utf-8",
+  ".md": "text/plain; charset=utf-8",
+  ".csv": "text/csv; charset=utf-8",
+  ".woff2": "font/woff2",
 };
+
+export function frameOrigin(raw: string): string {
+  let u: URL;
+  try {
+    u = new URL(raw);
+  } catch {
+    throw new Error(`--frame-src ${raw}: not a URL`);
+  }
+  if ((u.protocol !== "http:" && u.protocol !== "https:") || u.origin !== raw.replace(/\/$/, "")) {
+    throw new Error(`--frame-src ${raw}: want an http(s) origin, scheme://host[:port] and nothing more`);
+  }
+  return u.origin;
+}
+
+function csp(frames: readonly string[]): string {
+  const frame = frames.length ? `; frame-src ${frames.join(" ")}` : "";
+  return `default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'${frame}`;
+}
 
 function sameToken(a: string, b: string): boolean {
   const x = Buffer.from(a);
@@ -173,6 +198,8 @@ export async function startBridge(o: BridgeOptions): Promise<Bridge> {
   const maxFrame = o.maxFrameBytes ?? 1 << 20;
   const staticRoot = o.staticDir ? resolve(o.staticDir) : undefined;
   const origins = new Set(o.origins ?? []);
+  const frames = (o.frameOrigins ?? []).map(frameOrigin);
+  const policy = csp(frames);
 
   const own = new Set<string>();
   const loopbackHost = (req: IncomingMessage): boolean => {
@@ -184,7 +211,7 @@ export async function startBridge(o: BridgeOptions): Promise<Bridge> {
       res.writeHead(421).end();
       return;
     }
-    serveStatic(staticRoot, req, res).catch(() => {
+    serveStatic(staticRoot, policy, req, res).catch(() => {
       if (!res.headersSent) res.writeHead(500);
       res.end();
     });
@@ -218,6 +245,11 @@ export async function startBridge(o: BridgeOptions): Promise<Bridge> {
   if (host === "127.0.0.1" || host === "localhost") {
     own.add(`http://127.0.0.1:${port}`);
     own.add(`http://localhost:${port}`);
+  }
+  const selfFrame = frames.find((f) => own.has(f));
+  if (selfFrame) {
+    await new Promise<void>((ok) => server.close(() => ok()));
+    throw new Error(`--frame-src ${selfFrame} is the bridge's own origin: a framed page there could read the token`);
   }
   return {
     server,
@@ -281,12 +313,11 @@ function relay(ws: WebSocket, path: string, allowed: ReadonlySet<string>, write:
   });
 }
 
-async function serveStatic(root: string | undefined, req: IncomingMessage, res: ServerResponse): Promise<void> {
+async function serveStatic(root: string | undefined, policy: string, req: IncomingMessage, res: ServerResponse): Promise<void> {
   const head = {
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "no-referrer",
-    "Content-Security-Policy":
-      "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+    "Content-Security-Policy": policy,
   };
   if (!root || (req.method !== "GET" && req.method !== "HEAD")) {
     res.writeHead(404, head).end();

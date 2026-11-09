@@ -178,6 +178,27 @@ async function rawSession(url: string) {
   };
 }
 
+describe("figaro-forms-bridge static serving", () => {
+  it("frames only the origins it is given, never its own, and types PDFs and text", async () => {
+    const door = new FakeDoor();
+    const dir = mkdtempSync(join(tmpdir(), "fff-"));
+    await writeFile(join(dir, "index.html"), "<p>page</p>");
+    await writeFile(join(dir, "paper.pdf"), "%PDF-1.4");
+    await writeFile(join(dir, "notes.tex"), "\\section{x}");
+    const plain = await bridge(door, { staticDir: dir });
+    expect((await fetch(`${plain.origin}/`)).headers.get("content-security-policy")).not.toContain("frame-src");
+    const framed = await bridge(door, { staticDir: dir, frameOrigins: ["http://127.0.0.1:8765"] });
+    expect((await fetch(`${framed.origin}/`)).headers.get("content-security-policy")).toContain("; frame-src http://127.0.0.1:8765");
+    expect((await fetch(`${framed.origin}/paper.pdf`)).headers.get("content-type")).toBe("application/pdf");
+    expect((await fetch(`${framed.origin}/notes.tex`)).headers.get("content-type")).toBe("text/plain; charset=utf-8");
+    await expect(bridge(door, { staticDir: dir, frameOrigins: ["http://127.0.0.1:8765/path"] })).rejects.toThrow(/origin/);
+    await expect(bridge(door, { staticDir: dir, frameOrigins: ["*"] })).rejects.toThrow(/URL|origin/);
+    const port = new URL(framed.origin).port;
+    await framed.close();
+    await expect(bridge(door, { staticDir: dir, port: Number(port), frameOrigins: [`http://localhost:${port}`] })).rejects.toThrow(/own origin/);
+  });
+});
+
 describe("figaro-forms-bridge under --write", () => {
   it("survives a malformed escape in a static path", async () => {
     const door = new FakeDoor();

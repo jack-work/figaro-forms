@@ -44,6 +44,14 @@ identity and a React component reading it does not re-render.
   page on the bridge's own origin, and `bridgeDoor()` reads the token from
   that page's `#token=`.
 
+A page served with `--static` lives under a strict CSP: no inline
+`<script>` or `<style>`, no `eval` or `new Function`, no frames or
+objects. Put script and style in files. `--frame-src ORIGIN` lets the
+page frame pages from another origin (never the bridge's own, whose
+pages could read the token). Test drivers that evaluate code in the page
+(Playwright's `wait_for_function`) are blocked by the same policy; wait
+on selectors instead.
+
 ```sh
 npx figaro-forms-bridge --static apps/demo/dist        # prints the page URL
 npx figaro-forms-bridge --origin http://127.0.0.1:8765  # for a page served elsewhere

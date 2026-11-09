@@ -4,11 +4,16 @@ import { defaultSocket, startBridge } from "./bridge.js";
 
 const usage = `figaro-forms-bridge: a loopback WebSocket door for a browser page, relayed to a figaro daemon's unix socket.
 
-Usage: figaro-forms-bridge [--socket PATH] [--port N] [--static DIR] [--origin URL]... [--write [--write-system]]
+Usage: figaro-forms-bridge [--socket PATH] [--port N] [--static DIR [--frame-src ORIGIN]...] [--origin URL]... [--write [--write-system]]
 
   --socket PATH  the daemon socket (default $FIGARO_RUNTIME_DIR/angelus.sock, else $XDG_RUNTIME_DIR/figaro/angelus.sock)
   --port N       loopback port (default: any free port)
-  --static DIR   serve DIR at / so the page shares the bridge's origin
+  --static DIR   serve DIR at / so the page shares the bridge's origin, files only,
+                 under a CSP with no inline script or style and no eval
+  --frame-src ORIGIN
+                 let the static page frame pages from ORIGIN (repeatable), e.g.
+                 http://127.0.0.1:8765; never the bridge's own origin, whose
+                 pages could read the token
   --origin URL   also admit pages from URL (repeatable), e.g. http://127.0.0.1:8765;
                  every page served on that origin gets the bridge's reach, which is
                  the owner's
@@ -27,6 +32,7 @@ const { values } = parseArgs({
     port: { type: "string" },
     static: { type: "string" },
     origin: { type: "string", multiple: true },
+    "frame-src": { type: "string", multiple: true },
     write: { type: "boolean" },
     "write-system": { type: "boolean" },
     help: { type: "boolean", short: "h" },
@@ -49,6 +55,7 @@ try {
     ...(values.port ? { port: Number(values.port) } : {}),
     ...(values.static ? { staticDir: values.static } : {}),
     ...(values.origin ? { origins: values.origin } : {}),
+    ...(values["frame-src"] ? { frameOrigins: values["frame-src"] } : {}),
     write: values.write === true,
     writeSystem: values["write-system"] === true,
   });
