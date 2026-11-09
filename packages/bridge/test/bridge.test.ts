@@ -151,3 +151,82 @@ describe("figaro-forms-bridge", () => {
     expect(await escape.text()).not.toContain("root:");
   });
 });
+
+async function rawSession(url: string) {
+  const ws = new WebSocket(url);
+  const replies = new Map<number, { result?: unknown; error?: { code: number; message: string } }>();
+  const waiters = new Map<number, () => void>();
+  ws.onmessage = (e) => {
+    const f = JSON.parse(String(e.data)) as { id?: number; result?: unknown; error?: { code: number; message: string } };
+    if (typeof f.id !== "number") return;
+    replies.set(f.id, f);
+    waiters.get(f.id)?.();
+  };
+  await new Promise<void>((ok, fail) => {
+    ws.onopen = () => ok();
+    ws.onerror = () => fail(new Error("no upgrade"));
+  });
+  let next = 1;
+  return {
+    call: (method: string, params: unknown) =>
+      new Promise<{ result?: unknown; error?: { code: number; message: string } }>((ok) => {
+        const id = next++;
+        waiters.set(id, () => ok(replies.get(id)!));
+        ws.send(JSON.stringify({ jsonrpc: "2.0", id, method, params }));
+      }),
+    close: () => ws.close(),
+  };
+}
+
+describe("figaro-forms-bridge under --write", () => {
+  it("survives a malformed escape in a static path", async () => {
+    const door = new FakeDoor();
+    const dir = mkdtempSync(join(tmpdir(), "ffs-"));
+    await writeFile(join(dir, "index.html"), "<p>page</p>");
+    const b = await bridge(door, { staticDir: dir });
+    expect((await fetch(`${b.origin}/%E0%A4%A`)).status).toBe(400);
+    expect((await fetch(`${b.origin}/`)).status).toBe(200);
+  });
+
+  it("refuses owner-held and daemon-written keys, outfits, and ambiguous shapes", async () => {
+    const door = new FakeDoor();
+    door.add("@f1", { title: "demo", system: { model: "m" } });
+    const b = await bridge(door, { write: true });
+    const s = await rawSession(b.doorUrl);
+    cleanups.push(() => s.close());
+    const set = (patch: unknown, extra: object = {}) => s.call("figaro.set", { figaro_id: "@f1", patch, ...extra });
+    const refused: [string, Promise<{ error?: { message: string } }>][] = [
+      ["nested system key", set({ object: { Update: { system: { object: { Update: { model: { scalar: { Before: "m", After: "x" } } } } } } } })],
+      ["system subtree", set({ object: { Set: { system: { tools: [] } } } })],
+      ["dotted literal", set({ object: { Set: { "system.provider": "evil" } } })],
+      ["whole form", set({ scalar: { Before: null, After: { system: {} } } })],
+      ["daemon-written", set({ object: { Set: { model: "x" } } })],
+      ["outfits", set({ object: { Set: { a: 1 } } }, { outfits: ["anything"] })],
+      ["case-folded field", s.call("figaro.set", { figaro_id: "@f1", Patch: { object: { Set: { system: {} } } } })],
+      ["case-folded shape", set({ Object: { Set: { system: {} } } })],
+      ["two shapes", set({ object: { Set: { a: 1 } }, scalar: { Before: null, After: {} } })],
+      ["create with system", s.call("form.create", { patch: { object: { Set: { system: { provider: "evil" } } } } })],
+    ];
+    for (const [what, p] of refused) {
+      const r = await p;
+      expect(r.error?.message, what).toMatch(/^bridge: /);
+    }
+    expect(door.forms.get("@f1")!.value).toEqual({ title: "demo", system: { model: "m" } });
+    expect((await set({ object: { Set: { notes: { a: 1 } } } })).error).toBeUndefined();
+    expect((await s.call("form.create", { patch: { object: { Set: { title: "new" } } } })).error).toBeUndefined();
+    expect(door.forms.get("@f1")!.value).toEqual({ title: "demo", system: { model: "m" }, notes: { a: 1 } });
+  });
+
+  it("lets owner-held keys through only with --write-system", async () => {
+    const door = new FakeDoor();
+    door.add("@f1", { system: { model: "m" } });
+    const b = await bridge(door, { write: true, writeSystem: true });
+    const s = await rawSession(b.doorUrl);
+    cleanups.push(() => s.close());
+    const r = await s.call("figaro.set", { figaro_id: "@f1", patch: { object: { Update: { system: { object: { Update: { model: { scalar: { Before: "m", After: "x" } } } } } } } } });
+    expect(r.error).toBeUndefined();
+    expect(door.forms.get("@f1")!.value).toEqual({ system: { model: "x" } });
+    const odd = await s.call("figaro.set", { figaro_id: "@f1", Patch: {} });
+    expect(odd.error?.message).toMatch(/unexpected key/);
+  });
+});

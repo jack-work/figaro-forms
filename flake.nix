@@ -19,7 +19,7 @@
             !(builtins.elem base [ "node_modules" "dist" ".git" "result" ]) && !(pkgs.lib.hasSuffix ".tgz" base);
         };
         nodejs = pkgs.nodejs_24;
-        npmDepsHash = "sha256-IzwtVoKmRm9DTepVxfT/WH+ZiRt8qeL2rBfs9fJa1EM=";
+        npmDepsHash = "sha256-lHg6pC6vXDdnhjh5+Ucxa1U373JosF5ot8TtT8az5YQ=";
         npmBuildScript = "build:all";
         doCheck = true;
         checkPhase = ''
@@ -52,9 +52,10 @@
           demo = pkgs.runCommand "figaro-forms-demo-${version}" { } "cp -r ${ws}/demo $out";
           tarball = pkgs.runCommand "figaro-forms-tarball-${version}" { } "cp -r ${ws}/tarball $out";
           bridge = pkgs.runCommand "figaro-forms-bridge-${version}" { nativeBuildInputs = [ pkgs.makeWrapper ]; } ''
-            mkdir -p $out/lib/node_modules $out/bin
+            mkdir -p $out/lib/node_modules/figaro-forms $out/bin
             cp -r ${ws}/bridge/lib/dist ${ws}/bridge/lib/package.json $out/lib/
             cp -r ${ws}/bridge/lib/node_modules-ws $out/lib/node_modules/ws
+            cp -r ${ws}/lib/dist ${ws}/lib/package.json $out/lib/node_modules/figaro-forms/
             makeWrapper ${pkgs.nodejs_24}/bin/node $out/bin/figaro-forms-bridge --add-flags $out/lib/dist/main.js
           '';
         });

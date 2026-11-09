@@ -5,6 +5,8 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { connect, type Socket } from "node:net";
 import { extname, join, normalize, resolve, sep } from "node:path";
 import { WebSocketServer, type WebSocket } from "ws";
+import { touchedKeys, type Patch } from "figaro-forms";
+import { wellKnownKeys } from "figaro-forms/semantics";
 
 export const readMethods = ["angelus.hello", "figaro.follow", "figaro.form"] as const;
 export const writeMethods = ["figaro.set", "form.create"] as const;
@@ -14,6 +16,7 @@ export interface BridgeOptions {
   readonly host?: string;
   readonly port?: number;
   readonly write?: boolean;
+  readonly writeSystem?: boolean;
   readonly origins?: readonly string[];
   readonly staticDir?: string;
   readonly token?: string;
@@ -44,6 +47,110 @@ function sameToken(a: string, b: string): boolean {
   const x = Buffer.from(a);
   const y = Buffer.from(b);
   return x.length === y.length && timingSafeEqual(x, y);
+}
+
+const daemonWritten = wellKnownKeys.filter((d) => d.mode !== "user" && !d.key.startsWith("system.")).map((d) => d.key);
+
+function heldKey(dotted: string): string | undefined {
+  if (dotted === "") return "the whole form";
+  if (dotted === "system" || dotted.startsWith("system.")) return dotted;
+  for (const k of daemonWritten) {
+    if (dotted === k || dotted.startsWith(k + ".") || k.startsWith(dotted + ".")) return dotted;
+  }
+  return undefined;
+}
+
+const fields: Record<string, readonly string[]> = {
+  "figaro.set": ["figaro_id", "patch", "outfits", "if_version", "assert", "client", "seq"],
+  "form.create": ["parent", "patch", "outfits"],
+};
+
+const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+
+function exactly(where: string, v: unknown, keys: readonly string[]): string | undefined {
+  if (!isRecord(v)) return `${where} must be an object`;
+  for (const k of Object.keys(v)) if (!keys.includes(k)) return `${where} has unexpected key ${JSON.stringify(k)}`;
+  return undefined;
+}
+
+function strictPatch(where: string, v: unknown): string | undefined {
+  const bad = exactly(where, v, ["scalar", "object", "list"]);
+  if (bad) return bad;
+  const p = v as Record<string, unknown>;
+  if (Object.keys(p).length > 1) return `${where} names more than one shape`;
+  if (p.scalar !== undefined) return exactly(`${where}.scalar`, p.scalar, ["Before", "After"]);
+  if (p.object !== undefined) {
+    const o = p.object;
+    const e = exactly(`${where}.object`, o, ["Set", "Delete", "Update", "New"]);
+    if (e) return e;
+    const ob = o as Record<string, unknown>;
+    for (const m of ["Set", "Delete", "New"]) if (ob[m] !== undefined && ob[m] !== null && !isRecord(ob[m])) return `${where}.object.${m} must be an object`;
+    if (ob.Update !== undefined && ob.Update !== null) {
+      if (!isRecord(ob.Update)) return `${where}.object.Update must be an object`;
+      for (const [k, c] of Object.entries(ob.Update)) {
+        const ce = strictPatch(`${where}.object.Update[${JSON.stringify(k)}]`, c);
+        if (ce) return ce;
+      }
+    }
+    return undefined;
+  }
+  if (p.list !== undefined) {
+    const l = p.list;
+    const e = exactly(`${where}.list`, l, ["Create", "Delete", "Update", "Order"]);
+    if (e) return e;
+    const lb = l as Record<string, unknown>;
+    for (const m of ["Create", "Delete"]) {
+      const items = lb[m];
+      if (items === undefined || items === null) continue;
+      if (!Array.isArray(items)) return `${where}.list.${m} must be an array`;
+      for (const it of items) {
+        const ie = exactly(`${where}.list.${m}[]`, it, ["Key", "Value"]);
+        if (ie) return ie;
+      }
+    }
+    if (lb.Order !== undefined && lb.Order !== null) {
+      const oe = exactly(`${where}.list.Order`, lb.Order, ["Declared", "Moved", "Prior", "PriorMoved"]);
+      if (oe) return oe;
+    }
+    if (lb.Update !== undefined && lb.Update !== null) {
+      if (!isRecord(lb.Update)) return `${where}.list.Update must be an object`;
+      for (const [k, c] of Object.entries(lb.Update)) {
+        const ce = strictPatch(`${where}.list.Update[${JSON.stringify(k)}]`, c);
+        if (ce) return ce;
+      }
+    }
+  }
+  return undefined;
+}
+
+export function writeRefusal(method: string, params: unknown, writeSystem: boolean): string | undefined {
+  const keys = fields[method];
+  if (!keys) return undefined;
+  const shape = exactly(`${method} params`, params, keys);
+  if (shape) return shape;
+  const p = params as { patch?: unknown; outfits?: unknown };
+  if (p.patch !== undefined && p.patch !== null) {
+    const bad = strictPatch(`${method} patch`, p.patch);
+    if (bad) return bad;
+  }
+  return writeSystem ? undefined : systemRefusal(method, p);
+}
+
+function systemRefusal(method: string, p: { patch?: unknown; outfits?: unknown }): string | undefined {
+  const hint = "; start the bridge with --write-system to allow it";
+  if (Array.isArray(p.outfits) && p.outfits.length > 0) return `${method}: outfits can carry owner-held keys${hint}`;
+  if (p.patch === undefined || p.patch === null) return undefined;
+  let paths: string[][];
+  try {
+    paths = touchedKeys(p.patch as Patch);
+  } catch {
+    return `${method}: unreadable patch`;
+  }
+  for (const path of paths) {
+    const held = heldKey(path.join("."));
+    if (held) return `${method}: ${held} is owner-held or daemon-written${hint}`;
+  }
+  return undefined;
 }
 
 function refuse(ws: WebSocket, id: unknown, message: string): void {
@@ -77,7 +184,10 @@ export async function startBridge(o: BridgeOptions): Promise<Bridge> {
       res.writeHead(421).end();
       return;
     }
-    void serveStatic(staticRoot, req, res);
+    serveStatic(staticRoot, req, res).catch(() => {
+      if (!res.headersSent) res.writeHead(500);
+      res.end();
+    });
   });
   const wss = new WebSocketServer({ noServer: true, maxPayload: maxFrame });
 
@@ -94,7 +204,7 @@ export async function startBridge(o: BridgeOptions): Promise<Bridge> {
       sock.end("HTTP/1.1 403 Forbidden\r\nConnection: close\r\nContent-Length: 0\r\n\r\n");
       return;
     }
-    wss.handleUpgrade(req, sock, head, (ws) => relay(ws, o.socket, allowed, o.write === true));
+    wss.handleUpgrade(req, sock, head, (ws) => relay(ws, o.socket, allowed, o.write === true, o.writeSystem === true));
   });
 
   await new Promise<void>((ok, fail) => {
@@ -125,7 +235,7 @@ export async function startBridge(o: BridgeOptions): Promise<Bridge> {
   };
 }
 
-function relay(ws: WebSocket, path: string, allowed: ReadonlySet<string>, write: boolean): void {
+function relay(ws: WebSocket, path: string, allowed: ReadonlySet<string>, write: boolean, writeSystem: boolean): void {
   const up: Socket = connect(path);
   let buf = "";
   up.setEncoding("utf8");
@@ -162,6 +272,11 @@ function relay(ws: WebSocket, path: string, allowed: ReadonlySet<string>, write:
       refuse(ws, frame.id ?? null, `bridge: ${name} is not allowed${write ? "" : " (read-only bridge; start it with --write to edit)"}`);
       return;
     }
+    const held = writeRefusal(frame.method, (frame as { params?: unknown }).params, writeSystem);
+    if (held) {
+      refuse(ws, frame.id ?? null, `bridge: ${held}`);
+      return;
+    }
     up.write(JSON.stringify(frame) + "\n");
   });
 }
@@ -178,7 +293,14 @@ async function serveStatic(root: string | undefined, req: IncomingMessage, res: 
     return;
   }
   const url = new URL(req.url ?? "/", "http://bridge");
-  let file = normalize(join(root, decodeURIComponent(url.pathname)));
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(url.pathname);
+  } catch {
+    res.writeHead(400, head).end();
+    return;
+  }
+  let file = normalize(join(root, decoded));
   if (file !== root && !file.startsWith(root + sep)) {
     res.writeHead(403, head).end();
     return;

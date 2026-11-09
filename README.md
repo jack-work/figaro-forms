@@ -34,10 +34,15 @@ identity and a React component reading it does not re-render.
 - From Node: `bearer(token)` or `apiKey(fgk_...)` set `Authorization`.
   A browser cannot; the dial says so instead of failing quietly.
 - From a local page: `figaro-forms-bridge` relays a loopback WebSocket to
-  the daemon's unix socket. Read-only unless started with `--write`; every
-  connection needs the token it prints; other origins are refused unless
-  named with `--origin`. `--static DIR` serves a page on the bridge's own
-  origin, and `bridgeDoor()` reads the token from that page's `#token=`.
+  the daemon's unix socket, so the page acts as the bridge's user: the
+  owner. Read-only unless started with `--write`, and `--write` still
+  refuses `system.*`, daemon-written keys and outfits unless
+  `--write-system` is also given. Every connection needs the token it
+  prints once on stdout; never pipe that into a log or journal others can
+  read. Other origins are refused unless named with `--origin`, which
+  grants every page on that origin the same reach. `--static DIR` serves a
+  page on the bridge's own origin, and `bridgeDoor()` reads the token from
+  that page's `#token=`.
 
 ```sh
 npx figaro-forms-bridge --static apps/demo/dist        # prints the page URL
@@ -51,6 +56,8 @@ npx figaro-forms-bridge --origin http://127.0.0.1:8765  # for a page served else
   `packages.bridge`.
 - npm, locally: `npm i <path>/packages/figaro-forms` after `npm run build`,
   or `npm i $(nix build --print-out-paths .#tarball)/figaro-forms-0.1.0.tgz`.
+  The bridge tarball depends on figaro-forms, so install both tarballs in
+  one `npm i`.
 
 ## Development
 
