@@ -16,6 +16,14 @@
     "./auth": {
       "types": "./dist/auth/index.d.ts",
       "default": "./dist/auth/index.js"
+    },
+    "./semantics": {
+      "types": "./dist/semantics/index.d.ts",
+      "default": "./dist/semantics/index.js"
+    },
+    "./view": {
+      "types": "./dist/view/index.d.ts",
+      "default": "./dist/view/index.js"
     }
   },
   "scripts": {
