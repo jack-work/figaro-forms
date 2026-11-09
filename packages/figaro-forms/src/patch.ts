@@ -368,13 +368,12 @@ function single<T>(key: string, value: T): Record<string, T> {
 export function touchedKeys(p: Patch, prefix: readonly string[] = []): string[][] {
   const out: string[][] = [];
   const walk = (q: Patch, at: readonly string[]): void => {
+    if (q.scalar || q.list) out.push([...at]);
     if (q.object) {
       for (const k of Object.keys(q.object.Set ?? {})) out.push([...at, k]);
       for (const k of Object.keys(q.object.Delete ?? {})) out.push([...at, k]);
       for (const [k, c] of entries(q.object.Update)) walk(c, [...at, k]);
-      return;
     }
-    if (q.scalar || q.list) out.push([...at]);
   };
   walk(p, prefix);
   return out;
