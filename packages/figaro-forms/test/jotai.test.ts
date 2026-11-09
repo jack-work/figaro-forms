@@ -1,0 +1,40 @@
+import { createStore } from "jotai/vanilla";
+import { describe, expect, it } from "vitest";
+import { FormsClient } from "../src/client.js";
+import { formAtom, formStatusAtom, formValueAtom } from "../src/jotai/index.js";
+import { FakeDoor, settle } from "./fake-door.js";
+
+describe("Jotai atoms", () => {
+  it("follow one path, write through the replica, and release on unmount", async () => {
+    const door = new FakeDoor();
+    door.add("@f1", { a: { b: 1 }, z: 0 });
+    const client = new FormsClient({ dial: door.dial, client: "j1", releaseGraceMs: 5 });
+    const store = createStore();
+    const ab = formValueAtom(client, "@f1", "a.b");
+    const z = formValueAtom(client, "@f1", "z");
+    expect(formValueAtom(client, "@f1", "a.b")).toBe(ab);
+    const seen = { ab: 0, z: 0 };
+    const offAb = store.sub(ab, () => seen.ab++);
+    const offZ = store.sub(z, () => seen.z++);
+    const offStatus = store.sub(formStatusAtom(client, "@f1"), () => {});
+    await settle();
+    expect(store.get(ab)).toBe(1);
+    expect(store.get(formStatusAtom(client, "@f1")).phase).toBe("ready");
+    const before = { ...seen };
+    door.write("@f1", { object: { Update: { a: { object: { Update: { b: { scalar: { Before: 1, After: 2 } } } } } } } });
+    await settle();
+    expect(store.get(ab)).toBe(2);
+    expect(seen.ab).toBeGreaterThan(before.ab);
+    expect(seen.z).toBe(before.z);
+    await expect(store.set(z, 9)).resolves.toMatchObject({ ok: true });
+    expect(store.get(formAtom(client, "@f1"))).toEqual({ a: { b: 2 }, z: 9 });
+    await expect(store.set(z, undefined)).resolves.toMatchObject({ ok: true });
+    expect(door.forms.get("@f1")!.value).toEqual({ a: { b: 2 } });
+    offAb();
+    offZ();
+    offStatus();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(client.open).toBe(0);
+    client.close();
+  });
+});
