@@ -1,0 +1,27 @@
+{
+  "name": "figaro-forms",
+  "version": "0.1.0",
+  "description": "Subscribable figaro form state: store, optimistic edits, auth, view model, React and Jotai bindings",
+  "license": "UNLICENSED",
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
+  }
+}

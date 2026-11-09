@@ -1,0 +1,12 @@
+{
+  "name": "figaro-forms-workspace",
+  "private": true,
+  "type": "module",
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "build": "npm run build -w figaro-forms",
+    "check": "npm run typecheck --workspaces --if-present",
+    "test": "npm test --workspaces --if-present",
+    "vectors": "cd conformance && go run ."
+  }
+}

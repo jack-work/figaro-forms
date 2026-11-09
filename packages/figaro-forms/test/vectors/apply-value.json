@@ -1,0 +1,11382 @@
+[
+ {
+  "base": {
+   "c": 84,
+   "constructor": {
+    "b": null,
+    "c": true
+   }
+  },
+  "patch": {
+   "object": {
+    "Delete": {
+     "constructor": {
+      "b": null,
+      "c": true
+     }
+    },
+    "Update": {
+     "c": {
+      "scalar": {
+       "Before": 84,
+       "After": []
+      }
+     }
+    }
+   }
+  },
+  "result": {
+   "c": []
+  }
+ },
+ {
+  "base": 119.75,
+  "patch": {
+   "object": {
+    "Set": {
+     "a": [
+      {
+       "Key": "k1",
+       "Value": {
+        "constructor": [
+         0,
+         "s"
+        ],
+        "d": 23.75
+       }
+      },
+      {
+       "Key": "k0",
+       "Value": [
+        {
+         "Key": "k2",
+         "Value": {}
+        },
+        {
+         "Key": "k4",
+         "Value": {
+          "b": "v0",
+          "d": false,
+          "x.y": [
+           0,
+           "s"
+          ]
+         }
+        }
+       ]
+      },
+      {
+       "Key": "k4",
+       "Value": {
+        "b": [
+         1,
+         "s"
+        ],
+        "c": "v3"
+       }
+      }
+     ],
+     "ñ": true
+    }
+   }
+  },
+  "result": 119.75
+ },
+ {
+  "base": [
+   {
+    "Key": "k1",
+    "Value": {
+     "a": 36,
+     "c": 2,
+     "constructor": 59
+    }
+   },
+   {
+    "Key": "k3",
+    "Value": {
+     "__proto__": true,
+     "c": "v3",
+     "x.y": false
+    }
+   },
+   {
+    "Key": "k0",
+    "Value": [
+     {
+      "Key": "k0",
+      "Value": [
+       {
+        "Key": "k0",
+        "Value": {
+         "__proto__": [
+          1,
+          "s"
+         ],
+         "d": 66
+        }
+       },
+       {
+        "Key": "k1",
+        "Value": false
+       },
+       {
+        "Key": "k4",
+        "Value": [
+         1,
+         "s"
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  ],
+  "patch": {
+   "scalar": {
+    "Before": [
+     {
+      "Key": "k1",
+      "Value": {
+       "a": 36,
+       "c": 2,
+       "constructor": 59
+      }
+     },
+     {
+      "Key": "k3",
+      "Value": {
+       "__proto__": true,
+       "c": "v3",
+       "x.y": false
+      }
+     },
+     {
+      "Key": "k0",
+      "Value": [
+       {
+        "Key": "k0",
+        "Value": [
+         {
+          "Key": "k0",
+          "Value": {
+           "__proto__": [
+            1,
+            "s"
+           ],
+           "d": 66
+          }
+         },
+         {
+          "Key": "k1",
+          "Value": false
+         },
+         {
+          "Key": "k4",
+          "Value": [
+           1,
+           "s"
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    ],
+    "After": 72
+   }
+  },
+  "result": 72
+ },
+ {
+  "base": true,
+  "patch": {},
+  "result": true
+ },
+ {
+  "base": null,
+  "patch": {
+   "scalar": {
+    "Before": 2,
+    "After": {
+     "b": {
+      "__proto__": [
+       {
+        "Key": "k1",
+        "Value": {
+         "a": null,
+         "c": true
+        }
+       }
+      ],
+      "b": [],
+      "d": {
+       "b": 4,
+       "x.y": false
+      }
+     },
+     "d": null
+    }
+   }
+  },
+  "result": {
+   "b": {
+    "__proto__": [
+     {
+      "Key": "k1",
+      "Value": {
+       "a": null,
+       "c": true
+      }
+     }
+    ],
+    "b": [],
+    "d": {
+     "b": 4,
+     "x.y": false
+    }
+   },
+   "d": null
+  }
+ },
+ {
+  "base": {
+   "b": {
+    "constructor": [
+     1,
+     "s"
+    ]
+   }
+  },
+  "patch": {
+   "object": {
+    "Set": {
+     "c": []
+    },
+    "Delete": {
+     "a": [
+      2,
+      "s"
+     ],
+     "c": [
+      2,
+      "s"
+     ]
+    }
+   }
+  },
+  "result": {
+   "b": {
+    "constructor": [
+     1,
+     "s"
+    ]
+   },
+   "c": []
+  }
+ },
+ {
+  "base": {
+   "x.y": null,
+   "ñ": {}
+  },
+  "patch": {
+   "scalar": {
+    "Before": {
+     "x.y": null,
+     "ñ": {}
+    },
+    "After": [
+     {
+      "Key": "k2",
+      "Value": {}
+     },
+     {
+      "Key": "k3",
+      "Value": [
+       {
+        "Key": "k3",
+        "Value": {
+         "constructor": 18.625,
+         "x.y": 70.375
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "result": [
+   {
+    "Key": "k2",
+    "Value": {}
+   },
+   {
+    "Key": "k3",
+    "Value": [
+     {
+      "Key": "k3",
+      "Value": {
+       "constructor": 18.625,
+       "x.y": 70.375
+      }
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "base": [],
+  "patch": {
+   "list": {
+    "Update": {
+     "k4": {
+      "object": {
+       "Set": {
+        "x.y": [
+         1,
+         "s"
+        ]
+       },
+       "Delete": {
+        "__proto__": 41,
+        "ñ": "v2"
+       }
+      }
+     }
+    }
+   }
+  },
+  "result": []
+ },
+ {
+  "base": {
+   "__proto__": {
+    "x.y": [
+     2,
+     "s"
+    ]
+   },
+   "b": 110,
+   "x.y": [
+    {
+     "Key": "k4",
+     "Value": null
+    }
+   ]
+  },
+  "patch": {},
+  "result": {
+   "__proto__": {
+    "x.y": [
+     2,
+     "s"
+    ]
+   },
+   "b": 110,
+   "x.y": [
+    {
+     "Key": "k4",
+     "Value": null
+    }
+   ]
+  }
+ },
+ {
+  "base": [
+   1,
+   "s"
+  ],
+  "patch": {
+   "scalar": {
+    "Before": [
+     1,
+     "s"
+    ],
+    "After": true
+   }
+  },
+  "result": true
+ },
+ {
+  "base": 101.125,
+  "patch": {
+   "scalar": {
+    "Before": 101.125,
+    "After": false
+   }
+  },
+  "result": false
+ },
+ {
+  "base": 58,
+  "patch": {
+   "list": {}
+  },
+  "result": 58
+ },
+ {
+  "base": {
+   "__proto__": {},
+   "a": null,
+   "b": [
+    {
+     "Key": "k3",
+     "Value": {}
+    }
+   ]
+  },
+  "patch": {
+   "object": {
+    "Set": {
+     "d": [
+      0,
+      "s"
+     ],
+     "x.y": [
+      {
+       "Key": "k2",
+       "Value": 86
+      }
+     ]
+    },
+    "Delete": {
+     "__proto__": {},
+     "a": null,
+     "b": [
+      {
+       "Key": "k3",
+       "Value": {}
+      }
+     ]
+    }
+   }
+  },
+  "result": {
+   "d": [
+    0,
+    "s"
+   ],
+   "x.y": [
+    {
+     "Key": "k2",
+     "Value": 86
+    }
+   ]
+  }
+ },
+ {
+  "base": {
+   "__proto__": {
+    "__proto__": false,
+    "b": [
+     0,
+     "s"
+    ],
+    "constructor": null
+   },
+   "x.y": {
+    "__proto__": null,
+    "constructor": [
+     2,
+     "s"
+    ],
+    "d": false
+   }
+  },
+  "patch": {
+   "list": {
+    "Create": [
+     {
+      "Key": "k0",
+      "Value": 95.75
+     }
+    ],
+    "Update": {
+     "k0": {
+      "list": {
+       "Order": {
+        "Declared": [
+         "k1",
+         "k3"
+        ],
+        "Moved": [
+         0
+        ]
+       }
+      }
+     }
+    }
+   }
+  },
+  "result": {
+   "__proto__": {
+    "__proto__": false,
+    "b": [
+     0,
+     "s"
+    ],
+    "constructor": null
+   },
+   "x.y": {
+    "__proto__": null,
+    "constructor": [
+     2,
+     "s"
+    ],
+    "d": false
+   }
+  }
+ },
+ {
+  "base": 49,
+  "patch": {
+   "scalar": {
+    "Before": 49,
+    "After": 44
+   }
+  },
+  "result": 44
+ },
+ {
+  "base": [
+   {
+    "Key": "k3",
+    "Value": {
+     "b": 35
+    }
+   },
+   {
+    "Key": "k1",
+    "Value": [
+     0,
+     "s"
+    ]
+   }
+  ],
+  "patch": {
+   "scalar": {
+    "Before": [
+     {
+      "Key": "k3",
+      "Value": {
+       "b": 35
+      }
+     },
+     {
+      "Key": "k1",
+      "Value": [
+       0,
+       "s"
+      ]
+     }
+    ],
+    "After": {
+     "d": true,
+     "ñ": [
+      {
+       "Key": "k4",
+       "Value": 85
+      }
+     ]
+    }
+   }
+  },
+  "result": {
+   "d": true,
+   "ñ": [
+    {
+     "Key": "k4",
+     "Value": 85
+    }
+   ]
+  }
+ },
+ {
+  "base": [
+   2,
+   "s"
+  ],
+  "patch": {
+   "scalar": {
+    "Before": [
+     2,
+     "s"
+    ],
+    "After": {}
+   }
+  },
+  "result": {}
+ },
+ {
+  "base": [
+   0,
+   "s"
+  ],
+  "patch": {
+   "scalar": {
+    "Before": [
+     0,
+     "s"
+    ],
+    "After": [
+     {
+      "Key": "k3",
+      "Value": {
+       "constructor": 71.25
+      }
+     },
+     {
+      "Key": "k4",
+      "Value": false
+     }
+    ]
+   }
+  },
+  "result": [
+   {
+    "Key": "k3",
+    "Value": {
+     "constructor": 71.25
+    }
+   },
+   {
+    "Key": "k4",
+    "Value": false
+   }
+  ]
+ },
+ {
+  "base": [
+   {
+    "Key": "k2",
+    "Value": {}
+   }
+  ],
+  "patch": {
+   "object": {
+    "Set": {
+     "__proto__": {
+      "__proto__": 12,
+      "c": {
+       "b": 83,
+       "ñ": [
+        1,
+        "s"
+       ]
+      },
+      "d": {}
+     },
+     "b": 11
+    }
+   }
+  },
+  "result": [
+   {
+    "Key": "k2",
+    "Value": {}
+   }
+  ]
+ },
+ {
+  "base": {},
+  "patch": {
+   "object": {
+    "Update": {
+     "d": {
+      "list": {
+       "Create": [
+        {
+         "Key": "k1",
+         "Value": "v2"
+        }
+       ],
+       "Order": {
+        "Declared": [
+         "k4",
+         "k4"
+        ],
+        "Moved": [
+         0
+        ]
+       }
+      }
+     }
+    },
+    "New": {
+     "d": true
+    }
+   }
+  },
+  "result": {}
+ },
+ {
+  "base": {},
+  "patch": {
+   "object": {
+    "Set": {
+     "a": {}
+    },
+    "Delete": {
+     "a": "v1",
+     "x.y": "v2"
+    }
+   }
+  },
+  "result": {
+   "a": {}
+  }
+ },
+ {
+  "base": [],
+  "patch": {
+   "list": {}
+  },
+  "result": []
+ },
+ {
+  "base": true,
+  "patch": {
+   "object": {
+    "Delete": {
+     "d": null
+    },
+    "Update": {
+     "__proto__": {},
+     "x.y": {
+      "object": {
+       "Set": {
+        "__proto__": 75.25
+       },
+       "Update": {
+        "d": {
+         "object": {
+          "Delete": {
+           "d": 26.25
+          }
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "result": true
+ },
+ {
+  "base": {
+   "constructor": {}
+  },
+  "patch": {
+   "object": {
+    "Set": {
+     "d": {
+      "a": {}
+     }
+    },
+    "Update": {
+     "constructor": {
+      "scalar": {
+       "Before": 92.875,
+       "After": 59.25
+      }
+     }
+    },
+    "New": {
+     "constructor": true
+    }
+   }
+  },
+  "result": {
+   "constructor": 59.25,
+   "d": {
+    "a": {}
+   }
+  }
+ },
+ {
+  "base": 59.125,
+  "patch": {
+   "object": {}
+  },
+  "result": 59.125
+ },
+ {
+  "base": [
+   {
+    "Key": "k1",
+    "Value": 57.625
+   }
+  ],
+  "patch": {
+   "object": {}
+  },
+  "result": [
+   {
+    "Key": "k1",
+    "Value": 57.625
+   }
+  ]
+ },
+ {
+  "base": 82.625,
+  "patch": {
+   "scalar": {
+    "Before": [
+     0,
+     "s"
+    ],
+    "After": {
+     "__proto__": 34,
+     "c": 94.75
+    }
+   }
+  },
+  "result": {
+   "__proto__": 34,
+   "c": 94.75
+  }
+ },
+ {
+  "base": 82,
+  "patch": {
+   "list": {
+    "Update": {
+     "k4": {}
+    }
+   }
+  },
+  "result": 82
+ },
+ {
+  "base": {
+   "__proto__": "v4",
+   "b": [
+    2,
+    "s"
+   ]
+  },
+  "patch": {
+   "object": {
+    "Set": {
+     "a": [
+      {
+       "Key": "k3",
+       "Value": null
+      }
+     ]
+    },
+    "Delete": {
+     "__proto__": "v4",
+     "b": [
+      2,
+      "s"
+     ]
+    }
+   }
+  },
+  "result": {
+   "a": [
+    {
+     "Key": "k3",
+     "Value": null
+    }
+   ]
+  }
+ },
+ {
+  "base": {
+   "b": {
+    "a": true,
+    "x.y": 51
+   },
+   "x.y": {
+    "__proto__": "v0",
+    "a": "v4",
+    "x.y": 82.75
+   }
+  },
+  "patch": {},
+  "result": {
+   "b": {
+    "a": true,
+    "x.y": 51
+   },
+   "x.y": {
+    "__proto__": "v0",
+    "a": "v4",
+    "x.y": 82.75
+   }
+  }
+ },
+ {
+  "base": {
+   "c": {
+    "b": 2
+   },
+   "d": {
+    "__proto__": 89
+   }
+  },
+  "patch": {
+   "object": {
+    "Update": {
+     "__proto__": {
+      "object": {}
+     },
+     "a": {
+      "object": {
+       "Set": {
+        "__proto__": [
+         2,
+         "s"
+        ],
+        "x.y": 112.625
+       },
+       "Delete": {
+        "d": null
+       }
+      }
+     },
+     "constructor": {
+      "object": {}
+     }
+    },
+    "New": {
+     "__proto__": true,
+     "constructor": true
+    }
+   }
+  },
+  "result": {
+   "a": {
+    "__proto__": [
+     2,
+     "s"
+    ],
+    "x.y": 112.625
+   },
+   "c": {
+    "b": 2
+   },
+   "d": {
+    "__proto__": 89
+   }
+  }
+ },
+ {
+  "base": 71.875,
+  "patch": {
+   "scalar": {
+    "Before": 71.875,
+    "After": {
+     "c": 44.875
+    }
+   }
+  },
+  "result": {
+   "c": 44.875
+  }
+ },
+ {
+  "base": 55,
+  "patch": {
+   "list": {
+    "Update": {
+     "k4": {
+      "list": {
+       "Update": {
+        "k3": {
+         "object": {
+          "Update": {
+           "constructor": {}
+          },
+          "New": {
+           "constructor": true
+          }
+         }
+        },
+        "k4": {
+         "list": {
+          "Delete": [
+           {
+            "Key": "k3",
+            "Value": "v0"
+           }
+          ],
+          "Update": {
+           "k3": {
+            "object": {}
+           }
+          },
+          "Order": {
+           "Declared": [
+            "k4",
+            "k3"
+           ],
+           "Moved": [
+            0
+           ],
+           "Prior": [
+            "k3",
+            "k4"
+           ],
+           "PriorMoved": [
+            1
+           ]
+          }
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "result": 55
+ },
+ {
+  "base": {
+   "x.y": false
+  },
+  "patch": {
+   "scalar": {
+    "Before": {
+     "x.y": false
+    },
+    "After": true
+   }
+  },
+  "result": true
+ },
+ {
+  "base": {},
+  "patch": {
+   "object": {
+    "Delete": {
+     "a": null,
+     "c": 113.25,
+     "ñ": [
+      1,
+      "s"
+     ]
+    }
+   }
+  },
+  "result": {}
+ },
+ {
+  "base": false,
+  "patch": {
+   "scalar": {
+    "Before": false,
+    "After": {}
+   }
+  },
+  "result": {}
+ },
+ {
+  "base": true,
+  "patch": {
+   "object": {
+    "Set": {
+     "a": {}
+    },
+    "Delete": {
+     "c": "v2"
+    },
+    "Update": {
+     "x.y": {
+      "scalar": {
+       "Before": [
+        0,
+        "s"
+       ],
+       "After": []
+      }
+     }
+    }
+   }
+  },
+  "result": true
+ },
+ {
+  "base": [
+   {
+    "Key": "k3",
+    "Value": "v0"
+   }
+  ],
+  "patch": {
+   "list": {
+    "Delete": [
+     {
+      "Key": "k2",
+      "Value": 97
+     }
+    ],
+    "Order": {
+     "Declared": [
+      "k3",
+      "k0"
+     ],
+     "Moved": [
+      0
+     ]
+    }
+   }
+  },
+  "result": [
+   {
+    "Key": "k3",
+    "Value": "v0"
+   }
+  ]
+ },
+ {
+  "base": 68,
+  "patch": {
+   "object": {}
+  },
+  "result": 68
+ },
+ {
+  "base": "v3",
+  "patch": {
+   "scalar": {
+    "Before": "v3",
+    "After": [
+     1,
+     "s"
+    ]
+   }
+  },
+  "result": [
+   1,
+   "s"
+  ]
+ },
+ {
+  "base": {},
+  "patch": {
+   "scalar": {
+    "Before": {},
+    "After": "v2"
+   }
+  },
+  "result": "v2"
+ },
+ {
+  "base": "v4",
+  "patch": {
+   "scalar": {
+    "Before": 111.5,
+    "After": {
+     "a": {
+      "x.y": null,
+      "ñ": {}
+     }
+    }
+   }
+  },
+  "result": {
+   "a": {
+    "x.y": null,
+    "ñ": {}
+   }
+  }
+ },
+ {
+  "base": null,
+  "patch": {
+   "scalar": {
+    "Before": null,
+    "After": [
+     {
+      "Key": "k1",
+      "Value": {
+       "constructor": null
+      }
+     }
+    ]
+   }
+  },
+  "result": [
+   {
+    "Key": "k1",
+    "Value": {
+     "constructor": null
+    }
+   }
+  ]
+ },
+ {
+  "base": {},
+  "patch": {
+   "object": {}
+  },
+  "result": {}
+ },
+ {
+  "base": 25.75,
+  "patch": {
+   "object": {
+    "Update": {
+     "__proto__": {
+      "scalar": {
+       "Before": 115.625,
+       "After": {}
+      }
+     },
+     "x.y": {
+      "list": {
+       "Delete": [
+        {
+         "Key": "k4",
+         "Value": "v1"
+        }
+       ],
+       "Update": {
+        "k0": {
+         "object": {
+          "Set": {
+           "b": {},
+           "c": "v1"
+          },
+          "Update": {
+           "__proto__": {
+            "list": {
+             "Delete": [
+              {
+               "Key": "k1",
+               "Value": 12
+              }
+             ]
+            }
+           }
+          }
+         }
+        }
+       },
+       "Order": {
+        "Declared": [
+         "k2",
+         "k3"
+        ],
+        "Moved": [
+         0
+        ]
+       }
+      }
+     }
+    },
+    "New": {
+     "__proto__": true,
+     "x.y": true
+    }
+   }
+  },
+  "result": 25.75
+ },
+ {
+  "base": [],
+  "patch": {
+   "scalar": {
+    "Before": [],
+    "After": "v4"
+   }
+  },
+  "result": "v4"
+ },
+ {
+  "base": [],
+  "patch": {
+   "scalar": {
+    "Before": "v1",
+    "After": {
+     "constructor": 4
+    }
+   }
+  },
+  "result": {
+   "constructor": 4
+  }
+ },
+ {
+  "base": null,
+  "patch": {
+   "scalar": {
+    "Before": null,
+    "After": {
+     "a": {
+      "__proto__": true
+     },
+     "c": [
+      {
+       "Key": "k2",
+       "Value": {
+        "c": [
+         0,
+         "s"
+        ]
+       }
+      }
+     ]
+    }
+   }
+  },
+  "result": {
+   "a": {
+    "__proto__": true
+   },
+   "c": [
+    {
+     "Key": "k2",
+     "Value": {
+      "c": [
+       0,
+       "s"
+      ]
+     }
+    }
+   ]
+  }
+ },
+ {
+  "base": [],
+  "patch": {
+   "scalar": {
+    "Before": [
+     0,
+     "s"
+    ],
+    "After": [
+     {
+      "Key": "k1",
+      "Value": {
+       "__proto__": 105.25,
+       "c": null,
+       "d": [
+        2,
+        "s"
+       ]
+      }
+     },
+     {
+      "Key": "k3",
+      "Value": 55
+     }
+    ]
+   }
+  },
+  "result": [
+   {
+    "Key": "k1",
+    "Value": {
+     "__proto__": 105.25,
+     "c": null,
+     "d": [
+      2,
+      "s"
+     ]
+    }
+   },
+   {
+    "Key": "k3",
+    "Value": 55
+   }
+  ]
+ },
+ {
+  "base": {},
+  "patch": {
+   "scalar": {
+    "Before": {},
+    "After": [
+     {
+      "Key": "k3",
+      "Value": {
+       "b": "v2",
+       "x.y": 82
+      }
+     },
+     {
+      "Key": "k4",
+      "Value": {
+       "c": null,
+       "constructor": [
+        2,
+        "s"
+       ]
+      }
+     }
+    ]
+   }
+  },
+  "result": [
+   {
+    "Key": "k3",
+    "Value": {
+     "b": "v2",
+     "x.y": 82
+    }
+   },
+   {
+    "Key": "k4",
+    "Value": {
+     "c": null,
+     "constructor": [
+      2,
+      "s"
+     ]
+    }
+   }
+  ]
+ },
+ {
+  "base": false,
+  "patch": {
+   "scalar": {
+    "Before": false,
+    "After": [
+     0,
+     "s"
+    ]
+   }
+  },
+  "result": [
+   0,
+   "s"
+  ]
+ },
+ {
+  "base": [
+   2,
+   "s"
+  ],
+  "patch": {},
+  "result": [
+   2,
+   "s"
+  ]
+ },
+ {
+  "base": false,
+  "patch": {},
+  "result": false
+ },
+ {
+  "base": null,
+  "patch": {
+   "object": {
+    "Set": {
+     "b": [
+      {
+       "Key": "k4",
+       "Value": {
+        "d": 40,
+        "x.y": "v3"
+       }
+      }
+     ]
+    },
+    "Update": {
+     "d": {
+      "scalar": {
+       "Before": 40,
+       "After": [
+        {
+         "Key": "k4",
+         "Value": {}
+        },
+        {
+         "Key": "k2",
+         "Value": 15.125
+        }
+       ]
+      }
+     }
+    },
+    "New": {
+     "d": true
+    }
+   }
+  },
+  "result": {
+   "b": [
+    {
+     "Key": "k4",
+     "Value": {
+      "d": 40,
+      "x.y": "v3"
+     }
+    }
+   ],
+   "d": [
+    {
+     "Key": "k4",
+     "Value": {}
+    },
+    {
+     "Key": "k2",
+     "Value": 15.125
+    }
+   ]
+  }
+ },
+ {
+  "base": {},
+  "patch": {
+   "object": {
+    "Set": {
+     "b": {}
+    }
+   }
+  },
+  "result": {
+   "b": {}
+  }
+ },
+ {
+  "base": "v4",
+  "patch": {
+   "object": {
+    "Update": {
+     "__proto__": {},
+     "a": {
+      "scalar": {
+       "Before": false,
+       "After": true
+      }
+     }
+    }
+   }
+  },
+  "result": "v4"
+ },
+ {
+  "base": 71,
+  "patch": {},
+  "result": 71
+ },
+ {
+  "base": 84.5,
+  "patch": {
+   "scalar": {
+    "Before": 84.5,
+    "After": {}
+   }
+  },
+  "result": {}
+ },
+ {
+  "base": [
+   2,
+   "s"
+  ],
+  "patch": {
+   "scalar": {
+    "Before": [
+     2,
+     "s"
+    ],
+    "After": []
+   }
+  },
+  "result": []
+ },
+ {
+  "base": {},
+  "patch": {
+   "scalar": {
+    "Before": [
+     1,
+     "s"
+    ],
+    "After": {
+     "__proto__": {
+      "__proto__": 25.125,
+      "constructor": null,
+      "ñ": {
+       "a": "v3"
+      }
+     }
+    }
+   }
+  },
+  "result": {
+   "__proto__": {
+    "__proto__": 25.125,
+    "constructor": null,
+    "ñ": {
+     "a": "v3"
+    }
+   }
+  }
+ },
+ {
+  "base": [
+   {
+    "Key": "k1",
+    "Value": {}
+   },
+   {
+    "Key": "k3",
+    "Value": 72
+   }
+  ],
+  "patch": {
+   "list": {
+    "Create": [
+     {
+      "Key": "k4",
+      "Value": "v4"
+     },
+     {
+      "Key": "k2",
+      "Value": false
+     }
+    ],
+    "Delete": [
+     {
+      "Key": "k1",
+      "Value": {}
+     },
+     {
+      "Key": "k3",
+      "Value": 72
+     }
+    ]
+   }
+  },
+  "result": [
+   {
+    "Key": "k4",
+    "Value": "v4"
+   },
+   {
+    "Key": "k2",
+    "Value": false
+   }
+  ]
+ },
+ {
+  "base": false,
+  "patch": {
+   "object": {
+    "Set": {
+     "c": {}
+    },
+    "Delete": {
+     "a": [
+      1,
+      "s"
+     ]
+    },
+    "Update": {
+     "constructor": {
+      "list": {}
+     }
+    },
+    "New": {
+     "constructor": true
+    }
+   }
+  },
+  "result": false
+ },
+ {
+  "base": null,
+  "patch": {
+   "object": {
+    "Set": {
+     "c": [
+      1,
+      "s"
+     ]
+    },
+    "Delete": {
+     "constructor": null
+    },
+    "Update": {
+     "d": {}
+    },
+    "New": {
+     "d": true
+    }
+   }
+  },
+  "result": {
+   "c": [
+    1,
+    "s"
+   ]
+  }
+ },
+ {
+  "base": "v0",
+  "patch": {
+   "object": {
+    "Set": {
+     "__proto__": 3
+    },
+    "Update": {
+     "constructor": {
+      "object": {
+       "Set": {
+        "constructor": []
+       },
+       "Delete": {
+        "__proto__": 25
+       },
+       "Update": {
+        "c": {
+         "list": {
+          "Create": [
+           {
+            "Key": "k4",
+            "Value": false
+           }
+          ],
+          "Update": {
+           "k3": {
+            "object": {
+             "Delete": {
+              "x.y": 70
+             }
+            }
+           }
+          }
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "result": "v0"
+ },
+ {
+  "base": {
+   "c": 40
+  },
+  "patch": {
+   "list": {
+    "Create": [
+     {
+      "Key": "k4",
+      "Value": false
+     }
+    ],
+    "Update": {
+     "k3": {
+      "list": {}
+     }
+    },
+    "Order": {
+     "Declared": [
+      "k1",
+      "k4"
+     ],
+     "Moved": [
+      0
+     ]
+    }
+   }
+  },
+  "result": {
+   "c": 40
+  }
+ },
+ {
+  "base": {
+   "a": {
+    "constructor": 12,
+    "x.y": null,
+    "ñ": null
+   },
+   "d": {}
+  },
+  "patch": {
+   "list": {
+    "Delete": [
+     {
+      "Key": "k4",
+      "Value": false
+     }
+    ]
+   }
+  },
+  "result": {
+   "a": {
+    "constructor": 12,
+    "x.y": null,
+    "ñ": null
+   },
+   "d": {}
+  }
+ },
+ {
+  "base": 98.5,
+  "patch": {
+   "object": {
+    "Delete": {
+     "c": 17
+    }
+   }
+  },
+  "result": 98.5
+ },
+ {
+  "base": [
+   {
+    "Key": "k4",
+    "Value": 124.625
+   }
+  ],
+  "patch": {
+   "scalar": {
+    "Before": [
+     {
+      "Key": "k4",
+      "Value": 124.625
+     }
+    ],
+    "After": {
+     "d": {
+      "__proto__": "v3",
+      "b": 62.875,
+      "x.y": true
+     }
+    }
+   }
+  },
+  "result": {
+   "d": {
+    "__proto__": "v3",
+    "b": 62.875,
+    "x.y": true
+   }
+  }
+ },
+ {
+  "base": [
+   1,
+   "s"
+  ],
+  "patch": {},
+  "result": [
+   1,
+   "s"
+  ]
+ },
+ {
+  "base": {
+   "__proto__": "v0",
+   "ñ": [
+    2,
+    "s"
+   ]
+  },
+  "patch": {
+   "object": {
+    "Set": {
+     "constructor": [
+      {
+       "Key": "k3",
+       "Value": 50
+      },
+      {
+       "Key": "k0",
+       "Value": {}
+      }
+     ]
+    },
+    "Delete": {
+     "__proto__": "v0"
+    },
+    "Update": {
+     "ñ": {
+      "scalar": {
+       "Before": [
+        2,
+        "s"
+       ],
+       "After": "v0"
+      }
+     }
+    }
+   }
+  },
+  "result": {
+   "constructor": [
+    {
+     "Key": "k3",
+     "Value": 50
+    },
+    {
+     "Key": "k0",
+     "Value": {}
+    }
+   ],
+   "ñ": "v0"
+  }
+ },
+ {
+  "base": {
+   "__proto__": {
+    "b": "v2",
+    "c": 68
+   }
+  },
+  "patch": {
+   "object": {
+    "Delete": {
+     "d": null
+    },
+    "Update": {
+     "a": {
+      "object": {
+       "Set": {
+        "constructor": [
+         0,
+         "s"
+        ],
+        "x.y": "v3"
+       },
+       "Delete": {
+        "a": 54.875
+       }
+      }
+     }
+    }
+   }
+  },
+  "result": {
+   "__proto__": {
+    "b": "v2",
+    "c": 68
+   },
+   "a": {
+    "constructor": [
+     0,
+     "s"
+    ],
+    "x.y": "v3"
+   }
+  }
+ },
+ {
+  "base": {
+   "ñ": false
+  },
+  "patch": {
+   "scalar": {
+    "Before": {
+     "ñ": false
+    },
+    "After": 92.875
+   }
+  },
+  "result": 92.875
+ },
+ {
+  "base": 94,
+  "patch": {
+   "list": {
+    "Update": {
+     "k2": {
+      "scalar": {
+       "Before": 63.75,
+       "After": [
+        {
+         "Key": "k0",
+         "Value": [
+          {
+           "Key": "k3",
+           "Value": {
+            "a": "v4",
+            "c": 32
+           }
+          },
+          {
+           "Key": "k1",
+           "Value": 96.375
+          },
+          {
+           "Key": "k2",
+           "Value": [
+            {
+             "Key": "k4",
+             "Value": {
+              "c": 19.875,
+              "ñ": "v3"
+             }
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "Key": "k1",
+         "Value": {
+          "a": null,
+          "c": "v3",
+          "constructor": true
+         }
+        }
+       ]
+      }
+     }
+    },
+    "Order": {
+     "Declared": [
+      "k0",
+      "k4"
+     ],
+     "Moved": [
+      0
+     ],
+     "Prior": [
+      "k4",
+      "k0"
+     ],
+     "PriorMoved": [
+      1
+     ]
+    }
+   }
+  },
+  "result": 94
+ },
+ {
+  "base": 20.75,
+  "patch": {
+   "scalar": {
+    "Before": 20.75,
+    "After": false
+   }
+  },
+  "result": false
+ },
+ {
+  "base": null,
+  "patch": {
+   "object": {}
+  },
+  "result": null
+ },
+ {
+  "base": {
+   "__proto__": {
+    "constructor": 42.875,
+    "d": null,
+    "x.y": 114
+   }
+  },
+  "patch": {
+   "scalar": {
+    "Before": 74,
+    "After": false
+   }
+  },
+  "result": false
+ },
+ {
+  "base": [],
+  "patch": {
+   "scalar": {
+    "Before": 54,
+    "After": {
+     "ñ": {}
+    }
+   }
+  },
+  "result": {
+   "ñ": {}
+  }
+ },
+ {
+  "base": "v2",
+  "patch": {
+   "scalar": {
+    "Before": "v2",
+    "After": []
+   }
+  },
+  "result": []
+ },
+ {
+  "base": {
+   "__proto__": null,
+   "a": [
+    {
+     "Key": "k1",
+     "Value": {
+      "constructor": [
+       1,
+       "s"
+      ],
+      "d": [
+       1,
+       "s"
+      ]
+     }
+    },
+    {
+     "Key": "k4",
+     "Value": {
+      "c": [
+       0,
+       "s"
+      ]
+     }
+    }
+   ],
+   "c": {
+    "x.y": 78
+   }
+  },
+  "patch": {
+   "object": {
+    "Set": {
+     "b": {},
+     "constructor": 93
+    },
+    "Delete": {
+     "__proto__": null,
+     "a": [
+      {
+       "Key": "k1",
+       "Value": {
+        "constructor": [
+         1,
+         "s"
+        ],
+        "d": [
+         1,
+         "s"
+        ]
+       }
+      },
+      {
+       "Key": "k4",
+       "Value": {
+        "c": [
+         0,
+         "s"
+        ]
+       }
+      }
+     ],
+     "c": {
+      "x.y": 78
+     }
+    }
+   }
+  },
+  "result": {
+   "b": {},
+   "constructor": 93
+  }
+ },
+ {
+  "base": {
+   "b": {
+    "c": "v1",
+    "constructor": 49
+   },
+   "constructor": null
+  },
+  "patch": {
+   "scalar": {
+    "Before": {
+     "b": {
+      "c": "v1",
+      "constructor": 49
+     },
+     "constructor": null
+    },
+    "After": [
+     {
+      "Key": "k1",
+      "Value": 56
+     },
+     {
+      "Key": "k4",
+      "Value": [
+       {
+        "Key": "k3",
+        "Value": {}
+       },
+       {
+        "Key": "k4",
+        "Value": 9
+       },
+       {
+        "Key": "k2",
+        "Value": {
+         "a": 54.5,
+         "d": null
+        }
+       }
+      ]
+     },
+     {
+      "Key": "k0",
+      "Value": false
+     }
+    ]
+   }
+  },
+  "result": [
+   {
+    "Key": "k1",
+    "Value": 56
+   },
+   {
+    "Key": "k4",
+    "Value": [
+     {
+      "Key": "k3",
+      "Value": {}
+     },
+     {
+      "Key": "k4",
+      "Value": 9
+     },
+     {
+      "Key": "k2",
+      "Value": {
+       "a": 54.5,
+       "d": null
+      }
+     }
+    ]
+   },
+   {
+    "Key": "k0",
+    "Value": false
+   }
+  ]
+ },
+ {
+  "base": 88.125,
+  "patch": {
+   "object": {
+    "Delete": {
+     "__proto__": "v3"
+    }
+   }
+  },
+  "result": 88.125
+ },
+ {
+  "base": [
+   0,
+   "s"
+  ],
+  "patch": {
+   "object": {
+    "Set": {
+     "b": {},
+     "c": {
+      "a": "v1",
+      "d": 49.875,
+      "x.y": [
+       0,
+       "s"
+      ]
+     }
+    },
+    "Delete": {
+     "a": false
+    }
+   }
+  },
+  "result": [
+   0,
+   "s"
+  ]
+ },
+ {
+  "base": [
+   {
+    "Key": "k2",
+    "Value": {
+     "__proto__": false,
+     "constructor": false,
+     "x.y": 63
+    }
+   }
+  ],
+  "patch": {
+   "object": {
+    "Set": {
+     "__proto__": {
+      "b": "v1"
+     }
+    }
+   }
+  },
+  "result": [
+   {
+    "Key": "k2",
+    "Value": {
+     "__proto__": false,
+     "constructor": false,
+     "x.y": 63
+    }
+   }
+  ]
+ },
+ {
+  "base": [
+   {
+    "Key": "k4",
+    "Value": 50
+   },
+   {
+    "Key": "k3",
+    "Value": null
+   },
+   {
+    "Key": "k1",
+    "Value": {}
+   }
+  ],
+  "patch": {},
+  "result": [
+   {
+    "Key": "k4",
+    "Value": 50
+   },
+   {
+    "Key": "k3",
+    "Value": null
+   },
+   {
+    "Key": "k1",
+    "Value": {}
+   }
+  ]
+ },
+ {
+  "base": {
+   "a": {
+    "b": 65,
+    "constructor": "v2",
+    "d": 62
+   },
+   "d": 30,
+   "ñ": true
+  },
+  "patch": {
+   "scalar": {
+    "Before": {
+     "a": {
+      "b": 65,
+      "constructor": "v2",
+      "d": 62
+     },
+     "d": 30,
+     "ñ": true
+    },
+    "After": [
+     {
+      "Key": "k0",
+      "Value": [
+       0,
+       "s"
+      ]
+     }
+    ]
+   }
+  },
+  "result": [
+   {
+    "Key": "k0",
+    "Value": [
+     0,
+     "s"
+    ]
+   }
+  ]
+ },
+ {
+  "base": {
+   "d": {},
+   "x.y": [
+    {
+     "Key": "k4",
+     "Value": {
+      "b": false
+     }
+    },
+    {
+     "Key": "k2",
+     "Value": [
+      {
+       "Key": "k0",
+       "Value": {
+        "a": null,
+        "ñ": "v4"
+       }
+      },
+      {
+       "Key": "k2",
+       "Value": 76
+      }
+     ]
+    }
+   ],
+   "ñ": []
+  },
+  "patch": {
+   "scalar": {
+    "Before": false,
+    "After": {
+     "a": [
+      {
+       "Key": "k1",
+       "Value": [
+        {
+         "Key": "k3",
+         "Value": []
+        },
+        {
+         "Key": "k4",
+         "Value": [
+          {
+           "Key": "k1",
+           "Value": {
+            "constructor": 97
+           }
+          },
+          {
+           "Key": "k0",
+           "Value": {
+            "a": [
+             0,
+             "s"
+            ],
+            "d": 115.875,
+            "ñ": "v3"
+           }
+          }
+         ]
+        }
+       ]
+      }
+     ],
+     "b": [
+      {
+       "Key": "k0",
+       "Value": "v2"
+      },
+      {
+       "Key": "k1",
+       "Value": {}
+      }
+     ],
+     "c": {
+      "c": true,
+      "d": {
+       "__proto__": 45,
+       "b": 26,
+       "constructor": 121.75
+      }
+     }
+    }
+   }
+  },
+  "result": {
+   "a": [
+    {
+     "Key": "k1",
+     "Value": [
+      {
+       "Key": "k3",
+       "Value": []
+      },
+      {
+       "Key": "k4",
+       "Value": [
+        {
+         "Key": "k1",
+         "Value": {
+          "constructor": 97
+         }
+        },
+        {
+         "Key": "k0",
+         "Value": {
+          "a": [
+           0,
+           "s"
+          ],
+          "d": 115.875,
+          "ñ": "v3"
+         }
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "b": [
+    {
+     "Key": "k0",
+     "Value": "v2"
+    },
+    {
+     "Key": "k1",
+     "Value": {}
+    }
+   ],
+   "c": {
+    "c": true,
+    "d": {
+     "__proto__": 45,
+     "b": 26,
+     "constructor": 121.75
+    }
+   }
+  }
+ },
+ {
+  "base": 7,
+  "patch": {},
+  "result": 7
+ },
+ {
+  "base": [
+   {
+    "Key": "k1",
+    "Value": {
+     "a": [
+      0,
+      "s"
+     ],
+     "d": 61.375,
+     "x.y": [
+      1,
+      "s"
+     ]
+    }
+   },
+   {
+    "Key": "k4",
+    "Value": [
+     {
+      "Key": "k1",
+      "Value": [
+       {
+        "Key": "k2",
+        "Value": {
+         "constructor": null
+        }
+       }
+      ]
+     }
+    ]
+   }
+  ],
+  "patch": {
+   "list": {
+    "Create": [
+     {
+      "Key": "k0",
+      "Value": [
+       {
+        "Key": "k3",
+        "Value": {}
+       }
+      ]
+     },
+     {
+      "Key": "k2",
+      "Value": [
+       {
+        "Key": "k1",
+        "Value": {
+         "d": 77
+        }
+       },
+       {
+        "Key": "k0",
+        "Value": {}
+       }
+      ]
+     }
+    ],
+    "Delete": [
+     {
+      "Key": "k1",
+      "Value": {
+       "a": [
+        0,
+        "s"
+       ],
+       "d": 61.375,
+       "x.y": [
+        1,
+        "s"
+       ]
+      }
+     },
+     {
+      "Key": "k4",
+      "Value": [
+       {
+        "Key": "k1",
+        "Value": [
+         {
+          "Key": "k2",
+          "Value": {
+           "constructor": null
+          }
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "result": [
+   {
+    "Key": "k0",
+    "Value": [
+     {
+      "Key": "k3",
+      "Value": {}
+     }
+    ]
+   },
+   {
+    "Key": "k2",
+    "Value": [
+     {
+      "Key": "k1",
+      "Value": {
+       "d": 77
+      }
+     },
+     {
+      "Key": "k0",
+      "Value": {}
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "base": null,
+  "patch": {
+   "scalar": {
+    "Before": null,
+    "After": 76.75
+   }
+  },
+  "result": 76.75
+ },
+ {
+  "base": [
+   0,
+   "s"
+  ],
+  "patch": {
+   "scalar": {
+    "Before": [
+     0,
+     "s"
+    ],
+    "After": null
+   }
+  },
+  "result": null
+ },
+ {
+  "base": "v1",
+  "patch": {
+   "scalar": {
+    "Before": "v1",
+    "After": {
+     "b": [
+      {
+       "Key": "k2",
+       "Value": [
+        1,
+        "s"
+       ]
+      },
+      {
+       "Key": "k4",
+       "Value": "v1"
+      },
+      {
+       "Key": "k3",
+       "Value": [
+        {
+         "Key": "k0",
+         "Value": [
+          {
+           "Key": "k2",
+           "Value": {
+            "a": false
+           }
+          },
+          {
+           "Key": "k1",
+           "Value": {
+            "a": null
+           }
+          }
+         ]
+        }
+       ]
+      }
+     ],
+     "constructor": {}
+    }
+   }
+  },
+  "result": {
+   "b": [
+    {
+     "Key": "k2",
+     "Value": [
+      1,
+      "s"
+     ]
+    },
+    {
+     "Key": "k4",
+     "Value": "v1"
+    },
+    {
+     "Key": "k3",
+     "Value": [
+      {
+       "Key": "k0",
+       "Value": [
+        {
+         "Key": "k2",
+         "Value": {
+          "a": false
+         }
+        },
+        {
+         "Key": "k1",
+         "Value": {
+          "a": null
+         }
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "constructor": {}
+  }
+ },
+ {
+  "base": "v4",
+  "patch": {
+   "list": {}
+  },
+  "result": "v4"
+ },
+ {
+  "base": false,
+  "patch": {
+   "list": {
+    "Delete": [
+     {
+      "Key": "k2",
+      "Value": 36.875
+     }
+    ],
+    "Update": {
+     "k3": {
+      "object": {
+       "Delete": {
+        "b": [
+         0,
+         "s"
+        ],
+        "x.y": false
+       }
+      }
+     }
+    }
+   }
+  },
+  "result": false
+ },
+ {
+  "base": {
+   "b": [
+    2,
+    "s"
+   ]
+  },
+  "patch": {
+   "scalar": {
+    "Before": {
+     "b": [
+      2,
+      "s"
+     ]
+    },
+    "After": 45
+   }
+  },
+  "result": 45
+ },
+ {
+  "base": 24.875,
+  "patch": {
+   "list": {
+    "Update": {
+     "k1": {
+      "list": {
+       "Order": {
+        "Declared": [
+         "k2",
+         "k1"
+        ],
+        "Moved": [
+         0
+        ]
+       }
+      }
+     },
+     "k2": {
+      "object": {}
+     }
+    },
+    "Order": {
+     "Declared": [
+      "k2",
+      "k0"
+     ],
+     "Moved": [
+      0
+     ],
+     "Prior": [
+      "k0",
+      "k2"
+     ],
+     "PriorMoved": [
+      1
+     ]
+    }
+   }
+  },
+  "result": 24.875
+ },
+ {
+  "base": {},
+  "patch": {
+   "object": {}
+  },
+  "result": {}
+ },
+ {
+  "base": [
+   {
+    "Key": "k3",
+    "Value": {
+     "constructor": 83,
+     "ñ": true
+    }
+   }
+  ],
+  "patch": {},
+  "result": [
+   {
+    "Key": "k3",
+    "Value": {
+     "constructor": 83,
+     "ñ": true
+    }
+   }
+  ]
+ },
+ {
+  "base": {
+   "__proto__": {
+    "b": null,
+    "x.y": 17
+   },
+   "constructor": {
+    "constructor": [
+     2,
+     "s"
+    ]
+   },
+   "d": 89
+  },
+  "patch": {
+   "object": {
+    "Update": {
+     "d": {}
+    }
+   }
+  },
+  "result": {
+   "__proto__": {
+    "b": null,
+    "x.y": 17
+   },
+   "constructor": {
+    "constructor": [
+     2,
+     "s"
+    ]
+   },
+   "d": 89
+  }
+ },
+ {
+  "base": "v2",
+  "patch": {
+   "object": {}
+  },
+  "result": "v2"
+ },
+ {
+  "base": {
+   "__proto__": {
+    "x.y": [
+     2,
+     "s"
+    ]
+   },
+   "d": {
+    "__proto__": 89,
+    "x.y": 17
+   }
+  },
+  "patch": {
+   "object": {
+    "Delete": {
+     "__proto__": {
+      "x.y": [
+       2,
+       "s"
+      ]
+     },
+     "d": {
+      "__proto__": 89,
+      "x.y": 17
+     }
+    }
+   }
+  },
+  "result": {}
+ },
+ {
+  "base": [
+   2,
+   "s"
+  ],
+  "patch": {
+   "scalar": {
+    "Before": [
+     2,
+     "s"
+    ],
+    "After": 41.25
+   }
+  },
+  "result": 41.25
+ },
+ {
+  "base": "v1",
+  "patch": {},
+  "result": "v1"
+ },
+ {
+  "base": [
+   0,
+   "s"
+  ],
+  "patch": {
+   "object": {
+    "Set": {
+     "b": 0.5
+    },
+    "Delete": {
+     "ñ": "v2"
+    }
+   }
+  },
+  "result": [
+   0,
+   "s"
+  ]
+ },
+ {
+  "base": {
+   "__proto__": [
+    {
+     "Key": "k4",
+     "Value": {}
+    },
+    {
+     "Key": "k3",
+     "Value": 113.625
+    }
+   ]
+  },
+  "patch": {
+   "scalar": {
+    "Before": {
+     "__proto__": [
+      {
+       "Key": "k4",
+       "Value": {}
+      },
+      {
+       "Key": "k3",
+       "Value": 113.625
+      }
+     ]
+    },
+    "After": "v1"
+   }
+  },
+  "result": "v1"
+ },
+ {
+  "base": [
+   {
+    "Key": "k3",
+    "Value": [
+     0,
+     "s"
+    ]
+   }
+  ],
+  "patch": {
+   "scalar": {
+    "Before": [
+     {
+      "Key": "k3",
+      "Value": [
+       0,
+       "s"
+      ]
+     }
+    ],
+    "After": {
+     "constructor": {
+      "a": false
+     }
+    }
+   }
+  },
+  "result": {
+   "constructor": {
+    "a": false
+   }
+  }
+ },
+ {
+  "base": {},
+  "patch": {
+   "scalar": {
+    "Before": {},
+    "After": [
+     {
+      "Key": "k3",
+      "Value": {
+       "d": "v2"
+      }
+     },
+     {
+      "Key": "k1",
+      "Value": {
+       "d": false,
+       "x.y": 36
+      }
+     }
+    ]
+   }
+  },
+  "result": [
+   {
+    "Key": "k3",
+    "Value": {
+     "d": "v2"
+    }
+   },
+   {
+    "Key": "k1",
+    "Value": {
+     "d": false,
+     "x.y": 36
+    }
+   }
+  ]
+ },
+ {
+  "base": {
+   "x.y": "v0"
+  },
+  "patch": {
+   "list": {}
+  },
+  "result": {
+   "x.y": "v0"
+  }
+ },
+ {
+  "base": [
+   {
+    "Key": "k1",
+    "Value": []
+   },
+   {
+    "Key": "k2",
+    "Value": {
+     "d": false
+    }
+   }
+  ],
+  "patch": {
+   "object": {
+    "Update": {
+     "a": {},
+     "d": {
+      "object": {
+       "Delete": {
+        "ñ": 72.625
+       }
+      }
+     }
+    }
+   }
+  },
+  "result": [
+   {
+    "Key": "k1",
+    "Value": []
+   },
+   {
+    "Key": "k2",
+    "Value": {
+     "d": false
+    }
+   }
+  ]
+ },
+ {
+  "base": {
+   "constructor": {
+    "c": true
+   }
+  },
+  "patch": {
+   "object": {
+    "Delete": {
+     "constructor": 69,
+     "x.y": 14,
+     "ñ": false
+    }
+   }
+  },
+  "result": {}
+ },
+ {
+  "base": {
+   "b": {
+    "ñ": 4
+   },
+   "d": {},
+   "x.y": {}
+  },
+  "patch": {
+   "object": {}
+  },
+  "result": {
+   "b": {
+    "ñ": 4
+   },
+   "d": {},
+   "x.y": {}
+  }
+ },
+ {
+  "base": null,
+  "patch": {
+   "scalar": {
+    "Before": 85,
+    "After": [
+     {
+      "Key": "k1",
+      "Value": [
+       0,
+       "s"
+      ]
+     },
+     {
+      "Key": "k3",
+      "Value": {
+       "__proto__": null,
+       "b": 84.75,
+       "c": 15.25
+      }
+     },
+     {
+      "Key": "k0",
+      "Value": {
+       "ñ": 78.75
+      }
+     }
+    ]
+   }
+  },
+  "result": [
+   {
+    "Key": "k1",
+    "Value": [
+     0,
+     "s"
+    ]
+   },
+   {
+    "Key": "k3",
+    "Value": {
+     "__proto__": null,
+     "b": 84.75,
+     "c": 15.25
+    }
+   },
+   {
+    "Key": "k0",
+    "Value": {
+     "ñ": 78.75
+    }
+   }
+  ]
+ },
+ {
+  "base": [
+   {
+    "Key": "k1",
+    "Value": {
+     "d": null,
+     "x.y": null
+    }
+   },
+   {
+    "Key": "k0",
+    "Value": {}
+   }
+  ],
+  "patch": {
+   "scalar": {
+    "Before": [
+     {
+      "Key": "k1",
+      "Value": {
+       "d": null,
+       "x.y": null
+      }
+     },
+     {
+      "Key": "k0",
+      "Value": {}
+     }
+    ],
+    "After": {
+     "a": {
+      "__proto__": "v0"
+     },
+     "c": 30.75,
+     "constructor": false
+    }
+   }
+  },
+  "result": {
+   "a": {
+    "__proto__": "v0"
+   },
+   "c": 30.75,
+   "constructor": false
+  }
+ },
+ {
+  "base": {},
+  "patch": {
+   "list": {
+    "Delete": [
+     {
+      "Key": "k2",
+      "Value": null
+     },
+     {
+      "Key": "k3",
+      "Value": 68.875
+     }
+    ],
+    "Order": {
+     "Declared": [
+      "k0",
+      "k4"
+     ],
+     "Moved": [
+      0
+     ]
+    }
+   }
+  },
+  "result": {}
+ },
+ {
+  "base": 54,
+  "patch": {
+   "scalar": {
+    "Before": 54,
+    "After": {
+     "d": [],
+     "ñ": {
+      "constructor": null,
+      "x.y": null
+     }
+    }
+   }
+  },
+  "result": {
+   "d": [],
+   "ñ": {
+    "constructor": null,
+    "x.y": null
+   }
+  }
+ },
+ {
+  "base": {
+   "x.y": true,
+   "ñ": "v4"
+  },
+  "patch": {
+   "object": {
+    "Delete": {
+     "b": [
+      0,
+      "s"
+     ]
+    },
+    "Update": {
+     "b": {
+      "scalar": {
+       "Before": 6,
+       "After": 68
+      }
+     }
+    },
+    "New": {
+     "b": true
+    }
+   }
+  },
+  "result": {
+   "b": 68,
+   "x.y": true,
+   "ñ": "v4"
+  }
+ },
+ {
+  "base": {
+   "b": 15.125,
+   "constructor": 87.875,
+   "ñ": null
+  },
+  "patch": {
+   "scalar": {
+    "Before": {
+     "b": 15.125,
+     "constructor": 87.875,
+     "ñ": null
+    },
+    "After": "v0"
+   }
+  },
+  "result": "v0"
+ },
+ {
+  "base": [
+   2,
+   "s"
+  ],
+  "patch": {
+   "object": {}
+  },
+  "result": [
+   2,
+   "s"
+  ]
+ },
+ {
+  "base": null,
+  "patch": {
+   "scalar": {
+    "Before": [
+     2,
+     "s"
+    ],
+    "After": {}
+   }
+  },
+  "result": {}
+ },
+ {
+  "base": [
+   {
+    "Key": "k3",
+    "Value": null
+   }
+  ],
+  "patch": {
+   "scalar": {
+    "Before": [
+     {
+      "Key": "k3",
+      "Value": null
+     }
+    ],
+    "After": 92
+   }
+  },
+  "result": 92
+ },
+ {
+  "base": "v0",
+  "patch": {
+   "scalar": {
+    "Before": "v0",
+    "After": [
+     {
+      "Key": "k4",
+      "Value": {}
+     }
+    ]
+   }
+  },
+  "result": [
+   {
+    "Key": "k4",
+    "Value": {}
+   }
+  ]
+ },
+ {
+  "base": {
+   "x.y": {
+    "b": "v0"
+   }
+  },
+  "patch": {
+   "object": {
+    "Set": {
+     "c": {
+      "c": null
+     }
+    },
+    "Update": {
+     "ñ": {
+      "object": {
+       "Set": {
+        "b": {
+         "constructor": "v0"
+        }
+       },
+       "Delete": {
+        "a": 1.25
+       }
+      }
+     }
+    }
+   }
+  },
+  "result": {
+   "c": {
+    "c": null
+   },
+   "x.y": {
+    "b": "v0"
+   },
+   "ñ": {
+    "b": {
+     "constructor": "v0"
+    }
+   }
+  }
+ },
+ {
+  "base": 72,
+  "patch": {
+   "list": {
+    "Create": [
+     {
+      "Key": "k3",
+      "Value": 79
+     }
+    ],
+    "Update": {
+     "k4": {
+      "object": {
+       "Set": {
+        "a": [],
+        "c": {}
+       },
+       "Update": {
+        "c": {}
+       }
+      }
+     }
+    },
+    "Order": {
+     "Declared": [
+      "k1",
+      "k1"
+     ],
+     "Moved": [
+      0
+     ],
+     "Prior": [
+      "k1",
+      "k1"
+     ],
+     "PriorMoved": [
+      1
+     ]
+    }
+   }
+  },
+  "result": 72
+ },
+ {
+  "base": null,
+  "patch": {},
+  "result": null
+ },
+ {
+  "base": {
+   "c": {
+    "__proto__": 2
+   },
+   "ñ": null
+  },
+  "patch": {},
+  "result": {
+   "c": {
+    "__proto__": 2
+   },
+   "ñ": null
+  }
+ },
+ {
+  "base": 108.875,
+  "patch": {
+   "object": {
+    "Set": {
+     "a": [
+      0,
+      "s"
+     ],
+     "d": {
+      "__proto__": {
+       "b": [],
+       "constructor": {
+        "__proto__": 90
+       },
+       "ñ": {}
+      },
+      "a": [
+       2,
+       "s"
+      ],
+      "b": [
+       {
+        "Key": "k0",
+        "Value": []
+       }
+      ]
+     }
+    }
+   }
+  },
+  "result": 108.875
+ },
+ {
+  "base": [
+   0,
+   "s"
+  ],
+  "patch": {
+   "scalar": {
+    "Before": [
+     0,
+     "s"
+    ],
+    "After": [
+     {
+      "Key": "k3",
+      "Value": {
+       "a": false,
+       "constructor": true
+      }
+     },
+     {
+      "Key": "k4",
+      "Value": {}
+     }
+    ]
+   }
+  },
+  "result": [
+   {
+    "Key": "k3",
+    "Value": {
+     "a": false,
+     "constructor": true
+    }
+   },
+   {
+    "Key": "k4",
+    "Value": {}
+   }
+  ]
+ },
+ {
+  "base": {},
+  "patch": {
+   "scalar": {
+    "Before": {},
+    "After": 80.75
+   }
+  },
+  "result": 80.75
+ },
+ {
+  "base": 2,
+  "patch": {
+   "object": {
+    "Set": {
+     "c": [
+      0,
+      "s"
+     ],
+     "ñ": {
+      "__proto__": 111.375,
+      "b": null,
+      "d": [
+       {
+        "Key": "k1",
+        "Value": null
+       },
+       {
+        "Key": "k0",
+        "Value": 94
+       }
+      ]
+     }
+    }
+   }
+  },
+  "result": 2
+ },
+ {
+  "base": {
+   "__proto__": [
+    {
+     "Key": "k3",
+     "Value": {
+      "b": null,
+      "c": 3.125,
+      "ñ": 39.375
+     }
+    }
+   ],
+   "x.y": false,
+   "ñ": false
+  },
+  "patch": {
+   "list": {
+    "Delete": [
+     {
+      "Key": "k2",
+      "Value": "v4"
+     },
+     {
+      "Key": "k3",
+      "Value": "v1"
+     }
+    ]
+   }
+  },
+  "result": {
+   "__proto__": [
+    {
+     "Key": "k3",
+     "Value": {
+      "b": null,
+      "c": 3.125,
+      "ñ": 39.375
+     }
+    }
+   ],
+   "x.y": false,
+   "ñ": false
+  }
+ },
+ {
+  "base": {
+   "c": "v3",
+   "ñ": {
+    "a": true,
+    "d": "v0"
+   }
+  },
+  "patch": {
+   "object": {
+    "Set": {
+     "a": "v1"
+    },
+    "Delete": {
+     "c": "v3",
+     "ñ": {
+      "a": true,
+      "d": "v0"
+     }
+    }
+   }
+  },
+  "result": {
+   "a": "v1"
+  }
+ },
+ {
+  "base": "v4",
+  "patch": {
+   "list": {
+    "Delete": [
+     {
+      "Key": "k1",
+      "Value": [
+       1,
+       "s"
+      ]
+     }
+    ]
+   }
+  },
+  "result": "v4"
+ },
+ {
+  "base": [
+   1,
+   "s"
+  ],
+  "patch": {
+   "object": {
+    "Update": {
+     "__proto__": {}
+    }
+   }
+  },
+  "result": [
+   1,
+   "s"
+  ]
+ },
+ {
+  "base": {},
+  "patch": {
+   "list": {
+    "Update": {
+     "k3": {
+      "object": {
+       "Set": {
+        "d": false
+       },
+       "Delete": {
+        "a": 45,
+        "x.y": 18
+       }
+      }
+     }
+    }
+   }
+  },
+  "result": {}
+ },
+ {
+  "base": "v1",
+  "patch": {
+   "scalar": {
+    "Before": "v1",
+    "After": {}
+   }
+  },
+  "result": {}
+ },
+ {
+  "base": {},
+  "patch": {},
+  "result": {}
+ },
+ {
+  "base": {},
+  "patch": {
+   "object": {}
+  },
+  "result": {}
+ },
+ {
+  "base": [
+   {
+    "Key": "k4",
+    "Value": {
+     "b": 25.5,
+     "d": 0.625
+    }
+   }
+  ],
+  "patch": {
+   "scalar": {
+    "Before": [
+     {
+      "Key": "k4",
+      "Value": {
+       "b": 25.5,
+       "d": 0.625
+      }
+     }
+    ],
+    "After": {
+     "d": null
+    }
+   }
+  },
+  "result": {
+   "d": null
+  }
+ },
+ {
+  "base": "v3",
+  "patch": {
+   "scalar": {
+    "Before": "v3",
+    "After": false
+   }
+  },
+  "result": false
+ },
+ {
+  "base": {
+   "x.y": [
+    {
+     "Key": "k4",
+     "Value": {
+      "a": true
+     }
+    },
+    {
+     "Key": "k1",
+     "Value": {
+      "__proto__": "v4",
+      "ñ": "v2"
+     }
+    },
+    {
+     "Key": "k0",
+     "Value": "v3"
+    }
+   ]
+  },
+  "patch": {
+   "scalar": {
+    "Before": {
+     "x.y": [
+      {
+       "Key": "k4",
+       "Value": {
+        "a": true
+       }
+      },
+      {
+       "Key": "k1",
+       "Value": {
+        "__proto__": "v4",
+        "ñ": "v2"
+       }
+      },
+      {
+       "Key": "k0",
+       "Value": "v3"
+      }
+     ]
+    },
+    "After": 24
+   }
+  },
+  "result": 24
+ },
+ {
+  "base": {},
+  "patch": {
+   "object": {
+    "Update": {
+     "b": {
+      "object": {
+       "Delete": {
+        "x.y": 66
+       }
+      }
+     },
+     "x.y": {}
+    }
+   }
+  },
+  "result": {
+   "b": {}
+  }
+ },
+ {
+  "base": 45.75,
+  "patch": {
+   "list": {
+    "Create": [
+     {
+      "Key": "k4",
+      "Value": null
+     }
+    ],
+    "Order": {
+     "Declared": [
+      "k3",
+      "k0"
+     ],
+     "Moved": [
+      0
+     ]
+    }
+   }
+  },
+  "result": 45.75
+ },
+ {
+  "base": {
+   "x.y": {
+    "__proto__": null
+   }
+  },
+  "patch": {
+   "object": {
+    "Update": {
+     "__proto__": {
+      "object": {
+       "Set": {
+        "a": {
+         "x.y": {
+          "__proto__": 64.125,
+          "constructor": "v0"
+         },
+         "ñ": {
+          "__proto__": 99.125
+         }
+        }
+       },
+       "Delete": {
+        "d": [
+         1,
+         "s"
+        ]
+       }
+      }
+     }
+    }
+   }
+  },
+  "result": {
+   "__proto__": {
+    "a": {
+     "x.y": {
+      "__proto__": 64.125,
+      "constructor": "v0"
+     },
+     "ñ": {
+      "__proto__": 99.125
+     }
+    }
+   },
+   "x.y": {
+    "__proto__": null
+   }
+  }
+ },
+ {
+  "base": true,
+  "patch": {
+   "scalar": {
+    "Before": 16.5,
+    "After": [
+     {
+      "Key": "k3",
+      "Value": "v1"
+     }
+    ]
+   }
+  },
+  "result": [
+   {
+    "Key": "k3",
+    "Value": "v1"
+   }
+  ]
+ },
+ {
+  "base": [
+   1,
+   "s"
+  ],
+  "patch": {
+   "scalar": {
+    "Before": "v0",
+    "After": [
+     {
+      "Key": "k4",
+      "Value": {
+       "d": [
+        2,
+        "s"
+       ]
+      }
+     }
+    ]
+   }
+  },
+  "result": [
+   {
+    "Key": "k4",
+    "Value": {
+     "d": [
+      2,
+      "s"
+     ]
+    }
+   }
+  ]
+ },
+ {
+  "base": [
+   {
+    "Key": "k1",
+    "Value": null
+   }
+  ],
+  "patch": {
+   "scalar": {
+    "Before": 98.25,
+    "After": {}
+   }
+  },
+  "result": {}
+ },
+ {
+  "base": null,
+  "patch": {
+   "scalar": {
+    "Before": false,
+    "After": [
+     1,
+     "s"
+    ]
+   }
+  },
+  "result": [
+   1,
+   "s"
+  ]
+ },
+ {
+  "base": 41,
+  "patch": {
+   "scalar": {
+    "Before": 41,
+    "After": 11
+   }
+  },
+  "result": 11
+ },
+ {
+  "base": {
+   "b": {
+    "x.y": [
+     0,
+     "s"
+    ],
+    "ñ": [
+     0,
+     "s"
+    ]
+   }
+  },
+  "patch": {
+   "object": {
+    "Update": {
+     "d": {
+      "list": {
+       "Order": {
+        "Declared": [
+         "k1",
+         "k1"
+        ],
+        "Moved": [
+         0
+        ]
+       }
+      }
+     }
+    }
+   }
+  },
+  "result": {
+   "b": {
+    "x.y": [
+     0,
+     "s"
+    ],
+    "ñ": [
+     0,
+     "s"
+    ]
+   }
+  }
+ },
+ {
+  "base": true,
+  "patch": {
+   "scalar": {
+    "Before": true,
+    "After": 91
+   }
+  },
+  "result": 91
+ },
+ {
+  "base": {},
+  "patch": {},
+  "result": {}
+ },
+ {
+  "base": {
+   "__proto__": 17
+  },
+  "patch": {
+   "object": {}
+  },
+  "result": {
+   "__proto__": 17
+  }
+ },
+ {
+  "base": {
+   "c": null,
+   "ñ": null
+  },
+  "patch": {
+   "scalar": {
+    "Before": [
+     2,
+     "s"
+    ],
+    "After": null
+   }
+  },
+  "result": null
+ },
+ {
+  "base": {},
+  "patch": {
+   "scalar": {
+    "Before": {},
+    "After": null
+   }
+  },
+  "result": null
+ },
+ {
+  "base": {
+   "x.y": false
+  },
+  "patch": {
+   "object": {
+    "Delete": {
+     "x.y": false
+    }
+   }
+  },
+  "result": {}
+ },
+ {
+  "base": 61,
+  "patch": {
+   "object": {
+    "Set": {
+     "d": []
+    },
+    "Update": {
+     "constructor": {
+      "object": {}
+     }
+    }
+   }
+  },
+  "result": 61
+ },
+ {
+  "base": [
+   {
+    "Key": "k3",
+    "Value": {
+     "a": true,
+     "b": true,
+     "d": "v4"
+    }
+   }
+  ],
+  "patch": {
+   "object": {}
+  },
+  "result": [
+   {
+    "Key": "k3",
+    "Value": {
+     "a": true,
+     "b": true,
+     "d": "v4"
+    }
+   }
+  ]
+ },
+ {
+  "base": 48,
+  "patch": {
+   "scalar": {
+    "Before": 48,
+    "After": 117.625
+   }
+  },
+  "result": 117.625
+ },
+ {
+  "base": "v0",
+  "patch": {
+   "scalar": {
+    "Before": "v0",
+    "After": []
+   }
+  },
+  "result": []
+ },
+ {
+  "base": {
+   "a": {}
+  },
+  "patch": {
+   "object": {}
+  },
+  "result": {
+   "a": {}
+  }
+ },
+ {
+  "base": {
+   "__proto__": null,
+   "constructor": {},
+   "x.y": [
+    {
+     "Key": "k1",
+     "Value": null
+    }
+   ]
+  },
+  "patch": {
+   "object": {
+    "Delete": {
+     "__proto__": "v0"
+    },
+    "Update": {
+     "x.y": {}
+    }
+   }
+  },
+  "result": {
+   "constructor": {},
+   "x.y": [
+    {
+     "Key": "k1",
+     "Value": null
+    }
+   ]
+  }
+ },
+ {
+  "base": [
+   {
+    "Key": "k4",
+    "Value": [
+     2,
+     "s"
+    ]
+   },
+   {
+    "Key": "k0",
+    "Value": null
+   }
+  ],
+  "patch": {
+   "list": {
+    "Create": [
+     {
+      "Key": "k2",
+      "Value": {
+       "constructor": [
+        0,
+        "s"
+       ],
+       "ñ": 27.625
+      }
+     }
+    ],
+    "Delete": [
+     {
+      "Key": "k4",
+      "Value": [
+       2,
+       "s"
+      ]
+     },
+     {
+      "Key": "k0",
+      "Value": null
+     }
+    ]
+   }
+  },
+  "result": [
+   {
+    "Key": "k2",
+    "Value": {
+     "constructor": [
+      0,
+      "s"
+     ],
+     "ñ": 27.625
+    }
+   }
+  ]
+ },
+ {
+  "base": 83.25,
+  "patch": {
+   "object": {
+    "Set": {
+     "c": [
+      {
+       "Key": "k4",
+       "Value": false
+      }
+     ]
+    }
+   }
+  },
+  "result": 83.25
+ },
+ {
+  "base": [
+   {
+    "Key": "k2",
+    "Value": [
+     2,
+     "s"
+    ]
+   }
+  ],
+  "patch": {
+   "scalar": {
+    "Before": [
+     {
+      "Key": "k2",
+      "Value": [
+       2,
+       "s"
+      ]
+     }
+    ],
+    "After": {
+     "d": "v0"
+    }
+   }
+  },
+  "result": {
+   "d": "v0"
+  }
+ },
+ {
+  "base": [
+   1,
+   "s"
+  ],
+  "patch": {},
+  "result": [
+   1,
+   "s"
+  ]
+ },
+ {
+  "base": [
+   2,
+   "s"
+  ],
+  "patch": {
+   "scalar": {
+    "Before": [
+     2,
+     "s"
+    ],
+    "After": 54
+   }
+  },
+  "result": 54
+ },
+ {
+  "base": {
+   "ñ": {
+    "constructor": [
+     1,
+     "s"
+    ]
+   }
+  },
+  "patch": {
+   "scalar": {
+    "Before": {
+     "ñ": {
+      "constructor": [
+       1,
+       "s"
+      ]
+     }
+    },
+    "After": 27
+   }
+  },
+  "result": 27
+ },
+ {
+  "base": {
+   "c": [
+    {
+     "Key": "k1",
+     "Value": [
+      {
+       "Key": "k2",
+       "Value": {
+        "x.y": [
+         0,
+         "s"
+        ]
+       }
+      },
+      {
+       "Key": "k4",
+       "Value": [
+        0,
+        "s"
+       ]
+      },
+      {
+       "Key": "k3",
+       "Value": null
+      }
+     ]
+    },
+    {
+     "Key": "k4",
+     "Value": 96
+    },
+    {
+     "Key": "k3",
+     "Value": null
+    }
+   ]
+  },
+  "patch": {
+   "scalar": {
+    "Before": {
+     "c": [
+      {
+       "Key": "k1",
+       "Value": [
+        {
+         "Key": "k2",
+         "Value": {
+          "x.y": [
+           0,
+           "s"
+          ]
+         }
+        },
+        {
+         "Key": "k4",
+         "Value": [
+          0,
+          "s"
+         ]
+        },
+        {
+         "Key": "k3",
+         "Value": null
+        }
+       ]
+      },
+      {
+       "Key": "k4",
+       "Value": 96
+      },
+      {
+       "Key": "k3",
+       "Value": null
+      }
+     ]
+    },
+    "After": 66
+   }
+  },
+  "result": 66
+ },
+ {
+  "base": [
+   {
+    "Key": "k3",
+    "Value": true
+   },
+   {
+    "Key": "k0",
+    "Value": [
+     {
+      "Key": "k1",
+      "Value": true
+     },
+     {
+      "Key": "k0",
+      "Value": {
+       "__proto__": "v2",
+       "d": [
+        2,
+        "s"
+       ]
+      }
+     },
+     {
+      "Key": "k2",
+      "Value": []
+     }
+    ]
+   }
+  ],
+  "patch": {
+   "object": {
+    "Delete": {
+     "c": 56
+    },
+    "Update": {
+     "b": {}
+    }
+   }
+  },
+  "result": [
+   {
+    "Key": "k3",
+    "Value": true
+   },
+   {
+    "Key": "k0",
+    "Value": [
+     {
+      "Key": "k1",
+      "Value": true
+     },
+     {
+      "Key": "k0",
+      "Value": {
+       "__proto__": "v2",
+       "d": [
+        2,
+        "s"
+       ]
+      }
+     },
+     {
+      "Key": "k2",
+      "Value": []
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "base": "v3",
+  "patch": {
+   "object": {}
+  },
+  "result": "v3"
+ },
+ {
+  "base": {
+   "__proto__": [
+    {
+     "Key": "k2",
+     "Value": {
+      "ñ": true
+     }
+    }
+   ],
+   "constructor": [
+    {
+     "Key": "k0",
+     "Value": true
+    },
+    {
+     "Key": "k2",
+     "Value": {
+      "__proto__": 86.875
+     }
+    },
+    {
+     "Key": "k4",
+     "Value": [
+      {
+       "Key": "k2",
+       "Value": [
+        {
+         "Key": "k0",
+         "Value": null
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  "patch": {
+   "object": {}
+  },
+  "result": {
+   "__proto__": [
+    {
+     "Key": "k2",
+     "Value": {
+      "ñ": true
+     }
+    }
+   ],
+   "constructor": [
+    {
+     "Key": "k0",
+     "Value": true
+    },
+    {
+     "Key": "k2",
+     "Value": {
+      "__proto__": 86.875
+     }
+    },
+    {
+     "Key": "k4",
+     "Value": [
+      {
+       "Key": "k2",
+       "Value": [
+        {
+         "Key": "k0",
+         "Value": null
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ },
+ {
+  "base": {
+   "c": true
+  },
+  "patch": {
+   "scalar": {
+    "Before": {
+     "c": true
+    },
+    "After": [
+     2,
+     "s"
+    ]
+   }
+  },
+  "result": [
+   2,
+   "s"
+  ]
+ },
+ {
+  "base": {
+   "__proto__": {
+    "a": "v4"
+   },
+   "constructor": 37.25
+  },
+  "patch": {
+   "object": {
+    "Set": {
+     "x.y": [
+      {
+       "Key": "k3",
+       "Value": {
+        "b": null,
+        "ñ": null
+       }
+      }
+     ]
+    },
+    "Delete": {
+     "__proto__": {
+      "a": "v4"
+     },
+     "constructor": 37.25
+    }
+   }
+  },
+  "result": {
+   "x.y": [
+    {
+     "Key": "k3",
+     "Value": {
+      "b": null,
+      "ñ": null
+     }
+    }
+   ]
+  }
+ },
+ {
+  "base": [
+   {
+    "Key": "k4",
+    "Value": {
+     "a": "v4"
+    }
+   },
+   {
+    "Key": "k0",
+    "Value": 88
+   }
+  ],
+  "patch": {
+   "object": {
+    "Set": {
+     "d": 16.25
+    },
+    "Delete": {
+     "a": 82.25,
+     "constructor": true
+    }
+   }
+  },
+  "result": [
+   {
+    "Key": "k4",
+    "Value": {
+     "a": "v4"
+    }
+   },
+   {
+    "Key": "k0",
+    "Value": 88
+   }
+  ]
+ },
+ {
+  "base": [
+   0,
+   "s"
+  ],
+  "patch": {
+   "scalar": {
+    "Before": [
+     0,
+     "s"
+    ],
+    "After": [
+     {
+      "Key": "k3",
+      "Value": {}
+     },
+     {
+      "Key": "k1",
+      "Value": {
+       "constructor": null
+      }
+     },
+     {
+      "Key": "k2",
+      "Value": 92.25
+     }
+    ]
+   }
+  },
+  "result": [
+   {
+    "Key": "k3",
+    "Value": {}
+   },
+   {
+    "Key": "k1",
+    "Value": {
+     "constructor": null
+    }
+   },
+   {
+    "Key": "k2",
+    "Value": 92.25
+   }
+  ]
+ },
+ {
+  "base": {},
+  "patch": {
+   "object": {
+    "Delete": {
+     "a": 49.5,
+     "constructor": "v3"
+    }
+   }
+  },
+  "result": {}
+ },
+ {
+  "base": {},
+  "patch": {
+   "object": {
+    "Update": {
+     "d": {
+      "object": {
+       "Set": {
+        "ñ": [
+         2,
+         "s"
+        ]
+       }
+      }
+     }
+    },
+    "New": {
+     "d": true
+    }
+   }
+  },
+  "result": {
+   "d": {
+    "ñ": [
+     2,
+     "s"
+    ]
+   }
+  }
+ },
+ {
+  "base": {},
+  "patch": {
+   "object": {
+    "Set": {
+     "a": 33.75
+    }
+   }
+  },
+  "result": {
+   "a": 33.75
+  }
+ },
+ {
+  "base": [
+   {
+    "Key": "k1",
+    "Value": 6.75
+   },
+   {
+    "Key": "k3",
+    "Value": [
+     {
+      "Key": "k2",
+      "Value": {
+       "a": null,
+       "constructor": true,
+       "x.y": 100.875
+      }
+     },
+     {
+      "Key": "k3",
+      "Value": [
+       {
+        "Key": "k0",
+        "Value": [
+         1,
+         "s"
+        ]
+       },
+       {
+        "Key": "k4",
+        "Value": [
+         0,
+         "s"
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  ],
+  "patch": {
+   "object": {
+    "Set": {
+     "x.y": 39.125
+    }
+   }
+  },
+  "result": [
+   {
+    "Key": "k1",
+    "Value": 6.75
+   },
+   {
+    "Key": "k3",
+    "Value": [
+     {
+      "Key": "k2",
+      "Value": {
+       "a": null,
+       "constructor": true,
+       "x.y": 100.875
+      }
+     },
+     {
+      "Key": "k3",
+      "Value": [
+       {
+        "Key": "k0",
+        "Value": [
+         1,
+         "s"
+        ]
+       },
+       {
+        "Key": "k4",
+        "Value": [
+         0,
+         "s"
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "base": "v4",
+  "patch": {},
+  "result": "v4"
+ },
+ {
+  "base": null,
+  "patch": {},
+  "result": null
+ },
+ {
+  "base": null,
+  "patch": {
+   "scalar": {
+    "Before": null,
+    "After": {
+     "ñ": {}
+    }
+   }
+  },
+  "result": {
+   "ñ": {}
+  }
+ },
+ {
+  "base": "v2",
+  "patch": {
+   "object": {}
+  },
+  "result": "v2"
+ },
+ {
+  "base": [
+   {
+    "Key": "k0",
+    "Value": "v4"
+   },
+   {
+    "Key": "k2",
+    "Value": {
+     "b": 18.625,
+     "d": 6
+    }
+   },
+   {
+    "Key": "k3",
+    "Value": null
+   }
+  ],
+  "patch": {
+   "scalar": {
+    "Before": [
+     {
+      "Key": "k0",
+      "Value": "v4"
+     },
+     {
+      "Key": "k2",
+      "Value": {
+       "b": 18.625,
+       "d": 6
+      }
+     },
+     {
+      "Key": "k3",
+      "Value": null
+     }
+    ],
+    "After": false
+   }
+  },
+  "result": false
+ },
+ {
+  "base": [
+   {
+    "Key": "k1",
+    "Value": [
+     {
+      "Key": "k1",
+      "Value": {
+       "d": [
+        0,
+        "s"
+       ],
+       "x.y": "v2",
+       "ñ": null
+      }
+     }
+    ]
+   },
+   {
+    "Key": "k4",
+    "Value": {}
+   }
+  ],
+  "patch": {
+   "scalar": {
+    "Before": [
+     {
+      "Key": "k1",
+      "Value": [
+       {
+        "Key": "k1",
+        "Value": {
+         "d": [
+          0,
+          "s"
+         ],
+         "x.y": "v2",
+         "ñ": null
+        }
+       }
+      ]
+     },
+     {
+      "Key": "k4",
+      "Value": {}
+     }
+    ],
+    "After": {
+     "a": {
+      "x.y": 95
+     }
+    }
+   }
+  },
+  "result": {
+   "a": {
+    "x.y": 95
+   }
+  }
+ },
+ {
+  "base": {
+   "b": 12.25,
+   "ñ": "v4"
+  },
+  "patch": {
+   "object": {
+    "Set": {
+     "a": {}
+    },
+    "Delete": {
+     "b": 12.25,
+     "ñ": "v4"
+    }
+   }
+  },
+  "result": {
+   "a": {}
+  }
+ },
+ {
+  "base": "v2",
+  "patch": {
+   "scalar": {
+    "Before": "v2",
+    "After": {
+     "a": {
+      "a": 23.5,
+      "b": true,
+      "c": [
+       2,
+       "s"
+      ]
+     },
+     "constructor": [
+      {
+       "Key": "k2",
+       "Value": {
+        "c": 113
+       }
+      },
+      {
+       "Key": "k4",
+       "Value": 31.25
+      }
+     ],
+     "ñ": [
+      2,
+      "s"
+     ]
+    }
+   }
+  },
+  "result": {
+   "a": {
+    "a": 23.5,
+    "b": true,
+    "c": [
+     2,
+     "s"
+    ]
+   },
+   "constructor": [
+    {
+     "Key": "k2",
+     "Value": {
+      "c": 113
+     }
+    },
+    {
+     "Key": "k4",
+     "Value": 31.25
+    }
+   ],
+   "ñ": [
+    2,
+    "s"
+   ]
+  }
+ },
+ {
+  "base": [
+   {
+    "Key": "k2",
+    "Value": {
+     "c": 98.625
+    }
+   }
+  ],
+  "patch": {
+   "scalar": {
+    "Before": [
+     {
+      "Key": "k2",
+      "Value": {
+       "c": 98.625
+      }
+     }
+    ],
+    "After": {
+     "x.y": 95
+    }
+   }
+  },
+  "result": {
+   "x.y": 95
+  }
+ },
+ {
+  "base": [
+   0,
+   "s"
+  ],
+  "patch": {
+   "scalar": {
+    "Before": [
+     0,
+     "s"
+    ],
+    "After": {
+     "b": null,
+     "constructor": {
+      "ñ": "v0"
+     },
+     "x.y": false
+    }
+   }
+  },
+  "result": {
+   "b": null,
+   "constructor": {
+    "ñ": "v0"
+   },
+   "x.y": false
+  }
+ },
+ {
+  "base": {
+   "d": [
+    {
+     "Key": "k1",
+     "Value": {
+      "d": "v1"
+     }
+    }
+   ],
+   "ñ": 60
+  },
+  "patch": {
+   "scalar": {
+    "Before": {
+     "d": [
+      {
+       "Key": "k1",
+       "Value": {
+        "d": "v1"
+       }
+      }
+     ],
+     "ñ": 60
+    },
+    "After": []
+   }
+  },
+  "result": []
+ },
+ {
+  "base": true,
+  "patch": {
+   "object": {
+    "Delete": {
+     "a": false,
+     "d": null
+    }
+   }
+  },
+  "result": true
+ },
+ {
+  "base": {
+   "a": {
+    "a": true,
+    "x.y": 120.75
+   },
+   "d": [
+    {
+     "Key": "k1",
+     "Value": {
+      "__proto__": [
+       0,
+       "s"
+      ],
+      "a": [
+       2,
+       "s"
+      ]
+     }
+    },
+    {
+     "Key": "k0",
+     "Value": {}
+    }
+   ]
+  },
+  "patch": {
+   "scalar": {
+    "Before": false,
+    "After": null
+   }
+  },
+  "result": null
+ },
+ {
+  "base": [
+   0,
+   "s"
+  ],
+  "patch": {
+   "object": {
+    "Update": {
+     "constructor": {
+      "object": {
+       "Set": {
+        "ñ": {
+         "b": null,
+         "constructor": {
+          "a": "v1"
+         },
+         "ñ": 16
+        }
+       }
+      }
+     },
+     "d": {
+      "scalar": {
+       "Before": null,
+       "After": {
+        "__proto__": {
+         "__proto__": [
+          2,
+          "s"
+         ],
+         "b": null,
+         "constructor": false
+        },
+        "a": [
+         {
+          "Key": "k4",
+          "Value": {
+           "x.y": [
+            1,
+            "s"
+           ]
+          }
+         }
+        ],
+        "constructor": {
+         "b": "v1",
+         "c": [
+          2,
+          "s"
+         ]
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "result": [
+   0,
+   "s"
+  ]
+ },
+ {
+  "base": 18,
+  "patch": {
+   "scalar": {
+    "Before": 18,
+    "After": {
+     "__proto__": 62
+    }
+   }
+  },
+  "result": {
+   "__proto__": 62
+  }
+ },
+ {
+  "base": null,
+  "patch": {
+   "scalar": {
+    "Before": null,
+    "After": {
+     "__proto__": [
+      {
+       "Key": "k2",
+       "Value": {}
+      },
+      {
+       "Key": "k0",
+       "Value": {
+        "x.y": [
+         1,
+         "s"
+        ],
+        "ñ": true
+       }
+      }
+     ],
+     "constructor": []
+    }
+   }
+  },
+  "result": {
+   "__proto__": [
+    {
+     "Key": "k2",
+     "Value": {}
+    },
+    {
+     "Key": "k0",
+     "Value": {
+      "x.y": [
+       1,
+       "s"
+      ],
+      "ñ": true
+     }
+    }
+   ],
+   "constructor": []
+  }
+ },
+ {
+  "base": [
+   {
+    "Key": "k0",
+    "Value": {
+     "x.y": "v0"
+    }
+   },
+   {
+    "Key": "k1",
+    "Value": {
+     "b": true
+    }
+   },
+   {
+    "Key": "k3",
+    "Value": "v0"
+   }
+  ],
+  "patch": {},
+  "result": [
+   {
+    "Key": "k0",
+    "Value": {
+     "x.y": "v0"
+    }
+   },
+   {
+    "Key": "k1",
+    "Value": {
+     "b": true
+    }
+   },
+   {
+    "Key": "k3",
+    "Value": "v0"
+   }
+  ]
+ },
+ {
+  "base": {
+   "c": null,
+   "x.y": {
+    "constructor": 54.5
+   }
+  },
+  "patch": {},
+  "result": {
+   "c": null,
+   "x.y": {
+    "constructor": 54.5
+   }
+  }
+ },
+ {
+  "base": {
+   "__proto__": {},
+   "b": 98,
+   "d": 81
+  },
+  "patch": {
+   "object": {
+    "Set": {
+     "__proto__": {}
+    },
+    "Delete": {
+     "c": true
+    }
+   }
+  },
+  "result": {
+   "__proto__": {},
+   "b": 98,
+   "d": 81
+  }
+ },
+ {
+  "base": 88.875,
+  "patch": {
+   "scalar": {
+    "Before": "v4",
+    "After": 33
+   }
+  },
+  "result": 33
+ },
+ {
+  "base": {},
+  "patch": {
+   "object": {
+    "Update": {
+     "ñ": {
+      "object": {
+       "Set": {
+        "__proto__": "v1",
+        "constructor": "v4"
+       }
+      }
+     }
+    },
+    "New": {
+     "ñ": true
+    }
+   }
+  },
+  "result": {
+   "ñ": {
+    "__proto__": "v1",
+    "constructor": "v4"
+   }
+  }
+ },
+ {
+  "base": {
+   "constructor": 17.625,
+   "x.y": []
+  },
+  "patch": {
+   "scalar": {
+    "Before": {
+     "constructor": 17.625,
+     "x.y": []
+    },
+    "After": "v3"
+   }
+  },
+  "result": "v3"
+ },
+ {
+  "base": {
+   "c": {},
+   "d": [
+    0,
+    "s"
+   ]
+  },
+  "patch": {},
+  "result": {
+   "c": {},
+   "d": [
+    0,
+    "s"
+   ]
+  }
+ },
+ {
+  "base": [],
+  "patch": {
+   "object": {
+    "Set": {
+     "d": null
+    },
+    "Delete": {
+     "x.y": true
+    }
+   }
+  },
+  "result": []
+ },
+ {
+  "base": true,
+  "patch": {
+   "scalar": {
+    "Before": true,
+    "After": [
+     {
+      "Key": "k1",
+      "Value": null
+     },
+     {
+      "Key": "k0",
+      "Value": {
+       "__proto__": true,
+       "c": [
+        1,
+        "s"
+       ]
+      }
+     },
+     {
+      "Key": "k4",
+      "Value": {
+       "c": [
+        1,
+        "s"
+       ]
+      }
+     }
+    ]
+   }
+  },
+  "result": [
+   {
+    "Key": "k1",
+    "Value": null
+   },
+   {
+    "Key": "k0",
+    "Value": {
+     "__proto__": true,
+     "c": [
+      1,
+      "s"
+     ]
+    }
+   },
+   {
+    "Key": "k4",
+    "Value": {
+     "c": [
+      1,
+      "s"
+     ]
+    }
+   }
+  ]
+ },
+ {
+  "base": null,
+  "patch": {
+   "scalar": {
+    "Before": null,
+    "After": [
+     {
+      "Key": "k2",
+      "Value": {
+       "c": 77,
+       "d": 73
+      }
+     }
+    ]
+   }
+  },
+  "result": [
+   {
+    "Key": "k2",
+    "Value": {
+     "c": 77,
+     "d": 73
+    }
+   }
+  ]
+ },
+ {
+  "base": {
+   "a": [
+    2,
+    "s"
+   ],
+   "x.y": 69
+  },
+  "patch": {
+   "object": {
+    "Delete": {
+     "a": [
+      2,
+      "s"
+     ],
+     "x.y": 69
+    }
+   }
+  },
+  "result": {}
+ },
+ {
+  "base": {
+   "__proto__": {},
+   "constructor": 16
+  },
+  "patch": {
+   "object": {
+    "Delete": {
+     "__proto__": {},
+     "constructor": 16
+    },
+    "Update": {
+     "d": {
+      "object": {
+       "Set": {
+        "a": null
+       }
+      }
+     }
+    },
+    "New": {
+     "d": true
+    }
+   }
+  },
+  "result": {
+   "d": {
+    "a": null
+   }
+  }
+ },
+ {
+  "base": 10,
+  "patch": {
+   "scalar": {
+    "Before": 10,
+    "After": [
+     {
+      "Key": "k3",
+      "Value": {}
+     },
+     {
+      "Key": "k1",
+      "Value": 64
+     }
+    ]
+   }
+  },
+  "result": [
+   {
+    "Key": "k3",
+    "Value": {}
+   },
+   {
+    "Key": "k1",
+    "Value": 64
+   }
+  ]
+ },
+ {
+  "base": false,
+  "patch": {
+   "object": {
+    "Set": {
+     "d": [
+      2,
+      "s"
+     ]
+    }
+   }
+  },
+  "result": false
+ },
+ {
+  "base": {
+   "a": 105.5,
+   "d": [
+    1,
+    "s"
+   ]
+  },
+  "patch": {
+   "scalar": {
+    "Before": {
+     "a": 105.5,
+     "d": [
+      1,
+      "s"
+     ]
+    },
+    "After": null
+   }
+  },
+  "result": null
+ },
+ {
+  "base": {
+   "__proto__": 58,
+   "x.y": {
+    "b": false,
+    "c": [
+     0,
+     "s"
+    ],
+    "x.y": [
+     2,
+     "s"
+    ]
+   }
+  },
+  "patch": {
+   "scalar": {
+    "Before": {
+     "__proto__": 58,
+     "x.y": {
+      "b": false,
+      "c": [
+       0,
+       "s"
+      ],
+      "x.y": [
+       2,
+       "s"
+      ]
+     }
+    },
+    "After": 119.625
+   }
+  },
+  "result": 119.625
+ },
+ {
+  "base": [
+   0,
+   "s"
+  ],
+  "patch": {
+   "scalar": {
+    "Before": [
+     0,
+     "s"
+    ],
+    "After": 58
+   }
+  },
+  "result": 58
+ },
+ {
+  "base": {
+   "a": {
+    "x.y": true,
+    "ñ": 38.375
+   },
+   "ñ": "v3"
+  },
+  "patch": {
+   "scalar": {
+    "Before": {
+     "a": {
+      "x.y": true,
+      "ñ": 38.375
+     },
+     "ñ": "v3"
+    },
+    "After": [
+     1,
+     "s"
+    ]
+   }
+  },
+  "result": [
+   1,
+   "s"
+  ]
+ },
+ {
+  "base": 99,
+  "patch": {
+   "scalar": {
+    "Before": 99,
+    "After": 40.5
+   }
+  },
+  "result": 40.5
+ },
+ {
+  "base": {},
+  "patch": {
+   "scalar": {
+    "Before": null,
+    "After": {
+     "b": [
+      {
+       "Key": "k3",
+       "Value": [
+        {
+         "Key": "k2",
+         "Value": 21
+        },
+        {
+         "Key": "k4",
+         "Value": "v4"
+        },
+        {
+         "Key": "k3",
+         "Value": {
+          "b": 57
+         }
+        }
+       ]
+      },
+      {
+       "Key": "k4",
+       "Value": [
+        1,
+        "s"
+       ]
+      }
+     ]
+    }
+   }
+  },
+  "result": {
+   "b": [
+    {
+     "Key": "k3",
+     "Value": [
+      {
+       "Key": "k2",
+       "Value": 21
+      },
+      {
+       "Key": "k4",
+       "Value": "v4"
+      },
+      {
+       "Key": "k3",
+       "Value": {
+        "b": 57
+       }
+      }
+     ]
+    },
+    {
+     "Key": "k4",
+     "Value": [
+      1,
+      "s"
+     ]
+    }
+   ]
+  }
+ },
+ {
+  "base": 90.125,
+  "patch": {
+   "object": {}
+  },
+  "result": 90.125
+ },
+ {
+  "base": null,
+  "patch": {},
+  "result": null
+ },
+ {
+  "base": [
+   {
+    "Key": "k2",
+    "Value": {
+     "ñ": 26
+    }
+   },
+   {
+    "Key": "k1",
+    "Value": [
+     1,
+     "s"
+    ]
+   }
+  ],
+  "patch": {
+   "list": {
+    "Update": {
+     "k1": {
+      "scalar": {
+       "Before": false,
+       "After": [
+        {
+         "Key": "k4",
+         "Value": null
+        },
+        {
+         "Key": "k1",
+         "Value": [
+          {
+           "Key": "k0",
+           "Value": {}
+          },
+          {
+           "Key": "k3",
+           "Value": 82
+          }
+         ]
+        }
+       ]
+      }
+     }
+    }
+   }
+  },
+  "result": [
+   {
+    "Key": "k2",
+    "Value": {
+     "ñ": 26
+    }
+   },
+   {
+    "Key": "k1",
+    "Value": [
+     {
+      "Key": "k4",
+      "Value": null
+     },
+     {
+      "Key": "k1",
+      "Value": [
+       {
+        "Key": "k0",
+        "Value": {}
+       },
+       {
+        "Key": "k3",
+        "Value": 82
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "base": 57,
+  "patch": {
+   "scalar": {
+    "Before": 57,
+    "After": true
+   }
+  },
+  "result": true
+ },
+ {
+  "base": 93,
+  "patch": {
+   "object": {
+    "Set": {
+     "b": [
+      {
+       "Key": "k1",
+       "Value": {
+        "b": null
+       }
+      },
+      {
+       "Key": "k0",
+       "Value": 37.625
+      }
+     ],
+     "x.y": {
+      "__proto__": {},
+      "x.y": {
+       "d": {
+        "__proto__": 8,
+        "b": false,
+        "x.y": 8
+       }
+      }
+     }
+    },
+    "Update": {
+     "b": {}
+    }
+   }
+  },
+  "result": 93
+ },
+ {
+  "base": 44,
+  "patch": {
+   "scalar": {
+    "Before": 44,
+    "After": {
+     "__proto__": {
+      "c": "v2",
+      "constructor": [
+       0,
+       "s"
+      ],
+      "x.y": "v2"
+     },
+     "c": [
+      {
+       "Key": "k3",
+       "Value": "v0"
+      },
+      {
+       "Key": "k0",
+       "Value": null
+      }
+     ]
+    }
+   }
+  },
+  "result": {
+   "__proto__": {
+    "c": "v2",
+    "constructor": [
+     0,
+     "s"
+    ],
+    "x.y": "v2"
+   },
+   "c": [
+    {
+     "Key": "k3",
+     "Value": "v0"
+    },
+    {
+     "Key": "k0",
+     "Value": null
+    }
+   ]
+  }
+ },
+ {
+  "base": false,
+  "patch": {
+   "scalar": {
+    "Before": false,
+    "After": {}
+   }
+  },
+  "result": {}
+ },
+ {
+  "base": "v3",
+  "patch": {
+   "scalar": {
+    "Before": "v3",
+    "After": {}
+   }
+  },
+  "result": {}
+ },
+ {
+  "base": [],
+  "patch": {
+   "scalar": {
+    "Before": [],
+    "After": {}
+   }
+  },
+  "result": {}
+ },
+ {
+  "base": 33,
+  "patch": {
+   "scalar": {
+    "Before": 33,
+    "After": 5
+   }
+  },
+  "result": 5
+ },
+ {
+  "base": [
+   {
+    "Key": "k4",
+    "Value": {}
+   },
+   {
+    "Key": "k2",
+    "Value": [
+     0,
+     "s"
+    ]
+   }
+  ],
+  "patch": {
+   "scalar": {
+    "Before": [
+     {
+      "Key": "k4",
+      "Value": {}
+     },
+     {
+      "Key": "k2",
+      "Value": [
+       0,
+       "s"
+      ]
+     }
+    ],
+    "After": 66.125
+   }
+  },
+  "result": 66.125
+ },
+ {
+  "base": "v0",
+  "patch": {
+   "scalar": {
+    "Before": "v0",
+    "After": {
+     "a": 107.625,
+     "c": [
+      {
+       "Key": "k0",
+       "Value": [
+        0,
+        "s"
+       ]
+      },
+      {
+       "Key": "k3",
+       "Value": {
+        "b": "v1"
+       }
+      }
+     ],
+     "x.y": {
+      "a": [
+       1,
+       "s"
+      ],
+      "constructor": 119.875
+     }
+    }
+   }
+  },
+  "result": {
+   "a": 107.625,
+   "c": [
+    {
+     "Key": "k0",
+     "Value": [
+      0,
+      "s"
+     ]
+    },
+    {
+     "Key": "k3",
+     "Value": {
+      "b": "v1"
+     }
+    }
+   ],
+   "x.y": {
+    "a": [
+     1,
+     "s"
+    ],
+    "constructor": 119.875
+   }
+  }
+ },
+ {
+  "base": {
+   "d": {
+    "x.y": "v3"
+   }
+  },
+  "patch": {
+   "object": {
+    "Delete": {
+     "d": {
+      "x.y": "v3"
+     }
+    }
+   }
+  },
+  "result": {}
+ },
+ {
+  "base": {},
+  "patch": {
+   "scalar": {
+    "Before": {},
+    "After": false
+   }
+  },
+  "result": false
+ },
+ {
+  "base": {},
+  "patch": {
+   "object": {
+    "Set": {
+     "ñ": [
+      {
+       "Key": "k4",
+       "Value": {
+        "b": 64.5,
+        "constructor": "v3"
+       }
+      },
+      {
+       "Key": "k3",
+       "Value": {
+        "b": null,
+        "x.y": [
+         0,
+         "s"
+        ],
+        "ñ": 82.25
+       }
+      }
+     ]
+    },
+    "Update": {
+     "c": {
+      "object": {
+       "Set": {
+        "c": 3.75
+       }
+      }
+     }
+    },
+    "New": {
+     "c": true
+    }
+   }
+  },
+  "result": {
+   "c": {
+    "c": 3.75
+   },
+   "ñ": [
+    {
+     "Key": "k4",
+     "Value": {
+      "b": 64.5,
+      "constructor": "v3"
+     }
+    },
+    {
+     "Key": "k3",
+     "Value": {
+      "b": null,
+      "x.y": [
+       0,
+       "s"
+      ],
+      "ñ": 82.25
+     }
+    }
+   ]
+  }
+ },
+ {
+  "base": 48.375,
+  "patch": {
+   "scalar": {
+    "Before": 48.375,
+    "After": "v4"
+   }
+  },
+  "result": "v4"
+ },
+ {
+  "base": false,
+  "patch": {
+   "list": {
+    "Create": [
+     {
+      "Key": "k2",
+      "Value": "v4"
+     },
+     {
+      "Key": "k1",
+      "Value": "v4"
+     }
+    ],
+    "Order": {
+     "Declared": [
+      "k1",
+      "k3"
+     ],
+     "Moved": [
+      0
+     ],
+     "Prior": [
+      "k3",
+      "k1"
+     ],
+     "PriorMoved": [
+      1
+     ]
+    }
+   }
+  },
+  "result": false
+ },
+ {
+  "base": [
+   {
+    "Key": "k4",
+    "Value": [
+     {
+      "Key": "k1",
+      "Value": {
+       "constructor": "v0"
+      }
+     },
+     {
+      "Key": "k2",
+      "Value": {
+       "a": [
+        2,
+        "s"
+       ],
+       "c": 83.25,
+       "constructor": 95
+      }
+     }
+    ]
+   }
+  ],
+  "patch": {
+   "scalar": {
+    "Before": [
+     {
+      "Key": "k4",
+      "Value": [
+       {
+        "Key": "k1",
+        "Value": {
+         "constructor": "v0"
+        }
+       },
+       {
+        "Key": "k2",
+        "Value": {
+         "a": [
+          2,
+          "s"
+         ],
+         "c": 83.25,
+         "constructor": 95
+        }
+       }
+      ]
+     }
+    ],
+    "After": 46
+   }
+  },
+  "result": 46
+ },
+ {
+  "base": {
+   "__proto__": {
+    "a": "v3",
+    "d": [
+     2,
+     "s"
+    ]
+   },
+   "constructor": {
+    "constructor": 22,
+    "x.y": false
+   },
+   "x.y": [
+    0,
+    "s"
+   ]
+  },
+  "patch": {},
+  "result": {
+   "__proto__": {
+    "a": "v3",
+    "d": [
+     2,
+     "s"
+    ]
+   },
+   "constructor": {
+    "constructor": 22,
+    "x.y": false
+   },
+   "x.y": [
+    0,
+    "s"
+   ]
+  }
+ },
+ {
+  "base": {},
+  "patch": {
+   "scalar": {
+    "Before": true,
+    "After": null
+   }
+  },
+  "result": null
+ },
+ {
+  "base": false,
+  "patch": {},
+  "result": false
+ },
+ {
+  "base": {
+   "constructor": 87
+  },
+  "patch": {},
+  "result": {
+   "constructor": 87
+  }
+ },
+ {
+  "base": "v2",
+  "patch": {
+   "scalar": {
+    "Before": true,
+    "After": 80.625
+   }
+  },
+  "result": 80.625
+ },
+ {
+  "base": false,
+  "patch": {
+   "list": {
+    "Update": {
+     "k3": {
+      "scalar": {
+       "Before": 0,
+       "After": "v4"
+      }
+     }
+    },
+    "Order": {
+     "Declared": [
+      "k2",
+      "k1"
+     ],
+     "Moved": [
+      0
+     ]
+    }
+   }
+  },
+  "result": false
+ },
+ {
+  "base": 15,
+  "patch": {},
+  "result": 15
+ },
+ {
+  "base": null,
+  "patch": {
+   "list": {
+    "Update": {
+     "k4": {}
+    },
+    "Order": {
+     "Declared": [
+      "k1",
+      "k2"
+     ],
+     "Moved": [
+      0
+     ],
+     "Prior": [
+      "k2",
+      "k1"
+     ],
+     "PriorMoved": [
+      1
+     ]
+    }
+   }
+  },
+  "result": []
+ },
+ {
+  "base": {
+   "a": "v3"
+  },
+  "patch": {
+   "object": {
+    "Set": {
+     "__proto__": [
+      {
+       "Key": "k0",
+       "Value": {}
+      }
+     ]
+    },
+    "Delete": {
+     "__proto__": 11.125
+    }
+   }
+  },
+  "result": {
+   "__proto__": [
+    {
+     "Key": "k0",
+     "Value": {}
+    }
+   ],
+   "a": "v3"
+  }
+ },
+ {
+  "base": {
+   "c": {},
+   "d": {
+    "constructor": [
+     1,
+     "s"
+    ]
+   }
+  },
+  "patch": {
+   "scalar": {
+    "Before": {
+     "c": {},
+     "d": {
+      "constructor": [
+       1,
+       "s"
+      ]
+     }
+    },
+    "After": 17.5
+   }
+  },
+  "result": 17.5
+ },
+ {
+  "base": [
+   {
+    "Key": "k0",
+    "Value": {
+     "b": [
+      1,
+      "s"
+     ]
+    }
+   },
+   {
+    "Key": "k2",
+    "Value": "v1"
+   }
+  ],
+  "patch": {
+   "object": {}
+  },
+  "result": [
+   {
+    "Key": "k0",
+    "Value": {
+     "b": [
+      1,
+      "s"
+     ]
+    }
+   },
+   {
+    "Key": "k2",
+    "Value": "v1"
+   }
+  ]
+ },
+ {
+  "base": [
+   2,
+   "s"
+  ],
+  "patch": {
+   "object": {}
+  },
+  "result": [
+   2,
+   "s"
+  ]
+ },
+ {
+  "base": {
+   "constructor": 20,
+   "x.y": [
+    {
+     "Key": "k3",
+     "Value": 43
+    },
+    {
+     "Key": "k1",
+     "Value": [
+      1,
+      "s"
+     ]
+    }
+   ]
+  },
+  "patch": {
+   "object": {
+    "Update": {
+     "a": {
+      "list": {
+       "Order": {
+        "Declared": [
+         "k4",
+         "k1"
+        ],
+        "Moved": [
+         0
+        ]
+       }
+      }
+     }
+    }
+   }
+  },
+  "result": {
+   "constructor": 20,
+   "x.y": [
+    {
+     "Key": "k3",
+     "Value": 43
+    },
+    {
+     "Key": "k1",
+     "Value": [
+      1,
+      "s"
+     ]
+    }
+   ]
+  }
+ },
+ {
+  "base": 48,
+  "patch": {
+   "object": {
+    "Set": {
+     "x.y": [
+      {
+       "Key": "k1",
+       "Value": {
+        "b": 73
+       }
+      },
+      {
+       "Key": "k2",
+       "Value": null
+      }
+     ]
+    },
+    "Update": {
+     "c": {}
+    }
+   }
+  },
+  "result": 48
+ },
+ {
+  "base": {
+   "constructor": {
+    "b": false,
+    "constructor": "v0"
+   },
+   "ñ": false
+  },
+  "patch": {
+   "object": {
+    "Set": {
+     "c": {}
+    },
+    "Delete": {
+     "constructor": {
+      "b": false,
+      "constructor": "v0"
+     },
+     "ñ": false
+    }
+   }
+  },
+  "result": {
+   "c": {}
+  }
+ },
+ {
+  "base": [
+   {
+    "Key": "k1",
+    "Value": []
+   },
+   {
+    "Key": "k0",
+    "Value": [
+     {
+      "Key": "k2",
+      "Value": {
+       "b": null,
+       "c": true,
+       "ñ": 72
+      }
+     }
+    ]
+   }
+  ],
+  "patch": {
+   "scalar": {
+    "Before": [
+     {
+      "Key": "k1",
+      "Value": []
+     },
+     {
+      "Key": "k0",
+      "Value": [
+       {
+        "Key": "k2",
+        "Value": {
+         "b": null,
+         "c": true,
+         "ñ": 72
+        }
+       }
+      ]
+     }
+    ],
+    "After": 1
+   }
+  },
+  "result": 1
+ },
+ {
+  "base": null,
+  "patch": {
+   "object": {
+    "Update": {
+     "d": {
+      "object": {}
+     }
+    }
+   }
+  },
+  "result": null
+ },
+ {
+  "base": [
+   {
+    "Key": "k1",
+    "Value": []
+   },
+   {
+    "Key": "k2",
+    "Value": [
+     1,
+     "s"
+    ]
+   },
+   {
+    "Key": "k0",
+    "Value": null
+   }
+  ],
+  "patch": {
+   "scalar": {
+    "Before": [
+     2,
+     "s"
+    ],
+    "After": 89
+   }
+  },
+  "result": 89
+ },
+ {
+  "base": [
+   {
+    "Key": "k2",
+    "Value": {}
+   },
+   {
+    "Key": "k4",
+    "Value": false
+   }
+  ],
+  "patch": {
+   "object": {
+    "Delete": {
+     "c": [
+      0,
+      "s"
+     ]
+    }
+   }
+  },
+  "result": [
+   {
+    "Key": "k2",
+    "Value": {}
+   },
+   {
+    "Key": "k4",
+    "Value": false
+   }
+  ]
+ },
+ {
+  "base": [],
+  "patch": {
+   "scalar": {
+    "Before": [],
+    "After": {
+     "__proto__": null,
+     "c": [
+      0,
+      "s"
+     ],
+     "constructor": 19.125
+    }
+   }
+  },
+  "result": {
+   "__proto__": null,
+   "c": [
+    0,
+    "s"
+   ],
+   "constructor": 19.125
+  }
+ },
+ {
+  "base": {
+   "constructor": "v3",
+   "d": {
+    "c": 69,
+    "constructor": 43
+   }
+  },
+  "patch": {
+   "object": {}
+  },
+  "result": {
+   "constructor": "v3",
+   "d": {
+    "c": 69,
+    "constructor": 43
+   }
+  }
+ },
+ {
+  "base": 90,
+  "patch": {
+   "object": {
+    "Update": {
+     "x.y": {
+      "object": {}
+     }
+    }
+   }
+  },
+  "result": 90
+ },
+ {
+  "base": {
+   "a": null,
+   "b": 22,
+   "x.y": 85
+  },
+  "patch": {
+   "object": {}
+  },
+  "result": {
+   "a": null,
+   "b": 22,
+   "x.y": 85
+  }
+ },
+ {
+  "base": "v2",
+  "patch": {
+   "scalar": {
+    "Before": "v2",
+    "After": [
+     {
+      "Key": "k2",
+      "Value": {
+       "constructor": true,
+       "d": 110.75
+      }
+     },
+     {
+      "Key": "k4",
+      "Value": 3.375
+     }
+    ]
+   }
+  },
+  "result": [
+   {
+    "Key": "k2",
+    "Value": {
+     "constructor": true,
+     "d": 110.75
+    }
+   },
+   {
+    "Key": "k4",
+    "Value": 3.375
+   }
+  ]
+ },
+ {
+  "base": [
+   {
+    "Key": "k2",
+    "Value": "v3"
+   }
+  ],
+  "patch": {
+   "scalar": {
+    "Before": [
+     {
+      "Key": "k2",
+      "Value": "v3"
+     }
+    ],
+    "After": null
+   }
+  },
+  "result": null
+ },
+ {
+  "base": 85,
+  "patch": {
+   "scalar": {
+    "Before": 85,
+    "After": 22
+   }
+  },
+  "result": 22
+ },
+ {
+  "base": 15.25,
+  "patch": {
+   "scalar": {
+    "Before": null,
+    "After": true
+   }
+  },
+  "result": true
+ },
+ {
+  "base": [
+   {
+    "Key": "k2",
+    "Value": {
+     "d": 77
+    }
+   }
+  ],
+  "patch": {
+   "list": {
+    "Create": [
+     {
+      "Key": "k1",
+      "Value": true
+     },
+     {
+      "Key": "k4",
+      "Value": 33
+     }
+    ],
+    "Delete": [
+     {
+      "Key": "k2",
+      "Value": {
+       "d": 77
+      }
+     }
+    ]
+   }
+  },
+  "result": [
+   {
+    "Key": "k1",
+    "Value": true
+   },
+   {
+    "Key": "k4",
+    "Value": 33
+   }
+  ]
+ },
+ {
+  "base": 74.875,
+  "patch": {
+   "scalar": {
+    "Before": 74.875,
+    "After": {
+     "a": {
+      "constructor": true
+     },
+     "x.y": {
+      "a": [
+       0,
+       "s"
+      ]
+     },
+     "ñ": {
+      "c": true,
+      "x.y": 20
+     }
+    }
+   }
+  },
+  "result": {
+   "a": {
+    "constructor": true
+   },
+   "x.y": {
+    "a": [
+     0,
+     "s"
+    ]
+   },
+   "ñ": {
+    "c": true,
+    "x.y": 20
+   }
+  }
+ },
+ {
+  "base": 85,
+  "patch": {
+   "object": {
+    "Set": {
+     "c": false,
+     "d": "v2"
+    }
+   }
+  },
+  "result": 85
+ },
+ {
+  "base": [
+   2,
+   "s"
+  ],
+  "patch": {
+   "scalar": {
+    "Before": [
+     2,
+     "s"
+    ],
+    "After": [
+     1,
+     "s"
+    ]
+   }
+  },
+  "result": [
+   1,
+   "s"
+  ]
+ },
+ {
+  "base": [
+   {
+    "Key": "k4",
+    "Value": [
+     {
+      "Key": "k4",
+      "Value": [
+       {
+        "Key": "k0",
+        "Value": 73
+       },
+       {
+        "Key": "k2",
+        "Value": 67
+       }
+      ]
+     },
+     {
+      "Key": "k1",
+      "Value": {}
+     }
+    ]
+   },
+   {
+    "Key": "k2",
+    "Value": {
+     "a": [
+      1,
+      "s"
+     ],
+     "c": 63.875,
+     "constructor": null
+    }
+   },
+   {
+    "Key": "k0",
+    "Value": 64.25
+   }
+  ],
+  "patch": {
+   "list": {
+    "Delete": [
+     {
+      "Key": "k4",
+      "Value": [
+       {
+        "Key": "k4",
+        "Value": [
+         {
+          "Key": "k0",
+          "Value": 73
+         },
+         {
+          "Key": "k2",
+          "Value": 67
+         }
+        ]
+       },
+       {
+        "Key": "k1",
+        "Value": {}
+       }
+      ]
+     }
+    ],
+    "Update": {
+     "k0": {
+      "scalar": {
+       "Before": 64.25,
+       "After": false
+      }
+     },
+     "k2": {
+      "scalar": {
+       "Before": {
+        "a": [
+         1,
+         "s"
+        ],
+        "c": 63.875,
+        "constructor": null
+       },
+       "After": [
+        {
+         "Key": "k3",
+         "Value": [
+          1,
+          "s"
+         ]
+        },
+        {
+         "Key": "k0",
+         "Value": null
+        }
+       ]
+      }
+     }
+    },
+    "Order": {
+     "Declared": [
+      "k0",
+      "k2"
+     ],
+     "Moved": [
+      0,
+      1
+     ],
+     "Prior": [
+      "k4",
+      "k2",
+      "k0"
+     ],
+     "PriorMoved": [
+      0,
+      2
+     ]
+    }
+   }
+  },
+  "result": [
+   {
+    "Key": "k0",
+    "Value": false
+   },
+   {
+    "Key": "k2",
+    "Value": [
+     {
+      "Key": "k3",
+      "Value": [
+       1,
+       "s"
+      ]
+     },
+     {
+      "Key": "k0",
+      "Value": null
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "base": {},
+  "patch": {
+   "list": {
+    "Update": {
+     "k4": {
+      "object": {
+       "Set": {
+        "__proto__": {
+         "a": null,
+         "x.y": 72.875
+        }
+       },
+       "Delete": {
+        "__proto__": 42.125
+       }
+      }
+     }
+    }
+   }
+  },
+  "result": {}
+ },
+ {
+  "base": 47,
+  "patch": {},
+  "result": 47
+ },
+ {
+  "base": 96,
+  "patch": {},
+  "result": 96
+ },
+ {
+  "base": false,
+  "patch": {
+   "scalar": {
+    "Before": false,
+    "After": {}
+   }
+  },
+  "result": {}
+ },
+ {
+  "base": {
+   "d": [
+    2,
+    "s"
+   ],
+   "x.y": false,
+   "ñ": {
+    "c": "v4"
+   }
+  },
+  "patch": {
+   "object": {
+    "Delete": {
+     "x.y": null
+    }
+   }
+  },
+  "result": {
+   "d": [
+    2,
+    "s"
+   ],
+   "ñ": {
+    "c": "v4"
+   }
+  }
+ },
+ {
+  "base": "v4",
+  "patch": {
+   "scalar": {
+    "Before": "v4",
+    "After": 14
+   }
+  },
+  "result": 14
+ },
+ {
+  "base": true,
+  "patch": {
+   "object": {
+    "Update": {
+     "a": {
+      "list": {
+       "Create": [
+        {
+         "Key": "k1",
+         "Value": 63
+        }
+       ],
+       "Delete": [
+        {
+         "Key": "k1",
+         "Value": false
+        }
+       ]
+      }
+     },
+     "c": {
+      "object": {
+       "Update": {
+        "x.y": {
+         "object": {
+          "Update": {
+           "d": {
+            "object": {
+             "Set": {
+              "__proto__": false,
+              "d": true
+             },
+             "Delete": {
+              "__proto__": 72
+             }
+            }
+           }
+          },
+          "New": {
+           "d": true
+          }
+         }
+        }
+       }
+      }
+     },
+     "x.y": {
+      "object": {
+       "Set": {
+        "x.y": {
+         "b": {
+          "c": [
+           2,
+           "s"
+          ]
+         }
+        }
+       }
+      }
+     }
+    },
+    "New": {
+     "a": true
+    }
+   }
+  },
+  "result": true
+ },
+ {
+  "base": [
+   2,
+   "s"
+  ],
+  "patch": {
+   "scalar": {
+    "Before": null,
+    "After": 110
+   }
+  },
+  "result": 110
+ },
+ {
+  "base": [],
+  "patch": {
+   "scalar": {
+    "Before": [],
+    "After": {
+     "a": {},
+     "b": null,
+     "c": {
+      "__proto__": [
+       2,
+       "s"
+      ],
+      "constructor": 63
+     }
+    }
+   }
+  },
+  "result": {
+   "a": {},
+   "b": null,
+   "c": {
+    "__proto__": [
+     2,
+     "s"
+    ],
+    "constructor": 63
+   }
+  }
+ },
+ {
+  "base": {
+   "__proto__": 31,
+   "constructor": "v3"
+  },
+  "patch": {
+   "scalar": {
+    "Before": null,
+    "After": true
+   }
+  },
+  "result": true
+ },
+ {
+  "base": {},
+  "patch": {
+   "object": {
+    "Set": {
+     "d": "v4"
+    },
+    "Update": {
+     "constructor": {
+      "object": {
+       "Set": {
+        "a": [
+         0,
+         "s"
+        ]
+       }
+      }
+     }
+    },
+    "New": {
+     "constructor": true
+    }
+   }
+  },
+  "result": {
+   "constructor": {
+    "a": [
+     0,
+     "s"
+    ]
+   },
+   "d": "v4"
+  }
+ },
+ {
+  "base": {},
+  "patch": {
+   "scalar": {
+    "Before": {},
+    "After": [
+     {
+      "Key": "k3",
+      "Value": [
+       1,
+       "s"
+      ]
+     },
+     {
+      "Key": "k1",
+      "Value": {}
+     }
+    ]
+   }
+  },
+  "result": [
+   {
+    "Key": "k3",
+    "Value": [
+     1,
+     "s"
+    ]
+   },
+   {
+    "Key": "k1",
+    "Value": {}
+   }
+  ]
+ },
+ {
+  "base": null,
+  "patch": {
+   "object": {
+    "Set": {
+     "a": 0.5
+    },
+    "Delete": {
+     "constructor": false
+    }
+   }
+  },
+  "result": {
+   "a": 0.5
+  }
+ },
+ {
+  "base": {
+   "constructor": false
+  },
+  "patch": {
+   "scalar": {
+    "Before": "v1",
+    "After": 34.5
+   }
+  },
+  "result": 34.5
+ },
+ {
+  "base": {
+   "a": [
+    {
+     "Key": "k4",
+     "Value": {
+      "a": 81,
+      "d": false
+     }
+    },
+    {
+     "Key": "k1",
+     "Value": [
+      {
+       "Key": "k0",
+       "Value": [
+        {
+         "Key": "k0",
+         "Value": {
+          "__proto__": "v2",
+          "a": 21.625
+         }
+        }
+       ]
+      },
+      {
+       "Key": "k3",
+       "Value": null
+      },
+      {
+       "Key": "k4",
+       "Value": {
+        "constructor": "v1"
+       }
+      }
+     ]
+    }
+   ],
+   "b": {},
+   "constructor": [
+    {
+     "Key": "k3",
+     "Value": null
+    },
+    {
+     "Key": "k1",
+     "Value": 16.625
+    }
+   ]
+  },
+  "patch": {
+   "object": {}
+  },
+  "result": {
+   "a": [
+    {
+     "Key": "k4",
+     "Value": {
+      "a": 81,
+      "d": false
+     }
+    },
+    {
+     "Key": "k1",
+     "Value": [
+      {
+       "Key": "k0",
+       "Value": [
+        {
+         "Key": "k0",
+         "Value": {
+          "__proto__": "v2",
+          "a": 21.625
+         }
+        }
+       ]
+      },
+      {
+       "Key": "k3",
+       "Value": null
+      },
+      {
+       "Key": "k4",
+       "Value": {
+        "constructor": "v1"
+       }
+      }
+     ]
+    }
+   ],
+   "b": {},
+   "constructor": [
+    {
+     "Key": "k3",
+     "Value": null
+    },
+    {
+     "Key": "k1",
+     "Value": 16.625
+    }
+   ]
+  }
+ },
+ {
+  "base": [
+   {
+    "Key": "k4",
+    "Value": {}
+   },
+   {
+    "Key": "k2",
+    "Value": {
+     "constructor": null
+    }
+   },
+   {
+    "Key": "k0",
+    "Value": {}
+   }
+  ],
+  "patch": {
+   "scalar": {
+    "Before": [
+     1,
+     "s"
+    ],
+    "After": {
+     "d": {
+      "d": [
+       {
+        "Key": "k4",
+        "Value": false
+       }
+      ],
+      "ñ": {
+       "b": "v0"
+      }
+     }
+    }
+   }
+  },
+  "result": {
+   "d": {
+    "d": [
+     {
+      "Key": "k4",
+      "Value": false
+     }
+    ],
+    "ñ": {
+     "b": "v0"
+    }
+   }
+  }
+ },
+ {
+  "base": null,
+  "patch": {
+   "list": {}
+  },
+  "result": []
+ },
+ {
+  "base": {
+   "b": null
+  },
+  "patch": {
+   "scalar": {
+    "Before": {
+     "b": null
+    },
+    "After": [
+     0,
+     "s"
+    ]
+   }
+  },
+  "result": [
+   0,
+   "s"
+  ]
+ },
+ {
+  "base": {
+   "b": {
+    "b": "v1",
+    "constructor": true,
+    "ñ": true
+   },
+   "constructor": {}
+  },
+  "patch": {
+   "object": {
+    "Set": {
+     "d": []
+    },
+    "Delete": {
+     "b": {
+      "b": "v1",
+      "constructor": true,
+      "ñ": true
+     }
+    },
+    "Update": {
+     "constructor": {
+      "scalar": {
+       "Before": {},
+       "After": [
+        {
+         "Key": "k3",
+         "Value": [
+          1,
+          "s"
+         ]
+        },
+        {
+         "Key": "k2",
+         "Value": "v2"
+        },
+        {
+         "Key": "k4",
+         "Value": [
+          2,
+          "s"
+         ]
+        }
+       ]
+      }
+     }
+    }
+   }
+  },
+  "result": {
+   "constructor": [
+    {
+     "Key": "k3",
+     "Value": [
+      1,
+      "s"
+     ]
+    },
+    {
+     "Key": "k2",
+     "Value": "v2"
+    },
+    {
+     "Key": "k4",
+     "Value": [
+      2,
+      "s"
+     ]
+    }
+   ],
+   "d": []
+  }
+ },
+ {
+  "base": "v1",
+  "patch": {
+   "object": {}
+  },
+  "result": "v1"
+ },
+ {
+  "base": 82,
+  "patch": {
+   "scalar": {
+    "Before": 82,
+    "After": {
+     "__proto__": {
+      "c": "v4",
+      "constructor": 4
+     },
+     "b": 54.25,
+     "d": null
+    }
+   }
+  },
+  "result": {
+   "__proto__": {
+    "c": "v4",
+    "constructor": 4
+   },
+   "b": 54.25,
+   "d": null
+  }
+ },
+ {
+  "base": {
+   "__proto__": {},
+   "a": true,
+   "b": [
+    {
+     "Key": "k2",
+     "Value": null
+    },
+    {
+     "Key": "k0",
+     "Value": {}
+    },
+    {
+     "Key": "k4",
+     "Value": [
+      {
+       "Key": "k2",
+       "Value": {
+        "x.y": "v3"
+       }
+      },
+      {
+       "Key": "k3",
+       "Value": {
+        "a": null,
+        "ñ": 83.375
+       }
+      }
+     ]
+    }
+   ]
+  },
+  "patch": {
+   "scalar": {
+    "Before": {
+     "__proto__": {},
+     "a": true,
+     "b": [
+      {
+       "Key": "k2",
+       "Value": null
+      },
+      {
+       "Key": "k0",
+       "Value": {}
+      },
+      {
+       "Key": "k4",
+       "Value": [
+        {
+         "Key": "k2",
+         "Value": {
+          "x.y": "v3"
+         }
+        },
+        {
+         "Key": "k3",
+         "Value": {
+          "a": null,
+          "ñ": 83.375
+         }
+        }
+       ]
+      }
+     ]
+    },
+    "After": false
+   }
+  },
+  "result": false
+ },
+ {
+  "base": {
+   "c": {
+    "x.y": "v3"
+   },
+   "d": [
+    {
+     "Key": "k0",
+     "Value": {}
+    },
+    {
+     "Key": "k1",
+     "Value": "v4"
+    },
+    {
+     "Key": "k3",
+     "Value": [
+      1,
+      "s"
+     ]
+    }
+   ]
+  },
+  "patch": {},
+  "result": {
+   "c": {
+    "x.y": "v3"
+   },
+   "d": [
+    {
+     "Key": "k0",
+     "Value": {}
+    },
+    {
+     "Key": "k1",
+     "Value": "v4"
+    },
+    {
+     "Key": "k3",
+     "Value": [
+      1,
+      "s"
+     ]
+    }
+   ]
+  }
+ },
+ {
+  "base": {
+   "constructor": 120.25,
+   "d": {
+    "c": true,
+    "x.y": false,
+    "ñ": "v3"
+   }
+  },
+  "patch": {
+   "object": {
+    "Set": {
+     "a": 96.5
+    }
+   }
+  },
+  "result": {
+   "a": 96.5,
+   "constructor": 120.25,
+   "d": {
+    "c": true,
+    "x.y": false,
+    "ñ": "v3"
+   }
+  }
+ },
+ {
+  "base": {
+   "c": {},
+   "constructor": null
+  },
+  "patch": {
+   "object": {
+    "Update": {
+     "ñ": {
+      "scalar": {
+       "Before": [
+        2,
+        "s"
+       ],
+       "After": true
+      }
+     }
+    }
+   }
+  },
+  "result": {
+   "c": {},
+   "constructor": null,
+   "ñ": true
+  }
+ },
+ {
+  "base": [
+   {
+    "Key": "k0",
+    "Value": [
+     {
+      "Key": "k2",
+      "Value": {}
+     },
+     {
+      "Key": "k4",
+      "Value": [
+       0,
+       "s"
+      ]
+     }
+    ]
+   }
+  ],
+  "patch": {
+   "scalar": {
+    "Before": [
+     {
+      "Key": "k0",
+      "Value": [
+       {
+        "Key": "k2",
+        "Value": {}
+       },
+       {
+        "Key": "k4",
+        "Value": [
+         0,
+         "s"
+        ]
+       }
+      ]
+     }
+    ],
+    "After": null
+   }
+  },
+  "result": null
+ },
+ {
+  "base": {
+   "d": [
+    2,
+    "s"
+   ]
+  },
+  "patch": {
+   "object": {
+    "Delete": {
+     "__proto__": null,
+     "x.y": 10.625
+    },
+    "Update": {
+     "x.y": {
+      "object": {
+       "Update": {
+        "a": {
+         "scalar": {
+          "Before": true,
+          "After": {}
+         }
+        },
+        "constructor": {
+         "object": {
+          "Set": {
+           "b": {
+            "b": null,
+            "d": "v0",
+            "ñ": null
+           }
+          }
+         }
+        },
+        "x.y": {}
+       },
+       "New": {
+        "constructor": true
+       }
+      }
+     }
+    },
+    "New": {
+     "x.y": true
+    }
+   }
+  },
+  "result": {
+   "d": [
+    2,
+    "s"
+   ],
+   "x.y": {
+    "a": {},
+    "constructor": {
+     "b": {
+      "b": null,
+      "d": "v0",
+      "ñ": null
+     }
+    }
+   }
+  }
+ },
+ {
+  "base": {
+   "d": {},
+   "x.y": false
+  },
+  "patch": {
+   "object": {
+    "Set": {
+     "__proto__": [],
+     "constructor": 4
+    },
+    "Delete": {
+     "d": {},
+     "x.y": false
+    },
+    "Update": {
+     "a": {
+      "object": {
+       "Set": {
+        "__proto__": "v1",
+        "c": [
+         0,
+         "s"
+        ],
+        "ñ": false
+       }
+      }
+     }
+    },
+    "New": {
+     "a": true
+    }
+   }
+  },
+  "result": {
+   "__proto__": [],
+   "a": {
+    "__proto__": "v1",
+    "c": [
+     0,
+     "s"
+    ],
+    "ñ": false
+   },
+   "constructor": 4
+  }
+ },
+ {
+  "base": {
+   "b": []
+  },
+  "patch": {
+   "object": {
+    "Delete": {
+     "b": []
+    }
+   }
+  },
+  "result": {}
+ },
+ {
+  "base": {},
+  "patch": {
+   "object": {
+    "Delete": {
+     "c": 86.625
+    },
+    "Update": {
+     "d": {
+      "list": {
+       "Create": [
+        {
+         "Key": "k3",
+         "Value": 67
+        }
+       ]
+      }
+     }
+    }
+   }
+  },
+  "result": {}
+ },
+ {
+  "base": [],
+  "patch": {
+   "list": {
+    "Create": [
+     {
+      "Key": "k1",
+      "Value": "v2"
+     }
+    ]
+   }
+  },
+  "result": [
+   {
+    "Key": "k1",
+    "Value": "v2"
+   }
+  ]
+ },
+ {
+  "base": {
+   "a": {
+    "x.y": "v4"
+   },
+   "constructor": {
+    "b": 76
+   },
+   "x.y": {
+    "__proto__": "v2",
+    "constructor": null,
+    "ñ": null
+   }
+  },
+  "patch": {
+   "list": {}
+  },
+  "result": {
+   "a": {
+    "x.y": "v4"
+   },
+   "constructor": {
+    "b": 76
+   },
+   "x.y": {
+    "__proto__": "v2",
+    "constructor": null,
+    "ñ": null
+   }
+  }
+ },
+ {
+  "base": {
+   "__proto__": {
+    "b": 35,
+    "d": 98,
+    "ñ": "v3"
+   },
+   "constructor": {}
+  },
+  "patch": {
+   "list": {
+    "Create": [
+     {
+      "Key": "k2",
+      "Value": "v0"
+     }
+    ],
+    "Order": {
+     "Declared": [
+      "k2",
+      "k1"
+     ],
+     "Moved": [
+      0
+     ]
+    }
+   }
+  },
+  "result": {
+   "__proto__": {
+    "b": 35,
+    "d": 98,
+    "ñ": "v3"
+   },
+   "constructor": {}
+  }
+ },
+ {
+  "base": "v0",
+  "patch": {
+   "scalar": {
+    "Before": "v0",
+    "After": false
+   }
+  },
+  "result": false
+ },
+ {
+  "base": {
+   "constructor": {},
+   "d": {
+    "a": 81,
+    "constructor": false
+   }
+  },
+  "patch": {
+   "object": {
+    "Set": {
+     "c": {
+      "a": 96,
+      "b": {
+       "d": 74
+      },
+      "c": []
+     }
+    }
+   }
+  },
+  "result": {
+   "c": {
+    "a": 96,
+    "b": {
+     "d": 74
+    },
+    "c": []
+   },
+   "constructor": {},
+   "d": {
+    "a": 81,
+    "constructor": false
+   }
+  }
+ },
+ {
+  "base": [
+   1,
+   "s"
+  ],
+  "patch": {
+   "scalar": {
+    "Before": [
+     1,
+     "s"
+    ],
+    "After": true
+   }
+  },
+  "result": true
+ },
+ {
+  "base": [
+   0,
+   "s"
+  ],
+  "patch": {
+   "scalar": {
+    "Before": [
+     1,
+     "s"
+    ],
+    "After": {
+     "__proto__": {
+      "a": "v4",
+      "c": 113.75
+     },
+     "a": {
+      "__proto__": {
+       "b": false,
+       "constructor": null,
+       "ñ": 82.875
+      },
+      "a": {},
+      "c": []
+     },
+     "x.y": {
+      "__proto__": "v1",
+      "b": 21,
+      "ñ": {
+       "__proto__": false,
+       "b": false,
+       "c": 14.875
+      }
+     }
+    }
+   }
+  },
+  "result": {
+   "__proto__": {
+    "a": "v4",
+    "c": 113.75
+   },
+   "a": {
+    "__proto__": {
+     "b": false,
+     "constructor": null,
+     "ñ": 82.875
+    },
+    "a": {},
+    "c": []
+   },
+   "x.y": {
+    "__proto__": "v1",
+    "b": 21,
+    "ñ": {
+     "__proto__": false,
+     "b": false,
+     "c": 14.875
+    }
+   }
+  }
+ },
+ {
+  "base": null,
+  "patch": {
+   "object": {
+    "Set": {
+     "__proto__": 115.375
+    },
+    "Delete": {
+     "x.y": 86.375
+    },
+    "Update": {
+     "d": {
+      "list": {
+       "Update": {
+        "k3": {
+         "object": {}
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "result": {
+   "__proto__": 115.375
+  }
+ },
+ {
+  "base": null,
+  "patch": {
+   "list": {
+    "Delete": [
+     {
+      "Key": "k0",
+      "Value": [
+       1,
+       "s"
+      ]
+     }
+    ],
+    "Order": {
+     "Declared": [
+      "k3",
+      "k3"
+     ],
+     "Moved": [
+      0
+     ],
+     "Prior": [
+      "k3",
+      "k3"
+     ],
+     "PriorMoved": [
+      1
+     ]
+    }
+   }
+  },
+  "result": []
+ },
+ {
+  "base": {},
+  "patch": {
+   "object": {
+    "Update": {
+     "c": {
+      "object": {
+       "Set": {
+        "__proto__": 49.125
+       }
+      }
+     }
+    }
+   }
+  },
+  "result": {
+   "c": {
+    "__proto__": 49.125
+   }
+  }
+ },
+ {
+  "base": {
+   "__proto__": [
+    1,
+    "s"
+   ],
+   "x.y": {
+    "__proto__": 26,
+    "a": 73,
+    "constructor": "v0"
+   }
+  },
+  "patch": {
+   "scalar": {
+    "Before": 87.875,
+    "After": []
+   }
+  },
+  "result": []
+ },
+ {
+  "base": [
+   2,
+   "s"
+  ],
+  "patch": {
+   "scalar": {
+    "Before": [
+     2,
+     "s"
+    ],
+    "After": [
+     {
+      "Key": "k2",
+      "Value": {}
+     },
+     {
+      "Key": "k0",
+      "Value": [
+       {
+        "Key": "k2",
+        "Value": [
+         {
+          "Key": "k3",
+          "Value": {}
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "result": [
+   {
+    "Key": "k2",
+    "Value": {}
+   },
+   {
+    "Key": "k0",
+    "Value": [
+     {
+      "Key": "k2",
+      "Value": [
+       {
+        "Key": "k3",
+        "Value": {}
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "base": {
+   "__proto__": null,
+   "x.y": null
+  },
+  "patch": {
+   "list": {
+    "Create": [
+     {
+      "Key": "k1",
+      "Value": 91
+     },
+     {
+      "Key": "k4",
+      "Value": "v2"
+     }
+    ],
+    "Order": {
+     "Declared": [
+      "k2",
+      "k4"
+     ],
+     "Moved": [
+      0
+     ],
+     "Prior": [
+      "k4",
+      "k2"
+     ],
+     "PriorMoved": [
+      1
+     ]
+    }
+   }
+  },
+  "result": {
+   "__proto__": null,
+   "x.y": null
+  }
+ },
+ {
+  "base": {
+   "d": []
+  },
+  "patch": {},
+  "result": {
+   "d": []
+  }
+ },
+ {
+  "base": {
+   "x.y": {},
+   "ñ": 1
+  },
+  "patch": {
+   "object": {
+    "Delete": {
+     "__proto__": 102.125
+    }
+   }
+  },
+  "result": {
+   "x.y": {},
+   "ñ": 1
+  }
+ },
+ {
+  "base": {
+   "b": [
+    {
+     "Key": "k3",
+     "Value": {
+      "__proto__": 98.375
+     }
+    }
+   ]
+  },
+  "patch": {
+   "object": {
+    "Set": {
+     "__proto__": {},
+     "constructor": [
+      {
+       "Key": "k3",
+       "Value": 82.125
+      },
+      {
+       "Key": "k4",
+       "Value": {
+        "__proto__": [
+         1,
+         "s"
+        ],
+        "b": null
+       }
+      }
+     ]
+    },
+    "Delete": {
+     "b": [
+      {
+       "Key": "k3",
+       "Value": {
+        "__proto__": 98.375
+       }
+      }
+     ]
+    }
+   }
+  },
+  "result": {
+   "__proto__": {},
+   "constructor": [
+    {
+     "Key": "k3",
+     "Value": 82.125
+    },
+    {
+     "Key": "k4",
+     "Value": {
+      "__proto__": [
+       1,
+       "s"
+      ],
+      "b": null
+     }
+    }
+   ]
+  }
+ },
+ {
+  "base": "v0",
+  "patch": {},
+  "result": "v0"
+ },
+ {
+  "base": 2,
+  "patch": {
+   "scalar": {
+    "Before": 2,
+    "After": {}
+   }
+  },
+  "result": {}
+ },
+ {
+  "base": 124.875,
+  "patch": {
+   "scalar": {
+    "Before": 124.875,
+    "After": [
+     {
+      "Key": "k1",
+      "Value": "v4"
+     }
+    ]
+   }
+  },
+  "result": [
+   {
+    "Key": "k1",
+    "Value": "v4"
+   }
+  ]
+ },
+ {
+  "base": {
+   "__proto__": {
+    "__proto__": true,
+    "constructor": 88.625
+   },
+   "b": 77
+  },
+  "patch": {
+   "scalar": {
+    "Before": {
+     "__proto__": {
+      "__proto__": true,
+      "constructor": 88.625
+     },
+     "b": 77
+    },
+    "After": [
+     2,
+     "s"
+    ]
+   }
+  },
+  "result": [
+   2,
+   "s"
+  ]
+ },
+ {
+  "base": {
+   "c": 92,
+   "constructor": null,
+   "ñ": {
+    "b": "v1",
+    "constructor": false,
+    "d": true
+   }
+  },
+  "patch": {
+   "object": {}
+  },
+  "result": {
+   "c": 92,
+   "constructor": null,
+   "ñ": {
+    "b": "v1",
+    "constructor": false,
+    "d": true
+   }
+  }
+ },
+ {
+  "base": [
+   {
+    "Key": "k2",
+    "Value": [
+     {
+      "Key": "k2",
+      "Value": {
+       "b": 46
+      }
+     },
+     {
+      "Key": "k1",
+      "Value": [
+       {
+        "Key": "k0",
+        "Value": true
+       },
+       {
+        "Key": "k2",
+        "Value": {
+         "constructor": false
+        }
+       },
+       {
+        "Key": "k4",
+        "Value": [
+         {
+          "Key": "k4",
+          "Value": "v1"
+         },
+         {
+          "Key": "k0",
+          "Value": []
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "Key": "k0",
+      "Value": null
+     }
+    ]
+   },
+   {
+    "Key": "k1",
+    "Value": {
+     "x.y": "v2"
+    }
+   },
+   {
+    "Key": "k0",
+    "Value": [
+     {
+      "Key": "k0",
+      "Value": null
+     },
+     {
+      "Key": "k3",
+      "Value": {
+       "c": "v4",
+       "d": true
+      }
+     },
+     {
+      "Key": "k1",
+      "Value": null
+     }
+    ]
+   }
+  ],
+  "patch": {
+   "scalar": {
+    "Before": [
+     {
+      "Key": "k2",
+      "Value": [
+       {
+        "Key": "k2",
+        "Value": {
+         "b": 46
+        }
+       },
+       {
+        "Key": "k1",
+        "Value": [
+         {
+          "Key": "k0",
+          "Value": true
+         },
+         {
+          "Key": "k2",
+          "Value": {
+           "constructor": false
+          }
+         },
+         {
+          "Key": "k4",
+          "Value": [
+           {
+            "Key": "k4",
+            "Value": "v1"
+           },
+           {
+            "Key": "k0",
+            "Value": []
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "Key": "k0",
+        "Value": null
+       }
+      ]
+     },
+     {
+      "Key": "k1",
+      "Value": {
+       "x.y": "v2"
+      }
+     },
+     {
+      "Key": "k0",
+      "Value": [
+       {
+        "Key": "k0",
+        "Value": null
+       },
+       {
+        "Key": "k3",
+        "Value": {
+         "c": "v4",
+         "d": true
+        }
+       },
+       {
+        "Key": "k1",
+        "Value": null
+       }
+      ]
+     }
+    ],
+    "After": "v0"
+   }
+  },
+  "result": "v0"
+ },
+ {
+  "base": 63.375,
+  "patch": {
+   "object": {
+    "Update": {
+     "b": {
+      "object": {
+       "Delete": {
+        "a": true
+       }
+      }
+     }
+    }
+   }
+  },
+  "result": 63.375
+ },
+ {
+  "base": {
+   "c": [
+    {
+     "Key": "k2",
+     "Value": [
+      0,
+      "s"
+     ]
+    }
+   ],
+   "x.y": null
+  },
+  "patch": {
+   "object": {
+    "Set": {
+     "c": "v3"
+    },
+    "Update": {
+     "c": {
+      "object": {
+       "Set": {
+        "constructor": null
+       },
+       "Update": {
+        "ñ": {
+         "scalar": {
+          "Before": [
+           0,
+           "s"
+          ],
+          "After": {
+           "b": null,
+           "d": 1
+          }
+         }
+        }
+       }
+      }
+     },
+     "ñ": {
+      "object": {
+       "Set": {
+        "b": null
+       }
+      }
+     }
+    }
+   }
+  },
+  "result": {
+   "c": "v3",
+   "x.y": null,
+   "ñ": {
+    "b": null
+   }
+  }
+ },
+ {
+  "base": {},
+  "patch": {
+   "scalar": {
+    "Before": {},
+    "After": [
+     0,
+     "s"
+    ]
+   }
+  },
+  "result": [
+   0,
+   "s"
+  ]
+ },
+ {
+  "base": null,
+  "patch": {
+   "scalar": {
+    "Before": null,
+    "After": [
+     {
+      "Key": "k0",
+      "Value": [
+       {
+        "Key": "k2",
+        "Value": null
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "result": [
+   {
+    "Key": "k0",
+    "Value": [
+     {
+      "Key": "k2",
+      "Value": null
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "base": [
+   {
+    "Key": "k1",
+    "Value": "v3"
+   },
+   {
+    "Key": "k2",
+    "Value": []
+   }
+  ],
+  "patch": {
+   "scalar": {
+    "Before": [
+     {
+      "Key": "k1",
+      "Value": "v3"
+     },
+     {
+      "Key": "k2",
+      "Value": []
+     }
+    ],
+    "After": 58
+   }
+  },
+  "result": 58
+ },
+ {
+  "base": 91,
+  "patch": {
+   "scalar": {
+    "Before": 91,
+    "After": "v3"
+   }
+  },
+  "result": "v3"
+ },
+ {
+  "base": [
+   {
+    "Key": "k1",
+    "Value": {
+     "b": "v3",
+     "d": "v2"
+    }
+   },
+   {
+    "Key": "k4",
+    "Value": {
+     "a": 1
+    }
+   },
+   {
+    "Key": "k2",
+    "Value": {}
+   }
+  ],
+  "patch": {},
+  "result": [
+   {
+    "Key": "k1",
+    "Value": {
+     "b": "v3",
+     "d": "v2"
+    }
+   },
+   {
+    "Key": "k4",
+    "Value": {
+     "a": 1
+    }
+   },
+   {
+    "Key": "k2",
+    "Value": {}
+   }
+  ]
+ },
+ {
+  "base": null,
+  "patch": {
+   "object": {
+    "Set": {
+     "ñ": null
+    },
+    "Update": {
+     "d": {
+      "object": {
+       "Set": {
+        "a": "v0",
+        "b": {}
+       }
+      }
+     },
+     "ñ": {
+      "scalar": {
+       "Before": 33.125,
+       "After": {
+        "c": {
+         "__proto__": null,
+         "ñ": 49.625
+        }
+       }
+      }
+     }
+    },
+    "New": {
+     "d": true
+    }
+   }
+  },
+  "result": {
+   "d": {
+    "a": "v0",
+    "b": {}
+   },
+   "ñ": {
+    "c": {
+     "__proto__": null,
+     "ñ": 49.625
+    }
+   }
+  }
+ },
+ {
+  "base": {
+   "d": null
+  },
+  "patch": {},
+  "result": {
+   "d": null
+  }
+ },
+ {
+  "base": [
+   {
+    "Key": "k1",
+    "Value": {
+     "x.y": false
+    }
+   },
+   {
+    "Key": "k0",
+    "Value": "v0"
+   }
+  ],
+  "patch": {
+   "list": {
+    "Create": [
+     {
+      "Key": "k3",
+      "Value": 23
+     }
+    ],
+    "Delete": [
+     {
+      "Key": "k1",
+      "Value": {
+       "x.y": false
+      }
+     }
+    ],
+    "Update": {
+     "k0": {
+      "scalar": {
+       "Before": "v0",
+       "After": [
+        0,
+        "s"
+       ]
+      }
+     }
+    },
+    "Order": {
+     "Declared": null,
+     "Moved": null,
+     "Prior": [
+      "k1",
+      "k0"
+     ],
+     "PriorMoved": [
+      0,
+      1
+     ]
+    }
+   }
+  },
+  "result": [
+   {
+    "Key": "k0",
+    "Value": [
+     0,
+     "s"
+    ]
+   },
+   {
+    "Key": "k3",
+    "Value": 23
+   }
+  ]
+ },
+ {
+  "base": "v1",
+  "patch": {
+   "list": {
+    "Create": [
+     {
+      "Key": "k3",
+      "Value": "v0"
+     },
+     {
+      "Key": "k4",
+      "Value": [
+       2,
+       "s"
+      ]
+     }
+    ],
+    "Order": {
+     "Declared": [
+      "k4",
+      "k3"
+     ],
+     "Moved": [
+      0
+     ]
+    }
+   }
+  },
+  "result": "v1"
+ },
+ {
+  "base": 28,
+  "patch": {
+   "object": {}
+  },
+  "result": 28
+ },
+ {
+  "base": 18.75,
+  "patch": {
+   "object": {
+    "Set": {
+     "ñ": {
+      "ñ": 120.75
+     }
+    }
+   }
+  },
+  "result": 18.75
+ },
+ {
+  "base": true,
+  "patch": {},
+  "result": true
+ },
+ {
+  "base": [
+   1,
+   "s"
+  ],
+  "patch": {
+   "object": {
+    "Set": {
+     "__proto__": {
+      "ñ": {}
+     }
+    },
+    "Delete": {
+     "b": 16.5
+    },
+    "Update": {
+     "c": {}
+    }
+   }
+  },
+  "result": [
+   1,
+   "s"
+  ]
+ },
+ {
+  "base": {},
+  "patch": {
+   "object": {
+    "Delete": {
+     "ñ": [
+      0,
+      "s"
+     ]
+    }
+   }
+  },
+  "result": {}
+ },
+ {
+  "base": {},
+  "patch": {
+   "object": {
+    "Set": {
+     "constructor": "v0"
+    }
+   }
+  },
+  "result": {
+   "constructor": "v0"
+  }
+ },
+ {
+  "base": false,
+  "patch": {
+   "scalar": {
+    "Before": false,
+    "After": {
+     "c": [
+      {
+       "Key": "k1",
+       "Value": "v1"
+      }
+     ]
+    }
+   }
+  },
+  "result": {
+   "c": [
+    {
+     "Key": "k1",
+     "Value": "v1"
+    }
+   ]
+  }
+ },
+ {
+  "base": {},
+  "patch": {
+   "object": {
+    "Set": {
+     "d": {}
+    }
+   }
+  },
+  "result": {
+   "d": {}
+  }
+ },
+ {
+  "base": [
+   {
+    "Key": "k1",
+    "Value": {
+     "x.y": 66.625,
+     "ñ": true
+    }
+   },
+   {
+    "Key": "k2",
+    "Value": null
+   }
+  ],
+  "patch": {
+   "list": {
+    "Create": [
+     {
+      "Key": "k4",
+      "Value": {
+       "x.y": null,
+       "ñ": "v1"
+      }
+     },
+     {
+      "Key": "k0",
+      "Value": "v3"
+     }
+    ],
+    "Delete": [
+     {
+      "Key": "k1",
+      "Value": {
+       "x.y": 66.625,
+       "ñ": true
+      }
+     },
+     {
+      "Key": "k2",
+      "Value": null
+     }
+    ]
+   }
+  },
+  "result": [
+   {
+    "Key": "k4",
+    "Value": {
+     "x.y": null,
+     "ñ": "v1"
+    }
+   },
+   {
+    "Key": "k0",
+    "Value": "v3"
+   }
+  ]
+ },
+ {
+  "base": false,
+  "patch": {
+   "scalar": {
+    "Before": false,
+    "After": []
+   }
+  },
+  "result": []
+ },
+ {
+  "base": [
+   0,
+   "s"
+  ],
+  "patch": {},
+  "result": [
+   0,
+   "s"
+  ]
+ },
+ {
+  "base": [
+   {
+    "Key": "k4",
+    "Value": "v0"
+   },
+   {
+    "Key": "k0",
+    "Value": [
+     {
+      "Key": "k2",
+      "Value": [
+       {
+        "Key": "k4",
+        "Value": [
+         {
+          "Key": "k2",
+          "Value": {
+           "constructor": "v4",
+           "ñ": true
+          }
+         },
+         {
+          "Key": "k0",
+          "Value": {}
+         },
+         {
+          "Key": "k1",
+          "Value": [
+           0,
+           "s"
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  ],
+  "patch": {
+   "scalar": {
+    "Before": [
+     {
+      "Key": "k4",
+      "Value": "v0"
+     },
+     {
+      "Key": "k0",
+      "Value": [
+       {
+        "Key": "k2",
+        "Value": [
+         {
+          "Key": "k4",
+          "Value": [
+           {
+            "Key": "k2",
+            "Value": {
+             "constructor": "v4",
+             "ñ": true
+            }
+           },
+           {
+            "Key": "k0",
+            "Value": {}
+           },
+           {
+            "Key": "k1",
+            "Value": [
+             0,
+             "s"
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    ],
+    "After": {
+     "a": [
+      {
+       "Key": "k0",
+       "Value": 53
+      }
+     ]
+    }
+   }
+  },
+  "result": {
+   "a": [
+    {
+     "Key": "k0",
+     "Value": 53
+    }
+   ]
+  }
+ },
+ {
+  "base": {
+   "a": 85.375,
+   "b": 44,
+   "x.y": {
+    "a": "v3",
+    "c": true,
+    "constructor": false
+   }
+  },
+  "patch": {
+   "object": {}
+  },
+  "result": {
+   "a": 85.375,
+   "b": 44,
+   "x.y": {
+    "a": "v3",
+    "c": true,
+    "constructor": false
+   }
+  }
+ },
+ {
+  "base": [
+   {
+    "Key": "k0",
+    "Value": [
+     {
+      "Key": "k4",
+      "Value": {}
+     }
+    ]
+   },
+   {
+    "Key": "k2",
+    "Value": {}
+   }
+  ],
+  "patch": {
+   "scalar": {
+    "Before": [
+     {
+      "Key": "k0",
+      "Value": [
+       {
+        "Key": "k4",
+        "Value": {}
+       }
+      ]
+     },
+     {
+      "Key": "k2",
+      "Value": {}
+     }
+    ],
+    "After": null
+   }
+  },
+  "result": null
+ },
+ {
+  "base": {
+   "constructor": {}
+  },
+  "patch": {
+   "scalar": {
+    "Before": {
+     "constructor": {}
+    },
+    "After": "v3"
+   }
+  },
+  "result": "v3"
+ },
+ {
+  "base": {},
+  "patch": {
+   "scalar": {
+    "Before": 58.75,
+    "After": [
+     0,
+     "s"
+    ]
+   }
+  },
+  "result": [
+   0,
+   "s"
+  ]
+ },
+ {
+  "base": {
+   "a": 29,
+   "constructor": false
+  },
+  "patch": {
+   "scalar": {
+    "Before": {
+     "a": 29,
+     "constructor": false
+    },
+    "After": [
+     {
+      "Key": "k3",
+      "Value": null
+     },
+     {
+      "Key": "k0",
+      "Value": []
+     }
+    ]
+   }
+  },
+  "result": [
+   {
+    "Key": "k3",
+    "Value": null
+   },
+   {
+    "Key": "k0",
+    "Value": []
+   }
+  ]
+ },
+ {
+  "base": {
+   "x.y": [
+    {
+     "Key": "k1",
+     "Value": 18.5
+    }
+   ],
+   "ñ": {}
+  },
+  "patch": {
+   "object": {
+    "Set": {
+     "__proto__": 53
+    },
+    "Delete": {
+     "d": 76.625
+    }
+   }
+  },
+  "result": {
+   "__proto__": 53,
+   "x.y": [
+    {
+     "Key": "k1",
+     "Value": 18.5
+    }
+   ],
+   "ñ": {}
+  }
+ },
+ {
+  "base": 61,
+  "patch": {
+   "object": {
+    "Set": {
+     "constructor": true
+    },
+    "Delete": {
+     "constructor": "v0"
+    },
+    "Update": {
+     "b": {
+      "object": {
+       "Set": {
+        "ñ": 40
+       },
+       "Update": {
+        "a": {
+         "scalar": {
+          "Before": false,
+          "After": {}
+         }
+        }
+       },
+       "New": {
+        "a": true
+       }
+      }
+     }
+    }
+   }
+  },
+  "result": 61
+ },
+ {
+  "base": "v2",
+  "patch": {
+   "scalar": {
+    "Before": "v2",
+    "After": {}
+   }
+  },
+  "result": {}
+ },
+ {
+  "base": 96,
+  "patch": {},
+  "result": 96
+ },
+ {
+  "base": 116.875,
+  "patch": {
+   "object": {}
+  },
+  "result": 116.875
+ },
+ {
+  "base": "v1",
+  "patch": {
+   "scalar": {
+    "Before": "v1",
+    "After": {}
+   }
+  },
+  "result": {}
+ },
+ {
+  "base": [
+   1,
+   "s"
+  ],
+  "patch": {
+   "scalar": {
+    "Before": [
+     1,
+     "s"
+    ],
+    "After": {}
+   }
+  },
+  "result": {}
+ },
+ {
+  "base": 103,
+  "patch": {
+   "scalar": {
+    "Before": true,
+    "After": true
+   }
+  },
+  "result": true
+ },
+ {
+  "base": 74,
+  "patch": {
+   "scalar": {
+    "Before": 74,
+    "After": []
+   }
+  },
+  "result": []
+ },
+ {
+  "base": [
+   {
+    "Key": "k0",
+    "Value": {
+     "a": [
+      1,
+      "s"
+     ]
+    }
+   },
+   {
+    "Key": "k1",
+    "Value": [
+     2,
+     "s"
+    ]
+   }
+  ],
+  "patch": {},
+  "result": [
+   {
+    "Key": "k0",
+    "Value": {
+     "a": [
+      1,
+      "s"
+     ]
+    }
+   },
+   {
+    "Key": "k1",
+    "Value": [
+     2,
+     "s"
+    ]
+   }
+  ]
+ },
+ {
+  "base": "v4",
+  "patch": {
+   "scalar": {
+    "Before": "v4",
+    "After": {}
+   }
+  },
+  "result": {}
+ },
+ {
+  "base": {
+   "__proto__": null,
+   "constructor": false,
+   "ñ": {
+    "a": false
+   }
+  },
+  "patch": {
+   "scalar": {
+    "Before": {
+     "__proto__": null,
+     "constructor": false,
+     "ñ": {
+      "a": false
+     }
+    },
+    "After": null
+   }
+  },
+  "result": null
+ },
+ {
+  "base": {
+   "__proto__": []
+  },
+  "patch": {
+   "scalar": {
+    "Before": "v0",
+    "After": [
+     {
+      "Key": "k4",
+      "Value": {
+       "constructor": 112.75
+      }
+     },
+     {
+      "Key": "k3",
+      "Value": false
+     }
+    ]
+   }
+  },
+  "result": [
+   {
+    "Key": "k4",
+    "Value": {
+     "constructor": 112.75
+    }
+   },
+   {
+    "Key": "k3",
+    "Value": false
+   }
+  ]
+ },
+ {
+  "base": [
+   {
+    "Key": "k4",
+    "Value": [
+     {
+      "Key": "k2",
+      "Value": null
+     },
+     {
+      "Key": "k4",
+      "Value": [
+       2,
+       "s"
+      ]
+     }
+    ]
+   },
+   {
+    "Key": "k3",
+    "Value": {
+     "c": [
+      0,
+      "s"
+     ],
+     "constructor": [
+      0,
+      "s"
+     ],
+     "d": [
+      2,
+      "s"
+     ]
+    }
+   }
+  ],
+  "patch": {
+   "scalar": {
+    "Before": [
+     {
+      "Key": "k4",
+      "Value": [
+       {
+        "Key": "k2",
+        "Value": null
+       },
+       {
+        "Key": "k4",
+        "Value": [
+         2,
+         "s"
+        ]
+       }
+      ]
+     },
+     {
+      "Key": "k3",
+      "Value": {
+       "c": [
+        0,
+        "s"
+       ],
+       "constructor": [
+        0,
+        "s"
+       ],
+       "d": [
+        2,
+        "s"
+       ]
+      }
+     }
+    ],
+    "After": {}
+   }
+  },
+  "result": {}
+ },
+ {
+  "base": [
+   2,
+   "s"
+  ],
+  "patch": {
+   "scalar": {
+    "Before": [
+     2,
+     "s"
+    ],
+    "After": [
+     {
+      "Key": "k4",
+      "Value": {}
+     },
+     {
+      "Key": "k0",
+      "Value": null
+     },
+     {
+      "Key": "k1",
+      "Value": 61
+     }
+    ]
+   }
+  },
+  "result": [
+   {
+    "Key": "k4",
+    "Value": {}
+   },
+   {
+    "Key": "k0",
+    "Value": null
+   },
+   {
+    "Key": "k1",
+    "Value": 61
+   }
+  ]
+ },
+ {
+  "base": [
+   {
+    "Key": "k3",
+    "Value": [
+     {
+      "Key": "k3",
+      "Value": null
+     }
+    ]
+   },
+   {
+    "Key": "k2",
+    "Value": {}
+   }
+  ],
+  "patch": {
+   "object": {
+    "Set": {
+     "c": {
+      "c": [],
+      "d": {},
+      "ñ": [
+       {
+        "Key": "k4",
+        "Value": {}
+       },
+       {
+        "Key": "k2",
+        "Value": {}
+       },
+       {
+        "Key": "k3",
+        "Value": [
+         {
+          "Key": "k2",
+          "Value": {}
+         }
+        ]
+       }
+      ]
+     }
+    },
+    "Delete": {
+     "a": 122.5
+    },
+    "Update": {
+     "d": {
+      "scalar": {
+       "Before": "v0",
+       "After": [
+        {
+         "Key": "k3",
+         "Value": {
+          "ñ": null
+         }
+        },
+        {
+         "Key": "k0",
+         "Value": {
+          "d": [
+           1,
+           "s"
+          ],
+          "x.y": 26
+         }
+        },
+        {
+         "Key": "k2",
+         "Value": false
+        }
+       ]
+      }
+     }
+    }
+   }
+  },
+  "result": [
+   {
+    "Key": "k3",
+    "Value": [
+     {
+      "Key": "k3",
+      "Value": null
+     }
+    ]
+   },
+   {
+    "Key": "k2",
+    "Value": {}
+   }
+  ]
+ },
+ {
+  "base": [],
+  "patch": {},
+  "result": []
+ },
+ {
+  "base": [
+   {
+    "Key": "k0",
+    "Value": null
+   },
+   {
+    "Key": "k2",
+    "Value": [
+     0,
+     "s"
+    ]
+   }
+  ],
+  "patch": {
+   "scalar": {
+    "Before": [
+     {
+      "Key": "k0",
+      "Value": null
+     },
+     {
+      "Key": "k2",
+      "Value": [
+       0,
+       "s"
+      ]
+     }
+    ],
+    "After": false
+   }
+  },
+  "result": false
+ },
+ {
+  "base": true,
+  "patch": {
+   "scalar": {
+    "Before": true,
+    "After": [
+     {
+      "Key": "k1",
+      "Value": [
+       {
+        "Key": "k2",
+        "Value": {
+         "c": true,
+         "constructor": null
+        }
+       },
+       {
+        "Key": "k0",
+        "Value": {
+         "constructor": null
+        }
+       },
+       {
+        "Key": "k1",
+        "Value": {}
+       }
+      ]
+     },
+     {
+      "Key": "k2",
+      "Value": false
+     }
+    ]
+   }
+  },
+  "result": [
+   {
+    "Key": "k1",
+    "Value": [
+     {
+      "Key": "k2",
+      "Value": {
+       "c": true,
+       "constructor": null
+      }
+     },
+     {
+      "Key": "k0",
+      "Value": {
+       "constructor": null
+      }
+     },
+     {
+      "Key": "k1",
+      "Value": {}
+     }
+    ]
+   },
+   {
+    "Key": "k2",
+    "Value": false
+   }
+  ]
+ },
+ {
+  "base": {
+   "x.y": "v3"
+  },
+  "patch": {
+   "scalar": {
+    "Before": {
+     "x.y": "v3"
+    },
+    "After": [
+     2,
+     "s"
+    ]
+   }
+  },
+  "result": [
+   2,
+   "s"
+  ]
+ },
+ {
+  "base": {
+   "d": "v3"
+  },
+  "patch": {},
+  "result": {
+   "d": "v3"
+  }
+ },
+ {
+  "base": [
+   0,
+   "s"
+  ],
+  "patch": {
+   "scalar": {
+    "Before": "v1",
+    "After": [
+     {
+      "Key": "k3",
+      "Value": null
+     },
+     {
+      "Key": "k0",
+      "Value": [
+       {
+        "Key": "k1",
+        "Value": true
+       },
+       {
+        "Key": "k4",
+        "Value": {}
+       },
+       {
+        "Key": "k0",
+        "Value": [
+         2,
+         "s"
+        ]
+       }
+      ]
+     },
+     {
+      "Key": "k2",
+      "Value": {
+       "__proto__": 96.125,
+       "b": 99.75
+      }
+     }
+    ]
+   }
+  },
+  "result": [
+   {
+    "Key": "k3",
+    "Value": null
+   },
+   {
+    "Key": "k0",
+    "Value": [
+     {
+      "Key": "k1",
+      "Value": true
+     },
+     {
+      "Key": "k4",
+      "Value": {}
+     },
+     {
+      "Key": "k0",
+      "Value": [
+       2,
+       "s"
+      ]
+     }
+    ]
+   },
+   {
+    "Key": "k2",
+    "Value": {
+     "__proto__": 96.125,
+     "b": 99.75
+    }
+   }
+  ]
+ },
+ {
+  "base": [],
+  "patch": {
+   "scalar": {
+    "Before": [],
+    "After": null
+   }
+  },
+  "result": null
+ },
+ {
+  "base": true,
+  "patch": {
+   "object": {
+    "Update": {
+     "__proto__": {
+      "scalar": {
+       "Before": 63,
+       "After": "v1"
+      }
+     },
+     "b": {
+      "scalar": {
+       "Before": null,
+       "After": 26.25
+      }
+     },
+     "c": {
+      "object": {}
+     }
+    },
+    "New": {
+     "__proto__": true
+    }
+   }
+  },
+  "result": true
+ },
+ {
+  "base": 82,
+  "patch": {
+   "scalar": {
+    "Before": null,
+    "After": true
+   }
+  },
+  "result": true
+ },
+ {
+  "base": "v0",
+  "patch": {
+   "object": {}
+  },
+  "result": "v0"
+ },
+ {
+  "base": null,
+  "patch": {
+   "scalar": {
+    "Before": [
+     2,
+     "s"
+    ],
+    "After": {}
+   }
+  },
+  "result": {}
+ },
+ {
+  "base": 91.25,
+  "patch": {
+   "scalar": {
+    "Before": 91.25,
+    "After": {
+     "constructor": true
+    }
+   }
+  },
+  "result": {
+   "constructor": true
+  }
+ },
+ {
+  "base": {
+   "a": [
+    {
+     "Key": "k1",
+     "Value": {
+      "b": null,
+      "constructor": null
+     }
+    }
+   ],
+   "d": [],
+   "x.y": {}
+  },
+  "patch": {
+   "scalar": {
+    "Before": {
+     "a": [
+      {
+       "Key": "k1",
+       "Value": {
+        "b": null,
+        "constructor": null
+       }
+      }
+     ],
+     "d": [],
+     "x.y": {}
+    },
+    "After": 102
+   }
+  },
+  "result": 102
+ },
+ {
+  "base": [],
+  "patch": {
+   "scalar": {
+    "Before": [],
+    "After": [
+     0,
+     "s"
+    ]
+   }
+  },
+  "result": [
+   0,
+   "s"
+  ]
+ },
+ {
+  "base": {
+   "c": [
+    {
+     "Key": "k2",
+     "Value": []
+    }
+   ]
+  },
+  "patch": {
+   "scalar": {
+    "Before": {
+     "c": [
+      {
+       "Key": "k2",
+       "Value": []
+      }
+     ]
+    },
+    "After": [
+     {
+      "Key": "k2",
+      "Value": [
+       2,
+       "s"
+      ]
+     }
+    ]
+   }
+  },
+  "result": [
+   {
+    "Key": "k2",
+    "Value": [
+     2,
+     "s"
+    ]
+   }
+  ]
+ },
+ {
+  "base": [
+   2,
+   "s"
+  ],
+  "patch": {
+   "scalar": {
+    "Before": [
+     2,
+     "s"
+    ],
+    "After": "v0"
+   }
+  },
+  "result": "v0"
+ },
+ {
+  "base": {
+   "d": {
+    "a": "v0",
+    "c": null,
+    "x.y": true
+   }
+  },
+  "patch": {},
+  "result": {
+   "d": {
+    "a": "v0",
+    "c": null,
+    "x.y": true
+   }
+  }
+ },
+ {
+  "base": true,
+  "patch": {
+   "scalar": {
+    "Before": 104.75,
+    "After": {
+     "b": {
+      "constructor": "v2",
+      "ñ": []
+     },
+     "constructor": null
+    }
+   }
+  },
+  "result": {
+   "b": {
+    "constructor": "v2",
+    "ñ": []
+   },
+   "constructor": null
+  }
+ },
+ {
+  "base": {
+   "constructor": {
+    "constructor": 78
+   }
+  },
+  "patch": {
+   "list": {
+    "Update": {
+     "k1": {
+      "object": {
+       "Delete": {
+        "c": "v1"
+       },
+       "Update": {
+        "d": {}
+       }
+      }
+     }
+    },
+    "Order": {
+     "Declared": [
+      "k4",
+      "k0"
+     ],
+     "Moved": [
+      0
+     ]
+    }
+   }
+  },
+  "result": {
+   "constructor": {
+    "constructor": 78
+   }
+  }
+ },
+ {
+  "base": [
+   2,
+   "s"
+  ],
+  "patch": {
+   "object": {
+    "Set": {
+     "b": {
+      "b": null,
+      "ñ": null
+     }
+    },
+    "Delete": {
+     "a": [
+      0,
+      "s"
+     ]
+    }
+   }
+  },
+  "result": [
+   2,
+   "s"
+  ]
+ },
+ {
+  "base": [],
+  "patch": {
+   "scalar": {
+    "Before": [],
+    "After": {
+     "x.y": {
+      "ñ": [
+       0,
+       "s"
+      ]
+     }
+    }
+   }
+  },
+  "result": {
+   "x.y": {
+    "ñ": [
+     0,
+     "s"
+    ]
+   }
+  }
+ },
+ {
+  "base": [
+   {
+    "Key": "k4",
+    "Value": {
+     "__proto__": [
+      1,
+      "s"
+     ],
+     "c": [
+      2,
+      "s"
+     ]
+    }
+   },
+   {
+    "Key": "k3",
+    "Value": {
+     "d": true,
+     "x.y": 3
+    }
+   }
+  ],
+  "patch": {
+   "object": {
+    "Delete": {
+     "a": [
+      0,
+      "s"
+     ]
+    }
+   }
+  },
+  "result": [
+   {
+    "Key": "k4",
+    "Value": {
+     "__proto__": [
+      1,
+      "s"
+     ],
+     "c": [
+      2,
+      "s"
+     ]
+    }
+   },
+   {
+    "Key": "k3",
+    "Value": {
+     "d": true,
+     "x.y": 3
+    }
+   }
+  ]
+ },
+ {
+  "base": true,
+  "patch": {
+   "scalar": {
+    "Before": 55,
+    "After": {
+     "c": {}
+    }
+   }
+  },
+  "result": {
+   "c": {}
+  }
+ },
+ {
+  "base": {
+   "__proto__": [
+    {
+     "Key": "k2",
+     "Value": true
+    },
+    {
+     "Key": "k0",
+     "Value": false
+    }
+   ],
+   "a": {
+    "constructor": [
+     2,
+     "s"
+    ],
+    "d": true,
+    "ñ": null
+   },
+   "x.y": null
+  },
+  "patch": {
+   "object": {}
+  },
+  "result": {
+   "__proto__": [
+    {
+     "Key": "k2",
+     "Value": true
+    },
+    {
+     "Key": "k0",
+     "Value": false
+    }
+   ],
+   "a": {
+    "constructor": [
+     2,
+     "s"
+    ],
+    "d": true,
+    "ñ": null
+   },
+   "x.y": null
+  }
+ },
+ {
+  "base": {},
+  "patch": {
+   "scalar": {
+    "Before": {},
+    "After": []
+   }
+  },
+  "result": []
+ },
+ {
+  "base": "v2",
+  "patch": {
+   "scalar": {
+    "Before": "v2",
+    "After": {}
+   }
+  },
+  "result": {}
+ },
+ {
+  "base": [
+   0,
+   "s"
+  ],
+  "patch": {
+   "object": {
+    "Set": {
+     "c": [
+      {
+       "Key": "k3",
+       "Value": {
+        "c": "v1",
+        "x.y": null,
+        "ñ": false
+       }
+      },
+      {
+       "Key": "k4",
+       "Value": {
+        "b": "v2"
+       }
+      }
+     ]
+    },
+    "Delete": {
+     "a": 20.75,
+     "constructor": "v4"
+    }
+   }
+  },
+  "result": [
+   0,
+   "s"
+  ]
+ },
+ {
+  "base": {
+   "__proto__": "v2",
+   "constructor": false,
+   "d": false
+  },
+  "patch": {
+   "object": {
+    "Set": {
+     "b": {
+      "d": 89.625
+     }
+    },
+    "Delete": {
+     "ñ": 15
+    }
+   }
+  },
+  "result": {
+   "__proto__": "v2",
+   "b": {
+    "d": 89.625
+   },
+   "constructor": false,
+   "d": false
+  }
+ },
+ {
+  "base": {
+   "b": {
+    "__proto__": 5
+   },
+   "x.y": {
+    "x.y": [
+     0,
+     "s"
+    ]
+   }
+  },
+  "patch": {},
+  "result": {
+   "b": {
+    "__proto__": 5
+   },
+   "x.y": {
+    "x.y": [
+     0,
+     "s"
+    ]
+   }
+  }
+ },
+ {
+  "base": {
+   "a": []
+  },
+  "patch": {
+   "scalar": {
+    "Before": {
+     "a": []
+    },
+    "After": [
+     1,
+     "s"
+    ]
+   }
+  },
+  "result": [
+   1,
+   "s"
+  ]
+ },
+ {
+  "base": {
+   "__proto__": 42,
+   "b": {
+    "ñ": null
+   }
+  },
+  "patch": {
+   "scalar": {
+    "Before": {
+     "__proto__": 42,
+     "b": {
+      "ñ": null
+     }
+    },
+    "After": [
+     {
+      "Key": "k1",
+      "Value": null
+     },
+     {
+      "Key": "k0",
+      "Value": {}
+     }
+    ]
+   }
+  },
+  "result": [
+   {
+    "Key": "k1",
+    "Value": null
+   },
+   {
+    "Key": "k0",
+    "Value": {}
+   }
+  ]
+ },
+ {
+  "base": [
+   2,
+   "s"
+  ],
+  "patch": {
+   "list": {
+    "Order": {
+     "Declared": [
+      "k4",
+      "k4"
+     ],
+     "Moved": [
+      0
+     ]
+    }
+   }
+  },
+  "result": [
+   2,
+   "s"
+  ]
+ },
+ {
+  "base": "v3",
+  "patch": {
+   "list": {}
+  },
+  "result": "v3"
+ },
+ {
+  "base": true,
+  "patch": {
+   "list": {
+    "Update": {
+     "k1": {
+      "scalar": {
+       "Before": "v1",
+       "After": {
+        "a": [
+         {
+          "Key": "k1",
+          "Value": {}
+         }
+        ],
+        "d": {}
+       }
+      }
+     }
+    },
+    "Order": {
+     "Declared": [
+      "k4",
+      "k0"
+     ],
+     "Moved": [
+      0
+     ],
+     "Prior": [
+      "k0",
+      "k4"
+     ],
+     "PriorMoved": [
+      1
+     ]
+    }
+   }
+  },
+  "result": true
+ },
+ {
+  "base": "v4",
+  "patch": {
+   "scalar": {
+    "Before": "v4",
+    "After": [
+     {
+      "Key": "k2",
+      "Value": {
+       "b": 25,
+       "constructor": true
+      }
+     }
+    ]
+   }
+  },
+  "result": [
+   {
+    "Key": "k2",
+    "Value": {
+     "b": 25,
+     "constructor": true
+    }
+   }
+  ]
+ },
+ {
+  "base": [
+   {
+    "Key": "k3",
+    "Value": null
+   },
+   {
+    "Key": "k1",
+    "Value": {
+     "a": [
+      2,
+      "s"
+     ],
+     "x.y": false,
+     "ñ": "v2"
+    }
+   },
+   {
+    "Key": "k4",
+    "Value": {}
+   }
+  ],
+  "patch": {},
+  "result": [
+   {
+    "Key": "k3",
+    "Value": null
+   },
+   {
+    "Key": "k1",
+    "Value": {
+     "a": [
+      2,
+      "s"
+     ],
+     "x.y": false,
+     "ñ": "v2"
+    }
+   },
+   {
+    "Key": "k4",
+    "Value": {}
+   }
+  ]
+ },
+ {
+  "base": 121.375,
+  "patch": {
+   "scalar": {
+    "Before": 121.375,
+    "After": {
+     "c": {
+      "__proto__": [
+       0,
+       "s"
+      ],
+      "ñ": true
+     },
+     "d": 104.375
+    }
+   }
+  },
+  "result": {
+   "c": {
+    "__proto__": [
+     0,
+     "s"
+    ],
+    "ñ": true
+   },
+   "d": 104.375
+  }
+ },
+ {
+  "base": false,
+  "patch": {
+   "object": {}
+  },
+  "result": false
+ },
+ {
+  "base": {
+   "a": [
+    {
+     "Key": "k3",
+     "Value": 47.625
+    },
+    {
+     "Key": "k2",
+     "Value": true
+    }
+   ],
+   "b": 53,
+   "c": {
+    "a": false,
+    "c": false,
+    "constructor": [
+     1,
+     "s"
+    ]
+   }
+  },
+  "patch": {
+   "object": {
+    "Delete": {
+     "b": 53
+    },
+    "Update": {
+     "a": {
+      "scalar": {
+       "Before": [
+        {
+         "Key": "k3",
+         "Value": 47.625
+        },
+        {
+         "Key": "k2",
+         "Value": true
+        }
+       ],
+       "After": {
+        "__proto__": "v3",
+        "a": "v0",
+        "ñ": 56
+       }
+      }
+     },
+     "c": {
+      "object": {
+       "Set": {
+        "__proto__": null,
+        "ñ": [
+         1,
+         "s"
+        ]
+       },
+       "Delete": {
+        "a": false,
+        "c": false
+       },
+       "Update": {
+        "constructor": {
+         "scalar": {
+          "Before": [
+           1,
+           "s"
+          ],
+          "After": null
+         }
+        }
+       }
+      }
+     },
+     "constructor": {
+      "object": {
+       "Set": {
+        "x.y": 5
+       }
+      }
+     }
+    },
+    "New": {
+     "constructor": true
+    }
+   }
+  },
+  "result": {
+   "a": {
+    "__proto__": "v3",
+    "a": "v0",
+    "ñ": 56
+   },
+   "c": {
+    "__proto__": null,
+    "constructor": null,
+    "ñ": [
+     1,
+     "s"
+    ]
+   },
+   "constructor": {
+    "x.y": 5
+   }
+  }
+ },
+ {
+  "base": {
+   "c": false,
+   "d": {
+    "a": [
+     2,
+     "s"
+    ],
+    "c": false,
+    "ñ": [
+     2,
+     "s"
+    ]
+   }
+  },
+  "patch": {
+   "scalar": {
+    "Before": {
+     "c": false,
+     "d": {
+      "a": [
+       2,
+       "s"
+      ],
+      "c": false,
+      "ñ": [
+       2,
+       "s"
+      ]
+     }
+    },
+    "After": "v0"
+   }
+  },
+  "result": "v0"
+ }
+]
