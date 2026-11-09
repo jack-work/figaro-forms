@@ -47,8 +47,14 @@ identity and a React component reading it does not re-render.
 A page served with `--static` lives under a strict CSP: no inline
 `<script>` or `<style>`, no `eval` or `new Function`, no frames or
 objects. Put script and style in files. `--frame-src ORIGIN` lets the
-page frame pages from another origin (never the bridge's own, whose
-pages could read the token). Test drivers that evaluate code in the page
+page frame pages from another origin; never the bridge's own, whose pages
+could read the token, and never one also given to `--origin`, so framed
+content never reaches the door. The bridge cannot police the page itself,
+so a page that frames must: frame with `sandbox="allow-scripts"` (no
+`allow-same-origin` unless the content needs it, never
+`allow-top-navigation`), treat any `postMessage` from a frame as data
+after checking `event.origin`, never turn one into a door call, and never
+post the token into a frame. Test drivers that evaluate code in the page
 (Playwright's `wait_for_function`) are blocked by the same policy; wait
 on selectors instead.
 

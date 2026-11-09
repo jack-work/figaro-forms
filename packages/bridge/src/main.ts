@@ -13,7 +13,8 @@ Usage: figaro-forms-bridge [--socket PATH] [--port N] [--static DIR [--frame-src
   --frame-src ORIGIN
                  let the static page frame pages from ORIGIN (repeatable), e.g.
                  http://127.0.0.1:8765; never the bridge's own origin, whose
-                 pages could read the token
+                 pages could read the token, and never an --origin: framed
+                 pages must not reach the door
   --origin URL   also admit pages from URL (repeatable), e.g. http://127.0.0.1:8765;
                  every page served on that origin gets the bridge's reach, which is
                  the owner's

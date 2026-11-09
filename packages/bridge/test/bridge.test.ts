@@ -193,6 +193,9 @@ describe("figaro-forms-bridge static serving", () => {
     expect((await fetch(`${framed.origin}/notes.tex`)).headers.get("content-type")).toBe("text/plain; charset=utf-8");
     await expect(bridge(door, { staticDir: dir, frameOrigins: ["http://127.0.0.1:8765/path"] })).rejects.toThrow(/origin/);
     await expect(bridge(door, { staticDir: dir, frameOrigins: ["*"] })).rejects.toThrow(/URL|origin/);
+    await expect(
+      bridge(door, { staticDir: dir, frameOrigins: ["http://127.0.0.1:8765"], origins: ["http://127.0.0.1:8765/"] }),
+    ).rejects.toThrow(/both --frame-src and --origin/);
     const port = new URL(framed.origin).port;
     await framed.close();
     await expect(bridge(door, { staticDir: dir, port: Number(port), frameOrigins: [`http://localhost:${port}`] })).rejects.toThrow(/own origin/);
