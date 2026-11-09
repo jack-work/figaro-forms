@@ -1,6 +1,6 @@
 {
   "name": "figaro-forms",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Subscribable figaro form state: store, optimistic edits, auth, view model, React and Jotai bindings",
   "license": "UNLICENSED",
   "type": "module",
