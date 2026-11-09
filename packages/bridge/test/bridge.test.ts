@@ -145,6 +145,7 @@ describe("figaro-forms-bridge", () => {
     expect(await page.text()).toBe("<p>page</p>");
     expect(page.headers.get("content-security-policy")).toContain("default-src 'none'");
     expect(await (await fetch(`${b.origin}/assets/a.js`)).text()).toBe("1");
+    expect((await fetch(`${b.origin}/deep/link`)).status).toBe(404);
     const escape = await fetch(`${b.origin}/..%2f..%2fetc%2fpasswd`);
     expect([403, 404]).toContain(escape.status);
     expect(await escape.text()).not.toContain("root:");

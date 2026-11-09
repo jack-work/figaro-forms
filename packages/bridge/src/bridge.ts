@@ -184,12 +184,11 @@ async function serveStatic(root: string | undefined, req: IncomingMessage, res: 
     return;
   }
   try {
-    if ((await stat(file)).isDirectory()) file = join(file, "index.html");
-  } catch {
-    file = join(root, "index.html");
-  }
-  try {
-    const s = await stat(file);
+    let s = await stat(file);
+    if (s.isDirectory()) {
+      file = join(file, "index.html");
+      s = await stat(file);
+    }
     res.writeHead(200, { ...head, "Content-Type": types[extname(file)] ?? "application/octet-stream", "Content-Length": s.size });
     if (req.method === "HEAD") res.end();
     else createReadStream(file).pipe(res);
