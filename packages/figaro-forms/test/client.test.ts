@@ -278,6 +278,58 @@ describe("FormsClient against a fake door", () => {
     again.close();
   });
 
+  it("follows forms only and unfollows a released form when the daemon offers both", async () => {
+    const door = new FakeDoor();
+    door.capabilities = [...door.capabilities, "follow.channels", "unfollow"];
+    door.add("@f1", { a: 1 });
+    const client = new FormsClient({ dial: door.dial, client: "u1", releaseGraceMs: 5 });
+    const f = client.form("@f1");
+    await f.ready();
+    const follow = door.conns[0]!.received.find((x) => x.method === "figaro.follow");
+    expect(follow?.params).toEqual({ figaro_id: "@f1", channels: ["forms"] });
+    client.release("@f1");
+    await new Promise((r) => setTimeout(r, 30));
+    expect(door.conns[0]!.received.filter((x) => x.method === "figaro.unfollow").map((x) => x.params)).toEqual([{ figaro_id: "@f1" }]);
+    expect(door.conns[0]!.follows.has("@f1")).toBe(false);
+    const again = client.form("@f1");
+    await again.ready();
+    expect(door.conns[0]!.follows.has("@f1")).toBe(true);
+    client.close();
+  });
+
+  it("keeps following while an intrinsic of the same aria is still held", async () => {
+    const door = new FakeDoor();
+    door.capabilities = [...door.capabilities, "follow.channels", "unfollow"];
+    door.add("@f1", { a: 1 });
+    const client = new FormsClient({ dial: door.dial, client: "u3", releaseGraceMs: 5 });
+    const f = client.form("@f1");
+    client.form("@f1/runtime");
+    await f.ready();
+    client.release("@f1");
+    await new Promise((r) => setTimeout(r, 30));
+    expect(door.conns[0]!.received.some((x) => x.method === "figaro.unfollow")).toBe(false);
+    client.release("@f1/runtime");
+    await new Promise((r) => setTimeout(r, 30));
+    expect(door.conns[0]!.received.filter((x) => x.method === "figaro.unfollow")).toHaveLength(1);
+    client.close();
+  });
+
+  it("sends neither channels nor unfollow to a daemon that offers neither", async () => {
+    const door = new FakeDoor();
+    door.add("@f1", { a: 1 });
+    const client = new FormsClient({ dial: door.dial, client: "u2", releaseGraceMs: 5 });
+    const f = client.form("@f1");
+    const rt = client.form("@f1/runtime");
+    await f.ready();
+    client.release("@f1");
+    await new Promise((r) => setTimeout(r, 30));
+    const sent = door.conns[0]!.received;
+    expect(sent.find((x) => x.method === "figaro.follow")?.params).toEqual({ figaro_id: "@f1" });
+    expect(sent.some((x) => x.method === "figaro.unfollow")).toBe(false);
+    void rt;
+    client.close();
+  });
+
   it("fails a form the daemon does not have, without retrying forever", async () => {
     const { client } = setup();
     const f = client.form("@nope");

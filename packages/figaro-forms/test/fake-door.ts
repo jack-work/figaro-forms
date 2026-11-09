@@ -35,6 +35,7 @@ export class FakeDoor {
   private held: (() => void)[] = [];
   private minted = 0;
   dials = 0;
+  capabilities: string[] = ["form.seq", "form.access", "form.view"];
   refuseDial: string | undefined;
 
   add(id: string, value: JsonObject, extra: Partial<FakeForm> = {}): void {
@@ -142,13 +143,19 @@ export class FakeDoor {
     const id = f.params?.figaro_id ?? "";
     switch (f.method) {
       case "angelus.hello":
-        this.reply(c, f.id, { result: { version: 1, capabilities: ["form.seq", "form.access", "form.view"], node: "n1", principal: { kind: "user", id: "gluck" } } });
+        this.reply(c, f.id, { result: { version: 1, capabilities: this.capabilities, node: "n1", principal: { kind: "user", id: "gluck" } } });
         return;
       case "figaro.follow":
         if (!this.forms.has(id)) return err(`figaro.follow: no such form ${id}`);
         c.follows.add(id);
         this.reply(c, f.id, { result: { ok: true, figaro_id: id } });
         return;
+      case "figaro.unfollow": {
+        if (!this.capabilities.includes("unfollow")) return err(`method not found: ${f.method}`, -32601);
+        const released = c.follows.delete(id);
+        this.reply(c, f.id, { result: { released, figaro_id: id } });
+        return;
+      }
       case "figaro.form": {
         const form = this.forms.get(id);
         if (!form) return err(`figaro.form: no such form ${id}`);

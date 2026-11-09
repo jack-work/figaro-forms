@@ -8,6 +8,7 @@ import {
   protocolVersion,
   type FormCreateResponse,
   type FormDelta,
+  type Capability,
   type FormResponse,
   type HelloResponse,
   type SetResponse,
@@ -135,6 +136,7 @@ export class FormsClient {
       if (this.forms.get(key) !== e) return;
       this.forms.delete(key);
       e.replica.close();
+      this.unfollowIfUnused(e.ref.id);
     }, this.opts.releaseGraceMs ?? 1000);
   }
 
@@ -196,10 +198,21 @@ export class FormsClient {
     e.replica.reload();
   }
 
+  private offers(cap: Capability): boolean {
+    return this.helloValue?.capabilities?.includes(cap) ?? false;
+  }
+
+  private unfollowIfUnused(id: string): void {
+    if ([...this.forms.values()].some((x) => x.ref.id === id)) return;
+    if (!this.followed.delete(id) || !this.offers("unfollow") || !this.connection.live) return;
+    this.connection.send(method.unfollow, { figaro_id: id }).catch(() => {});
+  }
+
   private async follow(conn: Connection, e: Entry): Promise<void> {
     if (this.followed.has(e.ref.id)) return;
     try {
-      await conn.send(method.follow, { figaro_id: e.ref.id });
+      const channels = this.offers("follow.channels") ? { channels: ["forms"] } : {};
+      await conn.send(method.follow, { figaro_id: e.ref.id, ...channels });
       this.followed.add(e.ref.id);
     } catch (err) {
       if (err instanceof RpcError) return;

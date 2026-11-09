@@ -9,6 +9,7 @@ export const errDenied = -32020;
 export const method = {
   hello: "angelus.hello",
   follow: "figaro.follow",
+  unfollow: "figaro.unfollow",
   form: "figaro.form",
   set: "figaro.set",
   formCreate: "form.create",
@@ -17,7 +18,15 @@ export const method = {
   doorLapsed: "door.lapsed",
 } as const;
 
-export type Capability = "qua.images" | "form.seq" | "form.access" | "form.view" | "normalize.report" | (string & {});
+export type Capability =
+  | "qua.images"
+  | "form.seq"
+  | "form.access"
+  | "form.view"
+  | "normalize.report"
+  | "unfollow"
+  | "follow.channels"
+  | (string & {});
 
 export interface Principal {
   readonly kind: "aria" | "user" | "node" | "sandbox" | (string & {});
