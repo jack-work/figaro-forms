@@ -1,0 +1,74 @@
+:root {
+  --ink: #1d1a16;
+  --paper: #f6f1e7;
+  --rule: #d8cfbd;
+  --muted: #7a7062;
+  --accent: #8a2b1d;
+  --ok: #2f6b3a;
+  --warn: #9a6a12;
+  color-scheme: light;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  color: var(--ink);
+  background: var(--paper);
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+button, input { font: inherit; color: inherit; }
+.shell { display: grid; grid-template-columns: 19rem 1fr; grid-template-rows: auto 1fr; min-height: 100vh; }
+.top { grid-column: 1 / -1; display: flex; gap: 1rem; align-items: baseline; padding: 0.6rem 1rem; border-bottom: 1px solid var(--rule); }
+.brand { font-weight: 700; letter-spacing: 0.04em; font-variant: small-caps; font-size: 1.1rem; }
+.door { color: var(--muted); font-family: ui-monospace, monospace; font-size: 0.85rem; }
+.conn { font-size: 0.8rem; padding: 0.05rem 0.45rem; border: 1px solid currentColor; border-radius: 2px; }
+.conn-open { color: var(--ok); }
+.conn-connecting, .conn-waiting { color: var(--warn); }
+.conn-closed { color: var(--accent); }
+.side { border-right: 1px solid var(--rule); padding: 0.75rem; display: flex; flex-direction: column; gap: 0.75rem; }
+.side ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.25rem; }
+.pick { width: 100%; text-align: left; background: none; border: 1px solid transparent; padding: 0.45rem 0.55rem; cursor: pointer; display: flex; flex-direction: column; gap: 0.1rem; }
+.pick:hover { border-color: var(--rule); }
+.pick.on { border-color: var(--ink); background: #fffaf0; }
+.pick-title { font-weight: 600; }
+.pick-note { font-size: 0.8rem; color: var(--muted); }
+.action, .open button, .add button { background: var(--ink); color: var(--paper); border: none; padding: 0.4rem 0.7rem; cursor: pointer; }
+.action:disabled { opacity: 0.5; }
+.open, .add { display: flex; gap: 0.4rem; }
+.open input, .add input { flex: 1; min-width: 0; border: 1px solid var(--rule); background: #fffdf8; padding: 0.35rem 0.45rem; font-family: ui-monospace, monospace; font-size: 0.85rem; }
+.main { padding: 0.75rem 1.25rem; overflow: auto; }
+.status { display: flex; gap: 0.9rem; align-items: baseline; flex-wrap: wrap; font-size: 0.85rem; color: var(--muted); border-bottom: 1px solid var(--rule); padding-bottom: 0.5rem; }
+.ref { font-family: ui-monospace, monospace; color: var(--ink); font-size: 0.95rem; }
+.phase-ready { color: var(--ok); }
+.phase-loading { color: var(--warn); }
+.phase-failed, .phase-gone, .phase-incompatible { color: var(--accent); }
+.pending { color: var(--warn); font-weight: 600; }
+.error, .refusal { color: var(--accent); font-size: 0.85rem; }
+.tree { list-style: none; margin: 0.5rem 0; padding: 0; font-family: ui-monospace, monospace; font-size: 0.875rem; }
+.node { display: flex; align-items: baseline; gap: 0.6rem; min-height: 1.6rem; border-bottom: 1px dotted transparent; }
+.node:hover { border-bottom-color: var(--rule); }
+.node.marked { background: #f2e2c6; }
+.toggle { display: flex; gap: 0.5rem; align-items: baseline; background: none; border: none; padding: 0; cursor: pointer; text-align: left; flex: 1; min-width: 0; }
+.caret { width: 0.8rem; color: var(--muted); }
+.key { color: var(--accent); }
+.row > .toggle > .key { color: var(--ink); font-weight: 600; }
+.label { color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.count { color: var(--muted); }
+.aside { margin-left: auto; color: var(--muted); }
+.value { background: none; border: none; padding: 0; text-align: left; cursor: default; white-space: pre-wrap; word-break: break-word; }
+button.value { cursor: text; }
+button.value:hover { text-decoration: underline dotted; }
+.edit { flex: 1; border: 1px solid var(--ink); background: #fffdf8; padding: 0.1rem 0.3rem; }
+.remove { margin-left: auto; background: none; border: none; color: var(--muted); cursor: pointer; visibility: hidden; }
+.node:hover .remove { visibility: visible; }
+.actions, .hint { color: var(--muted); font-size: 0.8rem; }
+.d0 { padding-left: 0.0rem; }
+.d1 { padding-left: 1.1rem; }
+.d2 { padding-left: 2.2rem; }
+.d3 { padding-left: 3.3rem; }
+.d4 { padding-left: 4.4rem; }
+.d5 { padding-left: 5.5rem; }
+.d6 { padding-left: 6.6rem; }
+.d7 { padding-left: 7.7rem; }
+.d8 { padding-left: 8.8rem; }
+.d9 { padding-left: 9.9rem; }
+.d10 { padding-left: 11.0rem; }
+.d11 { padding-left: 12.1rem; }
+.d12 { padding-left: 13.2rem; }

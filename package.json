@@ -3,11 +3,14 @@
   "private": true,
   "type": "module",
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "apps/*"
   ],
   "scripts": {
-    "build": "npm run build -w figaro-forms && npm run build -w figaro-forms-bridge",
-    "check": "npm run typecheck --workspaces --if-present",
+    "build:all": "npm run build -w figaro-forms && npm run build -w figaro-forms-bridge && npm run build -w figaro-forms-demo",
+    "build": "npm run build:all",
+    "check": "npm run check:text-only && npm run typecheck --workspaces --if-present",
+    "check:text-only": "! grep -rnE \"dangerouslySetInnerHTML|innerHTML|outerHTML|insertAdjacentHTML|document\\.write|new Function|eval\\(\" packages/*/src apps/*/src",
     "test": "npm test --workspaces --if-present",
     "vectors": "cd conformance && go run ."
   }
