@@ -87,8 +87,33 @@ describe.skipIf(!runDir || !formId)("live: a dev daemon", () => {
     await f.ready();
     const before = f.get("title");
     const res = await f.set("title", "should not land");
-    expect(res).toMatchObject({ ok: false, refusal: { key: "title", kind: "denied" } });
+    if (f.status.access?.mode === "read") expect(res).toMatchObject({ ok: false, refusal: { key: "title", kind: "read-only" } });
+    else expect(res).toMatchObject({ ok: false, refusal: { key: "title", kind: "denied" } });
     expect(f.get("title")).toEqual(before);
+  });
+
+  it("unfollows a released form where the daemon offers it, and hears it again on reopen", async () => {
+    const url = await edge(join(runDir as string, "web.sock"), "tester");
+    const a = new FormsClient({ dial: webSocketDial({ url }), releaseGraceMs: 5 });
+    const w = new FormsClient({ dial: webSocketDial({ url }) });
+    cleanups.push(() => a.close(), () => w.close());
+    const fa = a.form(formId);
+    const fw = w.form(formId);
+    await Promise.all([fa.ready(), fw.ready()]);
+    const caps = a.hello?.capabilities ?? [];
+    let heard = 0;
+    a.connection.on("form.delta", () => heard++);
+    await fw.set("live.unfollow", `before-${Date.now()}`);
+    await until(fa, () => heard > 0);
+    a.release(formId);
+    await new Promise((r) => setTimeout(r, 50));
+    const was = heard;
+    await fw.set("live.unfollow", `after-${Date.now()}`);
+    await new Promise((r) => setTimeout(r, 300));
+    if (caps.includes("unfollow")) expect(heard).toBe(was);
+    const again = a.form(formId);
+    await again.ready();
+    expect(again.get("live.unfollow")).toBe(fw.get("live.unfollow"));
   });
 
   it("reads the daemon's own catalogs and their view hints", async () => {
