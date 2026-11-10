@@ -1,6 +1,16 @@
-# figaro-forms
+<h1 align="center">figaro-forms</h1>
 
-Subscribable figaro form state for TypeScript. State and interfaces only: no
+<p align="center">
+  <a href="https://github.com/jack-work/figaro-forms/tags"><img src="https://img.shields.io/github/v/tag/jack-work/figaro-forms?color=98BB6C&labelColor=1F1F28&label=release" alt="latest release"></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-NON--AI%20MPL--2.0-7E9CD8?labelColor=1F1F28" alt="license: NON-AI MPL-2.0"></a>
+  <img src="https://img.shields.io/badge/typescript-ESM-7FB4CA?labelColor=1F1F28" alt="TypeScript, ESM">
+  <img src="https://img.shields.io/badge/nix-flake-957FB8?labelColor=1F1F28" alt="nix flake">
+</p>
+
+<p align="center"><b>Live, subscribable <a href="https://github.com/jack-work/figaro">figaro</a> forms in TypeScript.</b><br>
+Connect to a figaro daemon's door, follow any form, read and write it by path. React and jotai bindings included.</p>
+
+State and interfaces only: no
 DOM. `apps/demo` is the one place anything is drawn.
 
 | import | holds |
@@ -63,15 +73,18 @@ npx figaro-forms-bridge --static apps/demo/dist        # prints the page URL
 npx figaro-forms-bridge --origin http://127.0.0.1:8765  # for a page served elsewhere
 ```
 
-## Consuming it
+## Install
 
-- Nix: input `jack/figaro-forms` on keel; `packages.default` (dist),
-  `packages.tarball` (npm pack output), `packages.demo` (static demo),
-  `packages.bridge`.
-- npm, locally: `npm i <path>/packages/figaro-forms` after `npm run build`,
-  or `npm i $(nix build --print-out-paths .#tarball)/figaro-forms-0.1.0.tgz`.
-  The bridge tarball depends on figaro-forms, so install both tarballs in
-  one `npm i`.
+```sh
+npm i "$(nix build --print-out-paths github:jack-work/figaro-forms/v0.1.2#tarball)"/figaro-forms-*.tgz
+```
+
+- Nix flake: `github:jack-work/figaro-forms/v0.1.2` gives `packages.default`
+  (dist), `packages.tarball` (npm pack output), `packages.demo` (static
+  demo) and `packages.bridge`.
+- npm: install the tarball (`npm i <out>/figaro-forms-*.tgz`), or build
+  from a clone (`npm ci && npm run build`, then `npm i <clone>/packages/figaro-forms`).
+  The bridge tarball depends on figaro-forms, so install both in one `npm i`.
 
 ## Development
 

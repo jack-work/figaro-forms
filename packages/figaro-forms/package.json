@@ -2,7 +2,7 @@
   "name": "figaro-forms",
   "version": "0.1.2",
   "description": "Subscribable figaro form state: store, optimistic edits, auth, view model, React and Jotai bindings",
-  "license": "UNLICENSED",
+  "license": "SEE LICENSE IN LICENSE",
   "type": "module",
   "sideEffects": false,
   "files": [

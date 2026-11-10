@@ -2,7 +2,7 @@
   "name": "figaro-forms-bridge",
   "version": "0.1.2",
   "description": "Loopback WebSocket bridge from a browser page to a figaro daemon's unix socket",
-  "license": "UNLICENSED",
+  "license": "SEE LICENSE IN LICENSE",
   "type": "module",
   "bin": {
     "figaro-forms-bridge": "dist/main.js"
