@@ -22,9 +22,12 @@ export interface FormTransport {
 }
 
 export type Phase = "loading" | "ready" | "incompatible" | "gone" | "failed";
+export type Freshness = "stale" | "resyncing" | "current";
 
 export interface FormStatus {
   readonly phase: Phase;
+  readonly freshness: Freshness;
+  readonly generation: number;
   readonly version: number;
   readonly incarnation: number;
   readonly pending: number;
@@ -54,6 +57,8 @@ interface PendingEdit {
 
 interface State {
   readonly loaded: boolean;
+  readonly freshness: Freshness;
+  readonly generation: number;
   readonly incompatible: boolean;
   readonly gone: boolean;
   readonly failed: string | undefined;
@@ -74,6 +79,8 @@ interface State {
 
 const initial: State = {
   loaded: false,
+  freshness: "stale",
+  generation: 0,
   incompatible: false,
   gone: false,
   failed: undefined,
@@ -97,12 +104,18 @@ export class Replica {
   private s: State = initial;
   private statusValue: FormStatus;
   private readonly statusListeners = new Set<Listener>();
-  private readonly readyWaiters: (() => void)[] = [];
+  private readonly readyWaiters: { resolve(): void; reject(err: Error): void }[] = [];
   private debounce: ReturnType<typeof setTimeout> | undefined;
   private maxWait: ReturnType<typeof setTimeout> | undefined;
   private retry = 0;
   private reloading = false;
   private reloadAgain = false;
+  private loadRequest = 0;
+  private active = true;
+  private seeded = false;
+  private buffered: FormDelta[] = [];
+  private bufferOverflow = false;
+  private readonly recoveryTimers = new Set<ReturnType<typeof setTimeout>>();
   private closed = false;
 
   constructor(
@@ -139,8 +152,79 @@ export class Replica {
   }
 
   ready(): Promise<void> {
-    if (this.s.loaded) return Promise.resolve();
-    return new Promise((r) => this.readyWaiters.push(r));
+    if (this.closed || this.s.failed || this.s.gone || this.s.incompatible) {
+      return Promise.reject(new Error(this.s.failed ?? "the form is unavailable"));
+    }
+    if (this.s.freshness === "current") return Promise.resolve();
+    return new Promise((resolve, reject) => this.readyWaiters.push({ resolve, reject }));
+  }
+
+  beginGeneration(generation: number): void {
+    if (this.closed || generation <= this.s.generation) return;
+    this.invalidate();
+    this.active = true;
+    this.commit({
+      ...this.s,
+      generation,
+      loaded: false,
+      freshness: "resyncing",
+      gone: false,
+      failed: undefined,
+      access: undefined,
+      view: undefined,
+      origin: "",
+      inFlight: false,
+      pending: this.s.pending.map((p) => ({ ...p, sent: false })),
+    });
+  }
+
+  stale(): void {
+    if (this.closed) return;
+    this.invalidate();
+    this.active = false;
+    this.commit({ ...this.s, freshness: "stale", inFlight: false, access: undefined, view: undefined });
+  }
+
+  failed(err: unknown, generation = this.s.generation): void {
+    if (!this.currentGeneration(generation)) return;
+    const reason = err instanceof Error ? err.message : String(err);
+    this.invalidate();
+    const refusal: Refusal = { key: "", kind: "unavailable", reason };
+    const pending = [...this.s.draftWaiters, ...this.s.pending.flatMap((p) => p.waiters)];
+    this.commit({
+      ...this.s,
+      loaded: false,
+      freshness: "stale",
+      failed: reason,
+      confirmed: {},
+      shown: {},
+      version: 0,
+      incarnation: 0,
+      access: undefined,
+      view: undefined,
+      origin: "",
+      inFlight: false,
+      pending: [],
+      draft: identity,
+      draftWaiters: [],
+    });
+    for (const w of pending) w({ ok: false, refusal });
+    for (const w of this.readyWaiters.splice(0)) w.reject(new Error(reason));
+  }
+
+  private currentGeneration(generation: number): boolean {
+    return !this.closed && this.active && generation === this.s.generation;
+  }
+
+  private invalidate(): void {
+    this.loadRequest++;
+    this.reloading = false;
+    this.reloadAgain = false;
+    this.buffered = [];
+    this.bufferOverflow = false;
+    this.stopTimers();
+    for (const timer of this.recoveryTimers) clearTimeout(timer);
+    this.recoveryTimers.clear();
   }
 
   set(path: PathLike, value: Json): Promise<EditResult> {
@@ -159,6 +243,9 @@ export class Replica {
   }
 
   edit(p: Patch): Promise<EditResult> {
+    if (this.closed || this.s.failed || this.s.gone || this.s.incompatible) {
+      return Promise.resolve(this.refuseLocally([], "unavailable", this.s.failed ?? "the form is unavailable"));
+    }
     if (isIdentity(p)) return Promise.resolve({ ok: true, version: this.s.version });
     const refusal = this.localRefusal(p);
     if (refusal) {
@@ -184,14 +271,25 @@ export class Replica {
     this.commit(this.flushDraft(this.s));
   }
 
-  delta(d: FormDelta): void {
+  delta(d: FormDelta, generation = this.s.generation): void {
     const s = this.s;
-    if (s.incompatible || this.closed) return;
+    if (!this.currentGeneration(generation) || s.incompatible || s.failed) return;
     if (d.schema !== formDeltaSchema) {
-      this.commit({ ...s, incompatible: true });
+      this.invalidate();
+      this.commit({ ...s, incompatible: true, freshness: "stale", access: undefined, view: undefined });
+      for (const w of this.readyWaiters.splice(0)) w.reject(new Error(`unsupported form schema ${d.schema}`));
       return;
     }
-    if (!s.loaded) return;
+    if (!s.loaded) {
+      if (this.bufferOverflow) return;
+      if (this.buffered.length >= 1024) {
+        this.buffered = [];
+        this.bufferOverflow = true;
+        return;
+      }
+      this.buffered.push(d);
+      return;
+    }
     const inc = d.incarnation ?? 0;
     if (inc !== s.incarnation) {
       if (inc > s.incarnation) this.reload();
@@ -214,14 +312,18 @@ export class Replica {
   }
 
   reload(): void {
-    if (this.closed) return;
+    if (!this.active || this.closed || this.s.failed || this.s.incompatible) return;
     if (this.reloading) {
       this.reloadAgain = true;
       return;
     }
     this.reloading = true;
+    const generation = this.s.generation;
+    const request = ++this.loadRequest;
+    this.commit({ ...this.s, freshness: "resyncing", access: undefined, view: undefined });
     this.t.load(this.client).then(
       (resp) => {
+        if (!this.currentGeneration(generation) || request !== this.loadRequest) return;
         this.reloading = false;
         this.retry = 0;
         this.loaded(resp);
@@ -231,10 +333,11 @@ export class Replica {
         }
       },
       (err: unknown) => {
+        if (!this.currentGeneration(generation) || request !== this.loadRequest) return;
         this.reloading = false;
         this.reloadAgain = false;
-        if (this.o.final?.(err)) {
-          this.commit({ ...this.s, failed: err instanceof Error ? err.message : String(err) });
+        if ((err instanceof RpcError && err.code === errDenied) || this.o.final?.(err)) {
+          this.failed(err, generation);
           return;
         }
         this.reloadLater();
@@ -244,29 +347,43 @@ export class Replica {
 
   close(): void {
     this.closed = true;
-    this.stopTimers();
+    this.invalidate();
+    for (const w of this.readyWaiters.splice(0)) w.reject(new Error("the form was closed"));
     const waiters = [...this.s.draftWaiters, ...this.s.pending.flatMap((p) => p.waiters)];
     const refusal: Refusal = { key: "", kind: "closed", reason: "the form was closed before the edit settled" };
     for (const w of waiters) w({ ok: false, refusal });
   }
 
   private loaded(resp: FormResponse): void {
+    if (this.bufferOverflow) {
+      this.bufferOverflow = false;
+      this.reload();
+      return;
+    }
     const s = this.s;
     const inc = resp.incarnation ?? 0;
     const version = resp.version ?? 0;
-    if (s.loaded && (inc < s.incarnation || (inc === s.incarnation && version < s.version))) return;
+    if (s.loaded && (inc < s.incarnation || (inc === s.incarnation && version < s.version))) {
+      this.reloadLater();
+      return;
+    }
+    if (!s.loaded && resp.delta) {
+      this.reloadLater();
+      return;
+    }
     let confirmed = resp.snapshot ?? {};
     if (resp.delta) {
       confirmed = s.confirmed;
       for (const p of resp.patches ?? []) confirmed = applyRoot(p.patch, confirmed);
     }
     const lastSeq = resp.last_seq ?? 0;
-    let pending = s.loaded ? settle(s.pending, lastSeq, version) : s.pending.map((p, i) => ({ ...p, seq: lastSeq + 1 + i }));
-    const nextSeq = Math.max(s.nextSeq, lastSeq + 1 + (s.loaded ? 0 : s.pending.length));
+    let pending = this.seeded ? settle(s.pending, lastSeq, version) : s.pending.map((p, i) => ({ ...p, seq: lastSeq + 1 + i }));
+    const nextSeq = Math.max(s.nextSeq, lastSeq + 1 + (this.seeded ? 0 : s.pending.length));
     if (!s.inFlight) pending = pending.map((p) => ({ ...p, sent: false }));
     const next: State = {
       ...s,
       loaded: true,
+      freshness: "current",
       failed: undefined,
       confirmed,
       version,
@@ -277,8 +394,18 @@ export class Replica {
       access: resp.access,
       view: resp.view,
     };
+    this.seeded = true;
     this.commit(this.sendNext(recompute(next)));
-    if (!s.loaded) for (const r of this.readyWaiters.splice(0)) r();
+    const buffered = this.buffered;
+    this.buffered = [];
+    for (const d of buffered) this.delta(d, next.generation);
+    if (!isIdentity(this.s.draft)) this.arm();
+    this.resolveReady();
+  }
+
+  private resolveReady(): void {
+    if (this.s.freshness !== "current") return;
+    for (const w of this.readyWaiters.splice(0)) w.resolve();
   }
 
   private flushDraft(s: State): State {
@@ -288,21 +415,22 @@ export class Replica {
   }
 
   private sendNext(s: State): State {
-    if (s.inFlight || !s.loaded || s.incompatible || s.gone || this.closed) return s;
+    if (s.inFlight || !s.loaded || s.freshness !== "current" || s.incompatible || s.gone || s.failed || !this.active || this.closed) return s;
     const i = s.pending.findIndex((p) => !p.sent);
     if (i < 0) return s;
     const pe = s.pending[i] as PendingEdit;
     const pending = s.pending.map((p, j) => (j === i ? { ...p, sent: true } : p));
     const req = { patch: pe.patch, client: this.client, seq: pe.seq };
+    const generation = s.generation;
     this.t.set(req).then(
-      (resp) => this.answer(pe.seq, resp, undefined),
-      (err: unknown) => this.answer(pe.seq, undefined, err),
+      (resp) => this.answer(pe.seq, resp, undefined, generation),
+      (err: unknown) => this.answer(pe.seq, undefined, err, generation),
     );
     return { ...s, pending, inFlight: true };
   }
 
-  private answer(seq: number, resp: SetResponse | undefined, err: unknown): void {
-    if (this.closed) return;
+  private answer(seq: number, resp: SetResponse | undefined, err: unknown, generation: number): void {
+    if (!this.currentGeneration(generation) || this.s.failed) return;
     const s = this.s;
     let next: State = { ...s, inFlight: false };
     if (resp && resp.outcome === "applied" && (resp.version ?? 0) > s.version) {
@@ -325,15 +453,24 @@ export class Replica {
     this.commit(this.sendNext(recompute(next)));
   }
 
+  private recoverAfter(ms: number, recover: () => void): void {
+    const generation = this.s.generation;
+    const timer = setTimeout(() => {
+      this.recoveryTimers.delete(timer);
+      if (this.currentGeneration(generation)) recover();
+    }, ms);
+    this.recoveryTimers.add(timer);
+  }
+
   private expect(version: number): void {
-    setTimeout(() => {
-      if (!this.closed && this.s.version < version) this.reload();
-    }, this.o.confirmTimeoutMs ?? 10_000);
+    this.recoverAfter(this.o.confirmTimeoutMs ?? 10_000, () => {
+      if (this.s.version < version) this.reload();
+    });
   }
 
   private reloadLater(): void {
     this.retry = this.retry === 0 ? 50 : Math.min(this.retry * 2, 5_000);
-    setTimeout(() => this.reload(), this.retry);
+    this.recoverAfter(this.retry, () => this.reload());
   }
 
   private arm(): void {
@@ -384,6 +521,8 @@ export class Replica {
     if (s.incompatible) phase = "incompatible";
     return {
       phase,
+      freshness: s.freshness,
+      generation: s.generation,
       version: s.version,
       incarnation: s.incarnation,
       pending: s.pending.length + (isIdentity(s.draft) ? 0 : 1),
@@ -398,6 +537,8 @@ export class Replica {
 function sameStatus(a: FormStatus, b: FormStatus): boolean {
   return (
     a.phase === b.phase &&
+    a.freshness === b.freshness &&
+    a.generation === b.generation &&
     a.version === b.version &&
     a.incarnation === b.incarnation &&
     a.pending === b.pending &&

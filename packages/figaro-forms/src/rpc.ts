@@ -48,7 +48,7 @@ export interface ConnectionOptions {
   readonly onOpen?: (conn: Connection) => Promise<void> | void;
 }
 
-type Notify = (params: Json) => void;
+type Notify = (params: Json, generation: number) => void;
 
 interface Pending {
   resolve(v: unknown): void;
@@ -90,6 +90,10 @@ export class Connection {
 
   get state(): ConnectionState {
     return this.current;
+  }
+
+  get epoch(): number {
+    return this.generation;
   }
 
   get live(): boolean {
@@ -189,6 +193,7 @@ export class Connection {
     try {
       await this.opts.onOpen?.(this);
     } catch (e) {
+      if (gen !== this.generation) return;
       this.lastError = e instanceof Error ? e.message : String(e);
       socket.close();
       this.lost(this.lastError);
@@ -242,7 +247,7 @@ export class Connection {
     }
     if (f.method !== undefined && (f.id === undefined || f.id === null)) {
       const set = this.handlers.get(f.method);
-      if (set) for (const fn of [...set]) fn(f.params ?? null);
+      if (set) for (const fn of [...set]) fn(f.params ?? null, this.generation);
       return;
     }
     if (typeof f.id !== "number") return;

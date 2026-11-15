@@ -69,9 +69,18 @@ export class FormsClient {
       ...(opts.retryMaxMs !== undefined ? { retryMaxMs: opts.retryMaxMs } : {}),
       onOpen: (conn) => this.opened(conn),
     });
-    this.connection.on(method.formDelta, (p) => this.delta(p as unknown as FormDelta));
+    this.connection.on(method.formDelta, (p, generation) => this.delta(p as unknown as FormDelta, generation));
     this.connection.on(method.closed, (p) => this.closedForm(p));
     this.connection.on(method.doorLapsed, () => this.connection.reconnectNow());
+    this.connection.onState((state) => {
+      if (state === "open") {
+        const generation = this.connection.epoch;
+        for (const e of this.forms.values()) void this.attach(e, generation);
+      } else {
+        this.helloValue = undefined;
+        for (const e of this.forms.values()) e.replica.stale();
+      }
+    });
   }
 
   get hello(): HelloResponse | undefined {
@@ -116,7 +125,7 @@ export class FormsClient {
     if (!e) {
       e = { ref: r, replica: this.replicaFor(r), refs: 0, reap: undefined };
       this.forms.set(key, e);
-      if (this.connection.live) void this.attach(e);
+      if (this.connection.state === "open") void this.attach(e, this.connection.epoch);
     }
     return e;
   }
@@ -182,20 +191,24 @@ export class FormsClient {
   }
 
   private async opened(conn: Connection): Promise<void> {
+    const generation = conn.epoch;
+    const hello = await conn.send<HelloResponse>(method.hello, { version: protocolVersion });
+    if (generation !== conn.epoch) return;
     this.followed.clear();
-    this.helloValue = await conn.send<HelloResponse>(method.hello, { version: protocolVersion });
-    const entries = [...this.forms.values()];
-    await Promise.all(entries.map((e) => this.follow(conn, e)));
-    for (const e of entries) e.replica.reload();
+    this.helloValue = hello;
   }
 
-  private async attach(e: Entry): Promise<void> {
+  private async attach(e: Entry, generation: number): Promise<void> {
+    e.replica.beginGeneration(generation);
     try {
-      await this.follow(this.connection, e);
+      await this.follow(this.connection, e, generation);
     } catch (err) {
-      if (err instanceof ConnectionLost) return;
+      if (!(err instanceof ConnectionLost)) e.replica.failed(err, generation);
+      return;
     }
-    e.replica.reload();
+    if (generation !== this.connection.epoch || this.connection.state !== "open") return;
+    const key = keyOf(e.ref.id, e.ref.intrinsic);
+    if (this.forms.get(key) === e) e.replica.reload();
   }
 
   private offers(cap: Capability): boolean {
@@ -208,22 +221,17 @@ export class FormsClient {
     this.connection.send(method.unfollow, { figaro_id: id }).catch(() => {});
   }
 
-  private async follow(conn: Connection, e: Entry): Promise<void> {
+  private async follow(conn: Connection, e: Entry, generation: number): Promise<void> {
     if (this.followed.has(e.ref.id)) return;
-    try {
-      const channels = this.offers("follow.channels") ? { channels: ["forms"] } : {};
-      await conn.send(method.follow, { figaro_id: e.ref.id, ...channels });
-      this.followed.add(e.ref.id);
-    } catch (err) {
-      if (err instanceof RpcError) return;
-      throw err;
-    }
+    const channels = this.offers("follow.channels") ? { channels: ["forms"] } : {};
+    await conn.send(method.follow, { figaro_id: e.ref.id, ...channels });
+    if (generation === conn.epoch) this.followed.add(e.ref.id);
   }
 
-  private delta(d: FormDelta): void {
+  private delta(d: FormDelta, generation: number): void {
     const id = d.aria_id ?? d.figaro_id;
     if (!id) return;
-    this.forms.get(keyOf(id, d.intrinsic))?.replica.delta(d);
+    this.forms.get(keyOf(id, d.intrinsic))?.replica.delta(d, generation);
   }
 
   private closedForm(p: Json): void {

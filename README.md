@@ -37,6 +37,22 @@ A subscriber hears only changes at, above or below its path. Values are
 shared structurally across versions, so an unchanged subtree keeps its
 identity and a React component reading it does not re-render.
 
+## Refresh and authorization
+
+`form.status.freshness` is `stale`, `resyncing`, or `current`.
+`form.ready()` waits for the current authorized seed, including after a
+reconnect, and rejects on a terminal failure or close. An open connection
+alone does not make a form current.
+
+A reconnect follows again and reads a full snapshot. That new connection
+generation can replace a lower-version caller projection such as
+`@topology`; an ordinary reload in the same generation cannot move the
+version backward. Old-generation replies and notifications are ignored.
+While disconnected or refreshing, retained values are a stale cache and
+access/view metadata is unavailable. A refused follow or read clears the
+cached tree and its authority; rendering code must not present a stale
+cache as current state.
+
 ## Reaching a daemon
 
 - Behind the edge (fig.kelliher.info): same-origin `/door`, `edgeSession()`.

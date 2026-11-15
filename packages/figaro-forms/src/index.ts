@@ -3,7 +3,7 @@ export { apply, applyRoot, deleteAt, identity, inverse, isIdentity, setAt, touch
 export { dotted, getAt, resolve, type Path, type PathLike } from "./path.js";
 export { Subscribers, Tree, share, type Listener } from "./tree.js";
 export { CallTimeout, Connection, ConnectionLost, RpcError, type ConnectionOptions, type ConnectionState, type Dial, type Socket, type SocketEvents } from "./rpc.js";
-export { Replica, type EditResult, type FormStatus, type FormTransport, type Phase, type ReplicaOptions } from "./replica.js";
+export { Replica, type EditResult, type FormStatus, type FormTransport, type Freshness, type Phase, type ReplicaOptions } from "./replica.js";
 export { FormsClient, isFinal, parseRef, type ClientOptions, type FormRef } from "./client.js";
 export { webSocketDial, type WebSocketDialOptions } from "./websocket.js";
 export type { Refusal } from "./access.js";
