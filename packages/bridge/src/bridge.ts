@@ -23,6 +23,7 @@ export interface BridgeOptions {
   readonly frameOrigins?: readonly string[];
   readonly token?: string;
   readonly maxFrameBytes?: number;
+  readonly hierarchyOnly?: boolean;
 }
 
 export interface Bridge {
@@ -191,8 +192,13 @@ export function defaultSocket(env: NodeJS.ProcessEnv = process.env): string {
 
 export async function startBridge(o: BridgeOptions): Promise<Bridge> {
   const host = o.host ?? "127.0.0.1";
-  if (host !== "127.0.0.1" && host !== "::1" && host !== "localhost") {
-    throw new Error(`refusing to listen on ${host}: the bridge carries the daemon's owner reach and listens on loopback only`);
+  if (o.hierarchyOnly) {
+    if (o.write || o.writeSystem || o.staticDir || o.origins?.length || o.frameOrigins?.length) {
+      throw new Error("--hierarchy-only serves GET /hierarchy alone: drop --write, --static, --origin and --frame-src");
+    }
+    if (!o.token) throw new Error("--hierarchy-only needs a token from FIGARO_FORMS_BRIDGE_TOKEN, never a random one");
+  } else if (host !== "127.0.0.1" && host !== "::1" && host !== "localhost") {
+    throw new Error(`refusing to listen on ${host}: the bridge carries the daemon's owner reach and listens on loopback only; --hierarchy-only may listen elsewhere`);
   }
   const token = o.token ?? randomBytes(24).toString("base64url");
   const allowed = new Set<string>([...readMethods, ...(o.write ? writeMethods : [])]);
@@ -219,6 +225,10 @@ export async function startBridge(o: BridgeOptions): Promise<Bridge> {
       void serveHierarchy(o.socket, token, req, res);
       return;
     }
+    if (o.hierarchyOnly) {
+      res.writeHead(404).end();
+      return;
+    }
     serveStatic(staticRoot, policy, req, res).catch(() => {
       if (!res.headersSent) res.writeHead(500);
       res.end();
@@ -231,6 +241,10 @@ export async function startBridge(o: BridgeOptions): Promise<Bridge> {
     const given = url.searchParams.get("token") ?? "";
     const origin = req.headers.origin;
     const originOk = origin === undefined || own.has(origin) || origins.has(origin);
+    if (o.hierarchyOnly) {
+      sock.end("HTTP/1.1 404 Not Found\r\nConnection: close\r\nContent-Length: 0\r\n\r\n");
+      return;
+    }
     if (!loopbackHost(req)) {
       sock.end("HTTP/1.1 421 Misdirected Request\r\nConnection: close\r\nContent-Length: 0\r\n\r\n");
       return;

@@ -303,6 +303,24 @@ describe("figaro-forms-bridge /hierarchy", () => {
     expect(await getHierarchy(b, "/hierarchy", bearer)).toEqual({ code: 403, body: { status: "denied", reason: "figaro.list: not yours" } });
   });
 
+  it("in --hierarchy-only, listens off loopback with the given token and serves nothing else", async () => {
+    const token = randomBytes(24).toString("base64url");
+    const b = await bridge(orderDoor(), { host: "0.0.0.0", hierarchyOnly: true, token });
+    expect(b.token).toBe(token);
+    expect((await getHierarchy(b, "/hierarchy", { Authorization: `Bearer ${token}` })).code).toBe(200);
+    expect((await getHierarchy(b)).code).toBe(401);
+    expect((await fetch(`${b.origin}/`)).status).toBe(404);
+    expect((await fetch(`${b.origin}/door?token=${token}`)).status).toBe(404);
+    expect(await upgradeStatus(b.doorUrl)).toBe("refused");
+  });
+
+  it("refuses --hierarchy-only without a token or with door and page options", async () => {
+    await expect(startBridge({ socket: "/nonexistent", host: "0.0.0.0", hierarchyOnly: true })).rejects.toThrow(/token/);
+    for (const extra of [{ write: true }, { staticDir: "/tmp" }, { origins: ["http://127.0.0.1:1"] }, { frameOrigins: ["http://127.0.0.1:1"] }]) {
+      await expect(startBridge({ socket: "/nonexistent", hierarchyOnly: true, token: "t", ...extra })).rejects.toThrow(/hierarchy-only/);
+    }
+  });
+
   it("reports a missing daemon as unavailable", async () => {
     const b = await startBridge({ socket: join(mkdtempSync(join(tmpdir(), "ffn-")), "none.sock") });
     cleanups.push(() => b.close());
