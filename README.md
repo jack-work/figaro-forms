@@ -19,6 +19,7 @@ DOM. `apps/demo` is the one place anything is drawn.
 | `figaro-forms/auth` | credentials (`edgeSession`, `bearer`, `apiKey`), `doorUrl`, `bridgeDoor`, access checks (`refusalOf`, `writable`) |
 | `figaro-forms/view` | headless view model: `flatten(root, {view, isOpen, subject, overlay})`, `matchPath`, `resolveAction`, `OpenState` (UI open paths, synced across tabs over BroadcastChannel, memory only) |
 | `figaro-forms/semantics` | known form ids, intrinsics, the daemon's key catalog, typed readers for runtime/queue/aria system keys |
+| `figaro-forms/hierarchy` | server-authorized role/figaro hierarchy: `readHierarchy` (server side, as the caller), `hierarchyHttp`, `HierarchyFeed` (client side) |
 | `figaro-forms/react` | `FormsProvider`, `useFormValue`, `useForm`, `useFormStatus`, `useFormEditor`, `useFormView`, `useConnectionState` |
 | `figaro-forms/jotai` | `formValueAtom`, `formAtom`, `formStatusAtom` |
 
@@ -52,6 +53,66 @@ While disconnected or refreshing, retained values are a stale cache and
 access/view metadata is unavailable. A refused follow or read clears the
 cached tree and its authority; rendering code must not present a stale
 cache as current state.
+
+## Hierarchy projection
+
+The order view never selects public keys in the browser. A server reads the
+hierarchy as the caller and serves only what the daemon lets that caller see.
+
+`readHierarchy(call, {root?})` runs on the server, where `call` is a
+JSON-RPC call carrying the caller's own authority (a door connection dialed
+with their credential, or the bridge's daemon socket, which is the owner).
+It asks `figaro.list {global: true}`, which the daemon filters per caller,
+then reads each candidate role form with `figaro.form`. A form the daemon
+refuses to read is dropped with its subtree. Retired and reaped rows are
+dropped. Nothing hidden is named: a parent, `reports-to` or `target_aria`
+that points at something the caller cannot see is omitted, not passed
+through.
+
+The bridge serves it at `GET /hierarchy[?root=@form]` with
+`Authorization: Bearer <bridge token>`, `Cache-Control: no-store`. A host
+behind the edge mounts the same reply with `hierarchyHttp(reply)`.
+
+| code | body | meaning |
+|---|---|---|
+| 200 | `{status: "current", observed_at, orders: [Order, ...]}` | one order per visible root |
+| 200 | `{status: "empty", observed_at}` | the server confirmed nothing to show |
+| 401 | `{status: "signedout", reason}` | no or wrong credential |
+| 403 | `{status: "denied", reason}` | the daemon refused, or `root` is hidden or missing (indistinguishable) |
+| 503 | `{status: "unavailable", reason}` | daemon unreachable or a read failed |
+| 405 | none | not `GET` |
+
+Only `current` carries nodes. Without `root`, the orders are the visible
+role forms (`target_aria` set) whose parent form is not visible to the
+caller. With `root`, the one order rooted at that visible form.
+
+```ts
+type Order = {
+  root: string;                           // a form id in forms
+  forms: {
+    id: string; handle?: string;
+    parent: string | null;                // null at the root or when the parent is hidden
+    target_aria?: string;                 // only when the holder is visible
+    state: {                              // allowlist only
+      "role-name"?, name?, title?, charter?, summary?, kind?, boundary?: string;
+      owns?: string[]; lifecycle?: string | {status: string}; "reports-to"?: string;
+    };
+  }[];
+  topology: {[figaro: string]: string};   // drawn parent of each non-seat figaro
+  arias: {id: string; handle?: string; state: string; mantra?: string; parent?: string}[];
+};
+```
+
+`arias` holds the seats' holders and their visible descendants by drawn
+place. This is the `{root, forms, topology, arias}` shape zanni's
+`strati.fromForms` takes.
+
+On the client, `new HierarchyFeed({url, headers?})` and `refresh()`. A
+refresh first drops to `resyncing` with no orders; only a well-formed 200
+`current` restores nodes. Any refusal (`signedout`, `denied`), failure or
+malformed reply leaves `orders` empty, and a reply from an older refresh is
+ignored, so a refused refresh withdraws the whole tree. `withdraw()` clears
+it on logout; `close()` ends the feed.
 
 ## Reaching a daemon
 

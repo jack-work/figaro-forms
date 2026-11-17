@@ -5,7 +5,8 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { connect, type Socket } from "node:net";
 import { extname, join, normalize, resolve, sep } from "node:path";
 import { WebSocketServer, type WebSocket } from "ws";
-import { touchedKeys, type Patch } from "figaro-forms";
+import { RpcError, touchedKeys, type Patch } from "figaro-forms";
+import { hierarchyHttp, readHierarchy, type HierarchyReply } from "figaro-forms/hierarchy";
 import { wellKnownKeys } from "figaro-forms/semantics";
 
 export const readMethods = ["angelus.hello", "figaro.follow", "figaro.form"] as const;
@@ -214,6 +215,10 @@ export async function startBridge(o: BridgeOptions): Promise<Bridge> {
       res.writeHead(421).end();
       return;
     }
+    if (new URL(req.url ?? "/", "http://bridge").pathname === "/hierarchy") {
+      void serveHierarchy(o.socket, token, req, res);
+      return;
+    }
     serveStatic(staticRoot, policy, req, res).catch(() => {
       if (!res.headersSent) res.writeHead(500);
       res.end();
@@ -313,6 +318,93 @@ function relay(ws: WebSocket, path: string, allowed: ReadonlySet<string>, write:
       return;
     }
     up.write(JSON.stringify(frame) + "\n");
+  });
+}
+
+async function serveHierarchy(socket: string, token: string, req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const head = { "Content-Type": "application/json", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer" };
+  const send = (reply: HierarchyReply): void => {
+    const { code, body } = hierarchyHttp(reply);
+    res.writeHead(code, head).end(JSON.stringify(body));
+  };
+  if (req.method !== "GET") {
+    res.writeHead(405, { ...head, Allow: "GET" }).end();
+    return;
+  }
+  const auth = req.headers.authorization ?? "";
+  const given = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+  if (!sameToken(given, token)) {
+    send({ status: "signedout", reason: "the hierarchy needs the bridge token as a bearer" });
+    return;
+  }
+  const root = new URL(req.url ?? "/", "http://bridge").searchParams.get("root");
+  const up = await socketCaller(socket).catch((e: unknown) => e as Error);
+  if (up instanceof Error) {
+    send({ status: "unavailable", reason: up.message });
+    return;
+  }
+  try {
+    await up.call("angelus.hello", { version: 1 });
+    send(await readHierarchy(up.call, root ? { root } : {}));
+  } catch (e) {
+    send(e instanceof RpcError && e.code === -32020 ? { status: "denied", reason: e.message } : { status: "unavailable", reason: e instanceof Error ? e.message : String(e) });
+  } finally {
+    up.close();
+  }
+}
+
+interface SocketCaller {
+  call(method: string, params: unknown): Promise<unknown>;
+  close(): void;
+}
+
+function socketCaller(path: string, timeoutMs = 10_000): Promise<SocketCaller> {
+  return new Promise((ok, fail) => {
+    const up: Socket = connect(path);
+    const pending = new Map<number, { resolve(v: unknown): void; reject(e: unknown): void }>();
+    let next = 1;
+    let buf = "";
+    const failAll = (why: string): void => {
+      for (const p of pending.values()) p.reject(new Error(why));
+      pending.clear();
+    };
+    up.setEncoding("utf8");
+    up.setTimeout(timeoutMs, () => up.destroy(new Error("daemon socket timed out")));
+    up.on("data", (chunk: string) => {
+      buf += chunk;
+      for (let i = buf.indexOf("\n"); i >= 0; i = buf.indexOf("\n")) {
+        const line = buf.slice(0, i);
+        buf = buf.slice(i + 1);
+        let f: { id?: unknown; result?: unknown; error?: { code: number; message: string } };
+        try {
+          f = JSON.parse(line) as typeof f;
+        } catch {
+          continue;
+        }
+        if (typeof f.id !== "number") continue;
+        const p = pending.get(f.id);
+        if (!p) continue;
+        pending.delete(f.id);
+        if (f.error) p.reject(new RpcError(f.error.code, f.error.message));
+        else p.resolve(f.result ?? null);
+      }
+    });
+    up.once("connect", () =>
+      ok({
+        call: (method, params) =>
+          new Promise((resolve, reject) => {
+            const id = next++;
+            pending.set(id, { resolve, reject });
+            up.write(JSON.stringify({ jsonrpc: "2.0", id, method, params }) + "\n");
+          }),
+        close: () => up.destroy(),
+      }),
+    );
+    up.on("error", (e) => {
+      failAll(`daemon socket: ${e.message}`);
+      fail(new Error(`daemon socket: ${e.message}`));
+    });
+    up.on("close", () => failAll("daemon socket closed"));
   });
 }
 

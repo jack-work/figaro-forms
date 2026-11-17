@@ -254,3 +254,59 @@ describe("figaro-forms-bridge under --write", () => {
     expect(odd.error?.message).toMatch(/unexpected key/);
   });
 });
+
+async function getHierarchy(b: Bridge, path = "/hierarchy", headers: Record<string, string> = {}, method = "GET"): Promise<{ code: number; body: unknown }> {
+  const res = await fetch(`${b.origin}${path}`, { method, headers });
+  const text = await res.text();
+  return { code: res.status, body: text ? JSON.parse(text) : undefined };
+}
+
+function orderDoor(): FakeDoor {
+  const door = new FakeDoor();
+  door.add("@king", { "role-name": "King", system: { key: "secret-system" } });
+  door.add("@eng", { "role-name": "Engineer" });
+  door.rows = [
+    { id: "@king", kind: "form", state: "form", target_aria: "ak", parent: "" },
+    { id: "@eng", kind: "form", state: "form", target_aria: "ae", parent: "@king" },
+    { id: "ak", kind: "conversation", state: "active" },
+    { id: "ae", kind: "conversation", state: "active" },
+  ];
+  return door;
+}
+
+describe("figaro-forms-bridge /hierarchy", () => {
+  it("serves the caller's projection only to a bearer of the token", async () => {
+    const b = await bridge(orderDoor());
+    const bearer = { Authorization: `Bearer ${b.token}` };
+    const none = await getHierarchy(b);
+    expect(none).toEqual({ code: 401, body: { status: "signedout", reason: expect.any(String) } });
+    expect((await getHierarchy(b, "/hierarchy", { Authorization: "Bearer wrong" })).code).toBe(401);
+    expect((await getHierarchy(b, "/hierarchy", bearer, "POST")).code).toBe(405);
+    const ok = await getHierarchy(b, "/hierarchy", bearer);
+    expect(ok.code).toBe(200);
+    const body = ok.body as { status: string; orders: { root: string; forms: { id: string }[] }[] };
+    expect(body.status).toBe("current");
+    expect(body.orders.map((o) => [o.root, o.forms.map((f) => f.id)])).toEqual([["@king", ["@eng", "@king"]]]);
+    expect(JSON.stringify(body)).not.toContain("secret-system");
+    const one = await getHierarchy(b, "/hierarchy?root=%40eng", bearer);
+    expect((one.body as typeof body).orders[0]?.root).toBe("@eng");
+  });
+
+  it("answers a refusal with no nodes", async () => {
+    const door = orderDoor();
+    const b = await bridge(door);
+    const bearer = { Authorization: `Bearer ${b.token}` };
+    expect(await getHierarchy(b, "/hierarchy?root=%40hidden", bearer)).toEqual({ code: 403, body: { status: "denied", reason: expect.any(String) } });
+    door.sees = () => false;
+    expect(await getHierarchy(b, "/hierarchy", bearer)).toEqual({ code: 200, body: { status: "empty", observed_at: expect.any(Number) } });
+    door.listDenied = "figaro.list: not yours";
+    expect(await getHierarchy(b, "/hierarchy", bearer)).toEqual({ code: 403, body: { status: "denied", reason: "figaro.list: not yours" } });
+  });
+
+  it("reports a missing daemon as unavailable", async () => {
+    const b = await startBridge({ socket: join(mkdtempSync(join(tmpdir(), "ffn-")), "none.sock") });
+    cleanups.push(() => b.close());
+    const r = await getHierarchy(b, "/hierarchy", { Authorization: `Bearer ${b.token}` });
+    expect(r).toEqual({ code: 503, body: { status: "unavailable", reason: expect.stringContaining("daemon socket") } });
+  });
+});
