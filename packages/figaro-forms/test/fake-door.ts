@@ -37,6 +37,9 @@ export class FakeDoor {
   dials = 0;
   capabilities: string[] = ["form.seq", "form.access", "form.view"];
   refuseDial: string | undefined;
+  rows: { id: string; [k: string]: Json }[] = [];
+  sees: (id: string) => boolean = () => true;
+  listDenied: string | undefined;
 
   add(id: string, value: JsonObject, extra: Partial<FakeForm> = {}): void {
     this.forms.set(id, { value, version: 1, incarnation: 1, lastSeq: new Map(), ...extra });
@@ -156,7 +159,12 @@ export class FakeDoor {
         this.reply(c, f.id, { result: { released, figaro_id: id } });
         return;
       }
+      case "figaro.list":
+        if (this.listDenied) return err(this.listDenied, -32020);
+        this.reply(c, f.id, { result: { figaros: this.rows.filter((r) => this.sees(r.id)) } });
+        return;
       case "figaro.form": {
+        if (!this.sees(id)) return err(`figaro.form: ${id} is not yours to read`, -32020);
         const form = this.forms.get(id);
         if (!form) return err(`figaro.form: no such form ${id}`);
         const client = typeof f.params.client === "string" ? f.params.client : "";

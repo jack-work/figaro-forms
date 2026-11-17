@@ -11,6 +11,7 @@ export const method = {
   follow: "figaro.follow",
   unfollow: "figaro.unfollow",
   form: "figaro.form",
+  list: "figaro.list",
   set: "figaro.set",
   formCreate: "form.create",
   formDelta: "form.delta",
@@ -162,4 +163,27 @@ export interface FormCreateResponse {
 export interface DoorLapsed {
   readonly reason: string;
   readonly after_ms: number;
+}
+
+export interface ListRequest {
+  readonly global?: boolean;
+}
+
+export interface ListRow {
+  readonly id: string;
+  readonly handle?: string;
+  readonly state: string;
+  readonly mantra?: string;
+  readonly parent?: string;
+  readonly present?: string;
+  readonly kind?: string;
+  readonly name?: string;
+  readonly target_aria?: string;
+  readonly retired_at?: number;
+  readonly reaped_at?: number;
+}
+
+export interface ListResponse {
+  readonly figaros: readonly ListRow[];
+  readonly refused?: number;
 }
