@@ -12,6 +12,11 @@ export const wellKnownKeys: readonly KeyDoc[] = [
     "mode": "user"
   },
   {
+    "key": "system.provider",
+    "short": "Provider this figaro talks to (anthropic, copilot, ...); switching mid-conversation is the owner's call",
+    "mode": "user"
+  },
+  {
     "key": "system.tags",
     "short": "Per-LT annotations (e.g. system.tags[42].cache_control)",
     "mode": "user"
@@ -103,7 +108,7 @@ export const wellKnownKeys: readonly KeyDoc[] = [
   },
   {
     "key": "system.study_incantation",
-    "short": "What to SAY at a study lifecycle event: {\"onstudy\":…,\"onupdate\":…,\"ondrop\":…}, any subset, strings",
+    "short": "What to SAY at a study lifecycle event: {\"onstudy\":…,\"onupdate\":…,\"ondrop\":…}, any subset, strings; a bare string is onstudy alone",
     "mode": "user"
   },
   {
@@ -152,22 +157,92 @@ export const wellKnownKeys: readonly KeyDoc[] = [
     "mode": "user"
   },
   {
+    "key": "system.retirement",
+    "short": "Owner-held {context_threshold, fallback_tokens, ttl, action, page, timeout, ramp, ramp_turns}: fallback_tokens is an absolute token threshold when the context capacity is unknown; otherwise context_threshold applies. At the end of a turn whose last request carried at least context_threshold input tokens (a count, or \"60%\" of the context window), the aria retires itself (system.retired = \"context\"); ttl counts from then. action = \"succeed\" hands over first: a warning at 80%, one final handoff turn, a successor minted, cast into every role the aria holds and prompted to ramp on, and the aria retires only when that first turn ends; a failure or timeout leaves it unretired and tells page (an aria or @role; default the holder of its drawn parent)",
+    "mode": "user"
+  },
+  {
+    "key": "runtime.succession_warned",
+    "short": "Set once the aria has been told to start handing over (80% of its retirement threshold)",
+    "mode": "system"
+  },
+  {
+    "key": "system.succession_failed",
+    "short": "Owner-held; why the aria's succession stopped. While set no new succession starts; unset it to let the next turn try again",
+    "mode": "user"
+  },
+  {
+    "key": "system.sandbox",
+    "short": "Protected; the sandbox the aria's tools run in (a box name, or unset for local). A figaro cannot set its own: only the owner or an ancestor figaro of the aria ([authz] protected_keys)",
+    "mode": "user"
+  },
+  {
+    "key": "system.scopes",
+    "short": "Protected; the aria's scopes as a JSON array of verb:object strings, narrowing its parent's and enforced on calls that name it. Providers read the effective set from figaro.scopes, not this key. Same writers as system.sandbox; a figaro gives only what it holds. system.grants is its old name: still read, no longer written",
+    "mode": "user"
+  },
+  {
+    "key": "system.grants",
+    "short": "Retired name of system.scopes: still read, never written; a write is refused with the new name",
+    "mode": "user"
+  },
+  {
+    "key": "system.fanout.max_children",
+    "short": "Protected; how many children the figaro may fork (non-negative integer). Same writers as system.scopes",
+    "mode": "user"
+  },
+  {
+    "key": "system.fanout.mint",
+    "short": "Protected; true lets the figaro mint a new one with figaro new. Same writers as system.scopes",
+    "mode": "user"
+  },
+  {
     "key": "system.keep",
     "short": "Owner-held; true and `figaro gc` never chooses this aria, nor anything whose delete would take it",
     "mode": "user"
   },
   {
-    "key": "system.forked_from",
+    "key": "runtime.checkpoint.marks",
+    "short": "Logical times this form's state is checkpointed at, keyed by version: the tail mark moves with the writes, and past system.checkpoint.max_marks the least recently used goes",
+    "mode": "system"
+  },
+  {
+    "key": "system.checkpoint.every_patches",
+    "short": "Move the tail checkpoint every N records (floor 64); unset takes [store] checkpoint_every_patches",
+    "mode": "user"
+  },
+  {
+    "key": "system.checkpoint.every_seconds",
+    "short": "Move the tail checkpoint every N seconds when something was written (floor 5); unset takes [store] checkpoint_every_seconds",
+    "mode": "user"
+  },
+  {
+    "key": "system.checkpoint.max_marks",
+    "short": "How many checkpoints the form keeps (floor 2, default 5)",
+    "mode": "user"
+  },
+  {
+    "key": "system.retention.mode",
+    "short": "\"marks\" drops this form's records below its lowest live checkpoint mark, \"none\" keeps every record; unset takes [store] retention_mode, and with that unset the store-wide sweep decides. Owner-held; refused on a conversation-bound form",
+    "mode": "user"
+  },
+  {
+    "key": "system.retention.writers",
+    "short": "Figaro ids or principals the owner lets set system.retention.* besides itself; only the owner sets this",
+    "mode": "user"
+  },
+  {
+    "key": "runtime.forked_from",
     "short": "The trunk this branch was forked from (stamped at birth)",
     "mode": "system"
   },
   {
-    "key": "system.tombstone",
+    "key": "runtime.tombstone",
     "short": "Set when a form is deleted: the record subscribers hear the death through, after which the form is sealed",
     "mode": "system"
   },
   {
-    "key": "system.studies",
+    "key": "runtime.studies",
     "short": "The forms this figaro observes. Written by the study verb only: each entry is refcounted on a shared libretto, and a hand-written one would declare a study nothing counted",
     "mode": "system"
   },
@@ -187,22 +262,22 @@ export const wellKnownKeys: readonly KeyDoc[] = [
     "mode": "system"
   },
   {
-    "key": "system.failure.reason",
+    "key": "runtime.failure.reason",
     "short": "Why the last turn failed, as the provider or the daemon said it; removed by the next turn that ends without error",
     "mode": "system"
   },
   {
-    "key": "system.failure.category",
+    "key": "runtime.failure.category",
     "short": "The last failure's kind: \"rate_limited\", \"auth\", \"provider_error\", \"timeout\", \"refused\" or \"other\"",
     "mode": "system"
   },
   {
-    "key": "system.failure.turn",
+    "key": "runtime.failure.turn",
     "short": "The turn that failed",
     "mode": "system"
   },
   {
-    "key": "system.failure.at",
+    "key": "runtime.failure.at",
     "short": "When it failed, unix millis",
     "mode": "system"
   },
@@ -210,6 +285,91 @@ export const wellKnownKeys: readonly KeyDoc[] = [
     "key": "datetime",
     "short": "Per-turn wall-clock time",
     "mode": "per-turn"
+  },
+  {
+    "key": "system.ttl",
+    "short": "Owner-held; a lifetime counted from creation, after which the sweep deletes the node and its subtree (Go duration plus d and w; 0 or unset means none)",
+    "mode": "user"
+  },
+  {
+    "key": "system.reap_if_empty",
+    "short": "Owner-held; true and the sweep reaps a figaro that never had a message",
+    "mode": "user"
+  },
+  {
+    "key": "system.keepalive",
+    "short": "Owner-held; a node whose lifetime is spent survives while it was used within this window (default one day; 0 reaps at the deadline)",
+    "mode": "user"
+  },
+  {
+    "key": "system.retired",
+    "short": "Owner-held; the request to retire a figaro, with the reason (e.g. \"manual\"); a box may set it on the figaros inside it. The daemon records it at runtime.retired and never keeps it here; removing it unretires",
+    "mode": "user"
+  },
+  {
+    "key": "runtime.retired",
+    "short": "Set when a figaro retires, with the reason (\"manual\", \"context\"); written by the daemon from system.retired or its own retirement",
+    "mode": "system"
+  },
+  {
+    "key": "system.forked_from",
+    "short": "Old name of runtime.forked_from: read for one release, never written",
+    "mode": "system"
+  },
+  {
+    "key": "system.studies",
+    "short": "Old name of runtime.studies: read for one release, never written",
+    "mode": "system"
+  },
+  {
+    "key": "system.tombstone",
+    "short": "Old name of runtime.tombstone: read for one release, never written",
+    "mode": "system"
+  },
+  {
+    "key": "system.checkpoint.marks",
+    "short": "Old name of runtime.checkpoint.marks: read for one release, never written",
+    "mode": "system"
+  },
+  {
+    "key": "system.succession_warned",
+    "short": "Old name of runtime.succession_warned: read for one release, never written",
+    "mode": "system"
+  },
+  {
+    "key": "system.failure.reason",
+    "short": "Old name of runtime.failure.reason: read for one release, never written",
+    "mode": "system"
+  },
+  {
+    "key": "system.failure.category",
+    "short": "Old name of runtime.failure.category: read for one release, never written",
+    "mode": "system"
+  },
+  {
+    "key": "system.failure.turn",
+    "short": "Old name of runtime.failure.turn: read for one release, never written",
+    "mode": "system"
+  },
+  {
+    "key": "system.failure.at",
+    "short": "Old name of runtime.failure.at: read for one release, never written",
+    "mode": "system"
+  },
+  {
+    "key": "system.reaped",
+    "short": "Old name of runtime.reaped: read for one release, never written",
+    "mode": "system"
+  },
+  {
+    "key": "system.reaped_until",
+    "short": "Old name of runtime.reaped_until: read for one release, never written",
+    "mode": "system"
+  },
+  {
+    "key": "system.reaped_by",
+    "short": "Old name of runtime.reaped_by: read for one release, never written",
+    "mode": "system"
   }
 ];
 
