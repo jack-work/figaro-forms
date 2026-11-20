@@ -213,6 +213,38 @@ describe("transcript on hand-made frames", () => {
     expect(events[1]).toMatchObject({ type: "steering.delta", sender: "b0587ace", senderName: "forms-lane", text: "mind the tide" });
   });
 
+  it("shows a node type it does not know as an unknown node, with its text when it has one", () => {
+    const events: AriaEvent[] = [];
+    const t = new Transcript({ aria: "a1", emit: (e) => events.push(e) });
+    t.fold(
+      page(
+        part({
+          live: {
+            from: 0,
+            v: 0,
+            nodes: [
+              { id: 0, set: { type: "citation", markdown: "see [1]" } },
+              { id: 1, set: { type: "image" } },
+            ],
+          },
+        }),
+      ),
+      "push",
+    );
+    t.flush();
+    t.fold(page(part({ live: { from: 0, v: 0 } })), "push");
+    t.flush();
+    expect(events.map((e) => e.type)).toEqual(["unknown.delta", "unknown.settled", "unknown.settled"]);
+    expect(events[0]).toMatchObject({ kind: "unknown", node: 0, nodeType: "citation", text: "see [1]" });
+    expect(events[2]).toMatchObject({ node: 1, nodeType: "image" });
+    expect("text" in (events[2] as object)).toBe(false);
+    expect(t.view()[0]?.nodes).toEqual([
+      { kind: "unknown", node: 0, type: "citation", settled: true, text: "see [1]" },
+      { kind: "unknown", node: 1, type: "image", settled: true },
+    ]);
+    expect(t.resume()).toBe("1.3");
+  });
+
   it("splices multibyte text by byte offsets", () => {
     const events: AriaEvent[] = [];
     const t = new Transcript({ aria: "a1", emit: (e) => events.push(e) });

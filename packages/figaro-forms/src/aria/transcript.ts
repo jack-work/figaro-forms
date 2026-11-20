@@ -362,8 +362,27 @@ export class Transcript {
       this.emitTool(t, idx, n);
       return;
     }
-    if (!textTypes.has(type)) return;
+    if (!textTypes.has(type)) {
+      this.emitUnknown(t, idx, n, type);
+      return;
+    }
     this.emitText(t, idx, n, type as "prose" | "thinking" | "steering");
+  }
+
+  private emitUnknown(t: TurnState, idx: number, n: NodeState, nodeType: string): void {
+    const text = n.raw.markdown;
+    if (!n.settled) {
+      if (text !== undefined && text !== n.toldText) {
+        n.toldText = text;
+        n.toldStarted = true;
+        this.emit({ type: "unknown.delta", kind: "unknown", aria: this.aria, turn: t.id, node: idx, nodeType, text });
+      }
+      return;
+    }
+    if (n.toldSettled) return;
+    n.toldSettled = true;
+    n.toldStarted = true;
+    this.emit({ type: "unknown.settled", kind: "unknown", aria: this.aria, turn: t.id, node: idx, nodeType, ...(text !== undefined ? { text } : {}) });
   }
 
   private emitText(t: TurnState, idx: number, n: NodeState, kind: "prose" | "thinking" | "steering"): void {
@@ -436,7 +455,9 @@ export class Transcript {
       if (!n || !n.raw.type) continue;
       if (n.raw.type === "tool") {
         nodes.push({ kind: "tool", node: i, settled: n.settled, tool: toolOf(i, n.raw) });
-      } else if (textTypes.has(n.raw.type)) {
+      } else if (!textTypes.has(n.raw.type)) {
+        nodes.push({ kind: "unknown", node: i, type: n.raw.type, settled: n.settled, ...(n.raw.markdown !== undefined ? { text: n.raw.markdown } : {}) });
+      } else {
         const kind = n.raw.type as "prose" | "thinking" | "steering";
         nodes.push({
           kind,

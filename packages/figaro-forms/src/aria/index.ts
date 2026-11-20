@@ -33,5 +33,8 @@ export type {
   TurnEndView,
   TurnError,
   TurnView,
+  UnknownDelta,
+  UnknownNodeView,
+  UnknownSettled,
 } from "./events.js";
 export * from "./wire.js";

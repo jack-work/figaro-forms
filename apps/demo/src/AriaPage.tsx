@@ -186,6 +186,14 @@ function Node(props: { readonly node: NodeView }) {
       </div>
     );
   }
+  if (n.kind === "unknown") {
+    return (
+      <div className="unknown">
+        <span className="who">{n.type}</span>
+        {n.text ? <pre>{n.text}</pre> : null}
+      </div>
+    );
+  }
   return <pre className={n.settled ? "prose" : "prose live"}>{n.text}</pre>;
 }
 

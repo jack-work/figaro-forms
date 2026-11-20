@@ -26,3 +26,4 @@
 .composer-actions { display: flex; gap: 0.5rem; }
 .composer-actions button, .older { background: var(--ink); color: var(--paper); border: none; padding: 0.4rem 0.8rem; cursor: pointer; }
 .older { align-self: flex-start; }
+.unknown { border: 1px dashed var(--rule); padding: 0.3rem 0.6rem; }

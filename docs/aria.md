@@ -135,6 +135,7 @@ state and what it has already told subscribers. Every event carries `aria`, `typ
 | `tool` | `tool.start` | the call first appears | `tool` |
 | | `tool.update` | arguments, output or timing changed while running | `tool` |
 | | `tool.end` | status is `ok` or `error`, or the node settled | `tool`, `result`, `failed` |
+| `unknown` | `unknown.delta`, `unknown.settled` | a node whose `type` is none of the above | `node`, `nodeType`, `text?` (the node's `markdown`, when it has one) |
 | `turn` | `turn.end` | `turn.done` with a stop reason, or a sealed turn read after the fact | `reason?`, `idle?`, `replayed` |
 | | `turn.error` | `turn.done` with `error...` | `reason`, `idle?` |
 | `metrics` | `metrics` | the context and token counters changed | `metrics` |
@@ -149,6 +150,10 @@ A steering node is a user message folded into a turn the model is still working
 on; it arrives at a round boundary, so it is drawn inside the agent's turn. The
 turn's opening question is `input`, not steering. `sender` is an aria id or a
 caller's label and is absent for a plain terminal or browser caller.
+
+An unknown node is never dropped: the view carries `{kind: "unknown", node, type,
+settled, text?}`, so a page can draw a labelled block for a node type a later daemon
+adds. A `delta` is sent only while it has text; `settled` is always sent.
 
 Order within a turn: `input`, then nodes by position, then `turn.end` or
 `turn.error`. A settled event for an earlier node can follow deltas for a later

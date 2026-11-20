@@ -2,7 +2,7 @@ import type { Json } from "../json.js";
 import type { Cursor } from "./cursor.js";
 import type { InquirySegment, Metrics } from "./wire.js";
 
-export type Kind = "input" | "prose" | "thinking" | "steering" | "tool" | "turn" | "metrics";
+export type Kind = "input" | "prose" | "thinking" | "steering" | "tool" | "unknown" | "turn" | "metrics";
 
 interface Base {
   readonly aria: string;
@@ -76,6 +76,22 @@ export interface SteeringSettled extends TextSettled {
   readonly senderName?: string;
 }
 
+export interface UnknownDelta extends InTurn {
+  readonly type: "unknown.delta";
+  readonly kind: "unknown";
+  readonly node: number;
+  readonly nodeType: string;
+  readonly text: string;
+}
+
+export interface UnknownSettled extends InTurn {
+  readonly type: "unknown.settled";
+  readonly kind: "unknown";
+  readonly node: number;
+  readonly nodeType: string;
+  readonly text?: string;
+}
+
 export type ToolStatus = "running" | "ok" | "error";
 
 export interface Tool {
@@ -145,6 +161,8 @@ export type AriaEvent =
   | ToolStart
   | ToolUpdate
   | ToolEnd
+  | UnknownDelta
+  | UnknownSettled
   | TurnEnd
   | TurnError
   | MetricsEvent;
@@ -190,7 +208,15 @@ export interface ToolNodeView {
   readonly tool: Tool;
 }
 
-export type NodeView = TextNodeView | ToolNodeView;
+export interface UnknownNodeView {
+  readonly kind: "unknown";
+  readonly node: number;
+  readonly type: string;
+  readonly settled: boolean;
+  readonly text?: string;
+}
+
+export type NodeView = TextNodeView | ToolNodeView | UnknownNodeView;
 
 export interface TurnEndView {
   readonly reason?: string;
