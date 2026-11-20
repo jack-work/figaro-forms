@@ -78,6 +78,7 @@ export class Transcript {
   private metricsKey = "";
   private metricsDirty = false;
   private revision = 0;
+  private muted = false;
 
   constructor(o: TranscriptOptions) {
     this.aria = o.aria;
@@ -99,6 +100,21 @@ export class Transcript {
 
   get newestTurn(): number {
     return this.newest;
+  }
+
+  oldestHeld(): Anchor | undefined {
+    const id = this.order[0];
+    const t = id === undefined ? undefined : this.turns.get(id);
+    return t ? { turn: t.id, node: t.lowest } : undefined;
+  }
+
+  quietly(fn: () => void): void {
+    this.muted = true;
+    try {
+      fn();
+    } finally {
+      this.muted = false;
+    }
   }
 
   fold(page: Page, mode: FoldMode): Folded {
@@ -318,6 +334,7 @@ export class Transcript {
   }
 
   private emit(e: Uncursored): void {
+    if (this.muted) return;
     this.out({ ...e, cursor: this.resume() } as AriaEvent);
   }
 

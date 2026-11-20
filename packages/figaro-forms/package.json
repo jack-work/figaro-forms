@@ -36,6 +36,10 @@
     "./jotai": {
       "types": "./dist/jotai/index.d.ts",
       "default": "./dist/jotai/index.js"
+    },
+    "./aria": {
+      "types": "./dist/aria/index.d.ts",
+      "default": "./dist/aria/index.js"
     }
   },
   "scripts": {
