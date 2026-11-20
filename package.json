@@ -12,6 +12,7 @@
     "check": "npm run check:text-only && npm run typecheck --workspaces --if-present",
     "check:text-only": "! grep -rnE \"dangerouslySetInnerHTML|innerHTML|outerHTML|insertAdjacentHTML|document\\.write|new Function|eval\\(\" packages/*/src apps/*/src",
     "test": "npm test --workspaces --if-present",
-    "vectors": "cd conformance && go run ."
+    "vectors": "cd conformance && go run .",
+    "aria-fixtures": "cd conformance/aria && go run . -tapes ../../packages/figaro-forms/test/aria/tapes -out ../../packages/figaro-forms/test/aria/fixtures"
   }
 }

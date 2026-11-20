@@ -1,0 +1,5 @@
+module github.com/jack-work/figaro-forms/conformance/aria
+
+go 1.25.8
+
+require github.com/jack-work/figaro v0.78.1
