@@ -234,9 +234,9 @@ export class FakeAria {
         const refused = this.refuseRead.get(id);
         if (refused) return err(refused.message, refused.code);
         if (!this.turns.has(id)) return err(`figaro.read: aria ${id} not found`);
-        const result = this.page(id, f.params.at as Anchor | undefined, f.params.backward === true);
-        if (this.holdReads) this.held.push(() => this.reply(c, f.id, { result }));
-        else this.reply(c, f.id, { result });
+        const read = (): Page => this.page(id, f.params.at as Anchor | undefined, f.params.backward === true);
+        if (this.holdReads) this.held.push(() => this.reply(c, f.id, { result: read() }));
+        else this.reply(c, f.id, { result: read() });
         return;
       }
       case "figaro.list":

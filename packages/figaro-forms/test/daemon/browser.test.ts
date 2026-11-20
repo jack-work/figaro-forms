@@ -93,7 +93,7 @@ describe.skipIf(!ready)("the demo aria page in a real browser, through an edge t
     await page.locator(".turn", { hasText: "say hi" }).locator(".end", { hasText: "done" }).waitFor({ timeout: 15_000 });
     await page.reload();
     await page.locator(".phase-live").waitFor({ timeout: 10_000 });
-    await page.locator(".turn", { hasText: "say hi" }).locator(".end", { hasText: "done" }).waitFor({ timeout: 10_000 });
+    await page.locator(".turn", { hasText: "say hi" }).locator(".end", { hasText: "ended" }).waitFor({ timeout: 10_000 });
     expect(await page.locator(".turn").count()).toBe(2);
   }, 60_000);
 });

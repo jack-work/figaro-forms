@@ -3,8 +3,8 @@ import { act, cleanup, render } from "@testing-library/react";
 import { createElement, StrictMode } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 import { AriaClient } from "../../src/aria/client.js";
-import type { AriaEvent } from "../../src/aria/events.js";
-import { AriaProvider, useAria, useAriaEvents, useAriaList, useAriaPhase } from "../../src/aria/react.js";
+import type { AppliedFrame } from "../../src/aria/index.js";
+import { AriaProvider, useAria, useAriaFrames, useAriaList, useAriaPhase } from "../../src/aria/react.js";
 import { FakeAria, settle, tick } from "./fake-aria.js";
 
 afterEach(cleanup);
@@ -17,33 +17,38 @@ function setup() {
 }
 
 describe("aria React hooks", () => {
-  it("renders the live transcript as frames arrive, and the settled flag at the close marker", async () => {
+  it("renders the open message as frames arrive, and the closed one once the turn seals", async () => {
     const { fake, client } = setup();
     const View = () => {
       const snap = useAria("a1");
-      const turn = snap?.turns[0];
-      const node = turn?.nodes[0];
+      const open = snap?.view.open;
+      const sealed = snap?.view.closed[0];
       return createElement(
         "div",
         { "data-testid": "v" },
-        `${snap?.phase}|${turn?.input?.text ?? ""}|${node && node.kind === "prose" ? `${node.text}:${node.settled}` : ""}`,
+        `${snap?.phase}|${(open ?? sealed)?.inquiry ?? ""}|${(open ?? sealed)?.nodes[0]?.markdown ?? ""}:${open ? "open" : sealed ? "closed" : ""}`,
       );
     };
     const ui = render(createElement(StrictMode, null, createElement(AriaProvider, { client }, createElement(View))));
     await act(() => settle());
-    expect(ui.getByTestId("v").textContent).toBe("live||");
+    expect(ui.getByTestId("v").textContent).toBe("live||:");
     await act(async () => {
       fake.openTurn("a1", 1, "ciao");
       fake.update("a1", 1, [{ id: 0, set: { type: "prose", markdown: "Buon" } }]);
       await settle();
     });
-    expect(ui.getByTestId("v").textContent).toBe("live|ciao|Buon:false");
+    expect(ui.getByTestId("v").textContent).toBe("live|ciao|Buon:open");
     await act(async () => {
       fake.update("a1", 1, [{ id: 0, patch: { markdown: { at: 4, del: 0, ins: "giorno" } } }]);
-      fake.closeRound("a1", 1);
       await settle();
     });
-    expect(ui.getByTestId("v").textContent).toBe("live|ciao|Buongiorno:true");
+    expect(ui.getByTestId("v").textContent).toBe("live|ciao|Buongiorno:open");
+    await act(async () => {
+      fake.closeRound("a1", 1);
+      fake.seal("a1", 1);
+      await settle();
+    });
+    expect(ui.getByTestId("v").textContent).toBe("live|ciao|Buongiorno:closed");
     client.close();
   });
 
@@ -67,11 +72,13 @@ describe("aria React hooks", () => {
     client.close();
   });
 
-  it("hands one kind of event to a handler, whatever the render in between", async () => {
+  it("hands each frame to a handler with the nodes it touched, whatever the render in between", async () => {
     const { fake, client } = setup();
-    const seen: AriaEvent[] = [];
+    const seen: string[] = [];
     const Listen = () => {
-      useAriaEvents("a1", "tool", (e) => seen.push(e));
+      useAriaFrames("a1", (a: AppliedFrame) => {
+        for (const c of a.nodes) if (c.node.type === "tool") seen.push(c.node.status ?? "");
+      });
       return null;
     };
     render(createElement(AriaProvider, { client }, createElement(Listen)));
@@ -82,7 +89,7 @@ describe("aria React hooks", () => {
       fake.update("a1", 1, [{ id: 1, set: { status: "ok", output: "done" } }]);
       await settle();
     });
-    expect(seen.map((e) => e.type)).toEqual(["tool.start", "tool.end"]);
+    expect(seen).toEqual(["running", "ok"]);
     client.close();
   });
 

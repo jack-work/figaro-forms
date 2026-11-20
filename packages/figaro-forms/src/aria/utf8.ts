@@ -42,21 +42,3 @@ export function spliceBytes(s: string, at: number, del: number, ins: string): st
   const end = advance(s, start, Math.max(0, del));
   return s.slice(0, start) + ins + s.slice(end);
 }
-
-export interface Splice {
-  readonly at: number;
-  readonly del: number;
-  readonly ins: string;
-}
-
-export function diffText(before: string, after: string): Splice | undefined {
-  if (before === after) return undefined;
-  const max = Math.min(before.length, after.length);
-  let head = 0;
-  while (head < max && before.charCodeAt(head) === after.charCodeAt(head)) head++;
-  if (head > 0 && head < before.length && isLow(before.charCodeAt(head)) && isHigh(before.charCodeAt(head - 1))) head--;
-  let tail = 0;
-  while (tail < max - head && before.charCodeAt(before.length - 1 - tail) === after.charCodeAt(after.length - 1 - tail)) tail++;
-  if (tail > 0 && isLow(before.charCodeAt(before.length - tail)) && isHigh(before.charCodeAt(before.length - tail - 1))) tail--;
-  return { at: head, del: before.length - head - tail, ins: after.slice(head, after.length - tail) };
-}

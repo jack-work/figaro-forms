@@ -1,6 +1,6 @@
-import { useEffect, useState, type FormEvent } from "react";
-import type { AriaRefusal, NodeView, Tool, TurnView } from "figaro-forms/aria";
-import { useAria, useAriaClient, useAriaConnection, useAriaEvents, useAriaList, useAriaStream } from "figaro-forms/aria/react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import type { AriaRefusal, Message, Node as IRNode, TurnEnd } from "figaro-forms/aria";
+import { useAria, useAriaClient, useAriaConnection, useAriaFrames, useAriaList, useAriaStream } from "figaro-forms/aria/react";
 
 function chosen(): string {
   return new URLSearchParams(location.hash.slice(1)).get("aria") ?? "";
@@ -73,9 +73,17 @@ function Attended(props: { readonly aria: string }) {
   const [draft, setDraft] = useState("");
   const [note, setNote] = useState<string | undefined>();
   const [tools, setTools] = useState(0);
-  useAriaEvents(props.aria, { type: "tool.end" }, () => setTools((n) => n + 1));
+  const finished = useRef(new Set<string>());
+  useAriaFrames(props.aria, (a) => {
+    for (const c of a.nodes) {
+      if (c.node.type !== "tool" || c.node.status === "running" || finished.current.has(`${c.turn}.${c.id}`)) continue;
+      finished.current.add(`${c.turn}.${c.id}`);
+      setTools((n) => n + 1);
+    }
+  });
 
   if (!snap || !stream) return null;
+  const turns = byTurn([...snap.view.closed, ...(snap.view.open ? [snap.view.open] : [])]);
 
   const guard = async (what: () => Promise<unknown>): Promise<void> => {
     setNote(undefined);
@@ -91,7 +99,7 @@ function Attended(props: { readonly aria: string }) {
     const text = draft.trim();
     if (text === "") return;
     setDraft("");
-    void guard(() => stream.prompt(text));
+    void guard(() => stream.qua(text));
   };
 
   return (
@@ -110,8 +118,8 @@ function Attended(props: { readonly aria: string }) {
         </button>
       ) : null}
       <ol className="turns">
-        {snap.turns.map((t) => (
-          <Turn key={t.turn} turn={t} />
+        {turns.map((t) => (
+          <Turn key={t.turn} turn={t.turn} messages={t.messages} open={snap.view.open?.turn === t.turn} end={snap.ends.find((e) => e.turn === t.turn)} />
         ))}
       </ol>
       <form className="composer" onSubmit={send}>
@@ -147,67 +155,88 @@ function Refused(props: { readonly refusal: AriaRefusal }) {
   );
 }
 
-function Turn(props: { readonly turn: TurnView }) {
-  const { turn } = props;
+interface TurnGroup {
+  readonly turn: number;
+  readonly messages: Message[];
+}
+
+function byTurn(messages: readonly Message[]): TurnGroup[] {
+  const out: TurnGroup[] = [];
+  for (const m of messages) {
+    const last = out[out.length - 1];
+    if (last && last.turn === m.turn) last.messages.push(m);
+    else out.push({ turn: m.turn, messages: [m] });
+  }
+  return out;
+}
+
+function Turn(props: { readonly turn: number; readonly messages: readonly Message[]; readonly open: boolean; readonly end: TurnEnd | undefined }) {
+  const head = props.messages.find((m) => m.from === 0);
+  const sender = head?.inquirySegments?.map((s) => s.name ?? s.sender).find((s) => s) ?? "you";
   return (
     <li className="turn">
       <div className="input">
-        <span className="who">{turn.input?.segments.map((s) => s.senderName ?? s.sender).find((s) => s) ?? "you"}</span>
-        <pre>{turn.input?.text ?? ""}</pre>
+        <span className="who">{sender}</span>
+        <pre>{head?.inquiry ?? ""}</pre>
       </div>
-      {turn.nodes.map((n) => (
-        <Node key={n.node} node={n} />
-      ))}
-      {turn.end ? (
-        <div className={turn.end.failed ? "end failed" : "end"}>{turn.end.failed ? turn.end.reason : `done${turn.end.reason ? `: ${turn.end.reason}` : ""}`}</div>
-      ) : !turn.sealed ? (
-        <div className="end running">…</div>
-      ) : null}
+      {props.messages.flatMap((m) => m.nodes.map((n, i) => <Node key={m.from + i} node={n} live={props.open && m === props.messages[props.messages.length - 1] && i === m.nodes.length - 1} />))}
+      <End end={props.end} open={props.open} />
     </li>
   );
 }
 
-function Node(props: { readonly node: NodeView }) {
+function End(props: { readonly end: TurnEnd | undefined; readonly open: boolean }) {
+  if (props.open) return <div className="end running">…</div>;
+  const { end } = props;
+  if (!end) return null;
+  if (!end.done) return <div className="end">ended</div>;
+  const reason = end.done.reason;
+  if (reason.startsWith("error")) return <div className="end failed">{reason}</div>;
+  return <div className="end">{reason === "stop" ? "done" : `done: ${reason}`}</div>;
+}
+
+function Node(props: { readonly node: IRNode; readonly live: boolean }) {
   const n = props.node;
-  if (n.kind === "tool") return <ToolBlock tool={n.tool} settled={n.settled} />;
-  if (n.kind === "thinking") {
+  if (n.type === "tool") return <ToolBlock node={n} />;
+  if (n.type === "thinking") {
     return (
-      <details className="thinking" open={!n.settled}>
+      <details className="thinking" open={props.live}>
         <summary>thinking</summary>
-        <pre>{n.text}</pre>
+        <pre>{n.markdown ?? ""}</pre>
       </details>
     );
   }
-  if (n.kind === "steering") {
+  if (n.type === "steering") {
     return (
       <div className="steering">
-        <span className="who">{n.senderName ?? n.sender ?? "steering"}</span>
-        <pre>{n.text}</pre>
+        <span className="who">{n.sender_name ?? n.sender ?? "steering"}</span>
+        <pre>{n.markdown ?? ""}</pre>
       </div>
     );
   }
-  if (n.kind === "unknown") {
+  if (n.type !== "prose") {
     return (
       <div className="unknown">
         <span className="who">{n.type}</span>
-        {n.text ? <pre>{n.text}</pre> : null}
+        {n.markdown ? <pre>{n.markdown}</pre> : null}
       </div>
     );
   }
-  return <pre className={n.settled ? "prose" : "prose live"}>{n.text}</pre>;
+  return <pre className={props.live ? "prose live" : "prose"}>{n.markdown ?? ""}</pre>;
 }
 
-function ToolBlock(props: { readonly tool: Tool; readonly settled: boolean }) {
-  const { tool } = props;
-  const headline = tool.summary ?? (tool.args ? Object.values(tool.args)[0] : undefined) ?? tool.input ?? "";
+function ToolBlock(props: { readonly node: IRNode }) {
+  const { node } = props;
+  const status = node.status ?? "running";
+  const headline = node.summary ?? (node.args ? Object.values(node.args)[0] : undefined) ?? node.input ?? "";
   return (
-    <div className={`tool tool-${tool.status}`}>
+    <div className={`tool tool-${status}`}>
       <div className="tool-head">
-        <span className="tool-name">{tool.name ?? "tool"}</span>
-        <span className="tool-status">{tool.status}</span>
+        <span className="tool-name">{node.name ?? "tool"}</span>
+        <span className="tool-status">{status}</span>
         <span className="tool-line">{String(headline)}</span>
       </div>
-      {tool.output ? <pre className="tool-out">{tool.output}</pre> : null}
+      {node.output ? <pre className="tool-out">{node.output}</pre> : null}
     </div>
   );
 }

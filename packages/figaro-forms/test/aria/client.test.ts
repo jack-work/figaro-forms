@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { AriaClient, AriaUnavailable, ariaRefusal, type AriaEvent, type AriaStream } from "../../src/aria/index.js";
+import { AriaClient, AriaUnavailable, ariaRefusal, type AppliedFrame, type DoneEntry, type Message, type AriaStream, type TurnEnd } from "../../src/aria/index.js";
 import { RpcError } from "../../src/rpc.js";
 import { FakeAria, settle, tick } from "./fake-aria.js";
 
@@ -17,13 +17,14 @@ function setup(fake = new FakeAria()): { fake: FakeAria; client: AriaClient } {
 const prose = (id: number, markdown: string): { id: number; set: Record<string, string> } => ({ id, set: { type: "prose", role: "output", markdown } });
 const more = (id: number, at: number, ins: string): { id: number; patch: { markdown: { at: number; del: number; ins: string } } } => ({ id, patch: { markdown: { at, del: 0, ins } } });
 
-function collect(stream: AriaStream): AriaEvent[] {
-  const events: AriaEvent[] = [];
-  stream.subscribe((e) => events.push(e));
-  return events;
+function frames(stream: AriaStream): AppliedFrame[] {
+  const seen: AppliedFrame[] = [];
+  stream.onFrame((a) => seen.push(a));
+  return seen;
 }
 
-const shape = (es: readonly AriaEvent[]): string[] => es.filter((e) => e.kind !== "metrics").map((e) => `${e.type}${"turn" in e ? `@${e.turn}` : ""}`);
+const closed = (s: AriaStream): readonly Message[] => s.snapshot().view.closed;
+const texts = (ms: readonly Message[]): string[] => ms.flatMap((m) => m.nodes.map((n) => n.markdown ?? ""));
 
 describe("attach, catch up, follow", () => {
   it("follows the transcript channel before it reads, and reads before it reports live", async () => {
@@ -31,52 +32,58 @@ describe("attach, catch up, follow", () => {
     fake.addAria("a1");
     fake.finishedTurn("a1", 1, "hello", [{ type: "prose", markdown: "ciao" }]);
     const s = client.attach("a1");
-    const events = collect(s);
+    const seen = frames(s);
     await s.ready();
     const methods = fake.calls.map((c) => c.method);
     expect(methods.slice(0, 3)).toEqual(["angelus.hello", "figaro.follow", "figaro.read"]);
     expect(fake.calls[1]?.params).toMatchObject({ figaro_id: "a1", channels: ["transcript"] });
-    expect(shape(events)).toEqual(["input@1", "prose.settled@1", "turn.end@1"]);
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toMatchObject({ source: "read", closed: [{ turn: 1, from: 0, inquiry: "hello", role: "output", nodes: [{ type: "prose", markdown: "ciao" }] }] });
     expect(s.state).toBe("live");
   });
 
-  it("streams a live turn: input, deltas, settled at the close marker, end at turn.done", async () => {
+  it("streams a live turn as the daemon sends it: an open message, then closed at the seal, then turn.done", async () => {
     const { fake, client } = setup();
     fake.addAria("a1");
     const s = client.attach("a1");
-    const events = collect(s);
+    const seen = frames(s);
+    const dones: DoneEntry[] = [];
+    s.onDone((d) => dones.push(d));
     await s.ready();
+    seen.length = 0;
     fake.openTurn("a1", 1, "say something");
     fake.update("a1", 1, [prose(0, "Buon")]);
     fake.update("a1", 1, [more(0, 4, "giorno")]);
     fake.closeRound("a1", 1);
+    await settle();
+    expect(s.snapshot().view.closed).toEqual([]);
+    expect(s.snapshot().view.open).toMatchObject({ turn: 1, inquiry: "say something", role: "output", nodes: [{ type: "prose", markdown: "Buongiorno" }] });
     fake.seal("a1", 1);
     fake.done("a1");
     await settle();
-    expect(shape(events)).toEqual(["input@1", "prose.delta@1", "prose.delta@1", "prose.settled@1", "turn.end@1"]);
-    expect(events.filter((e) => e.type === "prose.delta").map((e) => (e as { text: string }).text)).toEqual(["Buon", "Buongiorno"]);
-    expect(events.at(-1)).toMatchObject({ type: "turn.end", reason: "stop", idle: true, replayed: false });
-    expect(s.cursor).toBe("2.0");
+    expect(seen.map((a) => a.source)).toEqual(["push", "push", "push", "push", "push"]);
+    expect(seen[1]?.nodes).toMatchObject([{ turn: 1, id: 0, node: { markdown: "Buon" }, delta: { id: 0 } }]);
+    expect(seen[2]?.nodes).toMatchObject([{ turn: 1, id: 0, node: { markdown: "Buongiorno" }, delta: { patch: { markdown: { at: 4, del: 0, ins: "giorno" } } } }]);
+    expect(seen[4]?.closed).toMatchObject([{ turn: 1, from: 0, nodes: [{ markdown: "Buongiorno" }] }]);
+    expect(s.snapshot().view).toMatchObject({ closed: [{ turn: 1 }], open: undefined });
+    expect(dones).toEqual([{ reason: "stop", idle: true }]);
+    expect(s.snapshot().done).toEqual({ reason: "stop", idle: true });
+    expect(s.cursor).toBe(1);
   });
 
-  it("lets a consumer subscribe to one kind, or iterate it", async () => {
+  it("lets a consumer iterate the frames it is told", async () => {
     const { fake, client } = setup();
     fake.addAria("a1");
     const s = client.attach("a1");
     await s.ready();
-    const proseOnly: AriaEvent[] = [];
-    s.on("prose", (e) => proseOnly.push(e));
-    const iter = s.events({ kind: "turn" });
+    const iter = s.frames();
     fake.openTurn("a1", 1, "q");
     fake.update("a1", 1, [prose(0, "hi")]);
-    fake.update("a1", 1, [{ id: 1, set: { type: "thinking", markdown: "hm" } }]);
-    fake.closeRound("a1", 1);
-    fake.seal("a1", 1);
-    fake.done("a1");
     const first = await iter.next();
-    expect(first.value).toMatchObject({ type: "turn.end", turn: 1 });
+    expect(first.value).toMatchObject({ source: "push", frame: { parts: [{ turn: 1, inquiry: "q" }] } });
+    const second = await iter.next();
+    expect(second.value?.nodes).toMatchObject([{ id: 0, node: { type: "prose", markdown: "hi" } }]);
     await iter.return?.();
-    expect(proseOnly.map((e) => e.type)).toEqual(["prose.delta", "prose.settled"]);
   });
 
   it("pages a long catch-up from the start across several reads", async () => {
@@ -85,46 +92,58 @@ describe("attach, catch up, follow", () => {
     fake.pageNodes = 2;
     for (let t = 1; t <= 4; t++) fake.finishedTurn("a1", t, `q${t}`, [{ type: "prose", markdown: `a${t}` }, { type: "prose", markdown: `b${t}` }, { type: "prose", markdown: `c${t}` }]);
     const s = client.attach("a1", { from: "start" });
-    const events = collect(s);
     await s.ready();
-    const texts = events.filter((e) => e.type === "prose.settled").map((e) => (e as { text: string }).text);
-    expect(texts).toEqual(["a1", "b1", "c1", "a2", "b2", "c2", "a3", "b3", "c3", "a4", "b4", "c4"]);
-    expect(events.filter((e) => e.type === "turn.end")).toHaveLength(4);
+    expect(texts(closed(s))).toEqual(["a1", "b1", "c1", "a2", "b2", "c2", "a3", "b3", "c3", "a4", "b4", "c4"]);
+    expect(closed(s).filter((m) => m.inquiry !== undefined).map((m) => m.turn)).toEqual([1, 2, 3, 4]);
     expect(fake.reads.length).toBeGreaterThan(3);
-    expect(s.cursor).toBe("5.0");
+    expect(s.cursor).toBe(4);
+    expect(s.transcript.query({ turn: 1, node: 0 }, { turn: 4, node: 2 }).every((seg) => seg.gap === undefined)).toBe(true);
   });
 
-  it("starts from the tail by default and loads older turns quietly", async () => {
+  it("starts from the tail by default and loads older turns without announcing them", async () => {
     const { fake, client } = setup();
     fake.addAria("a1");
     fake.pageNodes = 2;
     for (let t = 1; t <= 5; t++) fake.finishedTurn("a1", t, `q${t}`, [{ type: "prose", markdown: `a${t}` }]);
     const s = client.attach("a1");
-    const events = collect(s);
+    const seen = frames(s);
     await s.ready();
     expect(fake.reads[0]).toMatchObject({ backward: true });
-    expect(events.filter((e) => e.type === "input").map((e) => (e as { turn: number }).turn)).toEqual([4, 5]);
+    expect(closed(s).map((m) => m.turn)).toEqual([4, 5]);
     expect(s.snapshot().olderAvailable).toBe(true);
-    const before = events.length;
+    const before = seen.length;
     expect(await s.loadOlder()).toBe(true);
-    expect(events.length).toBe(before);
-    expect(s.snapshot().turns.map((t) => t.turn)).toEqual([2, 3, 4, 5]);
+    expect(seen.length).toBe(before);
+    expect(closed(s).map((m) => m.turn)).toEqual([2, 3, 4, 5]);
     await s.loadOlder();
     await s.loadOlder();
-    expect(s.snapshot().turns.map((t) => t.turn)).toEqual([1, 2, 3, 4, 5]);
+    expect(closed(s).map((m) => m.turn)).toEqual([1, 2, 3, 4, 5]);
     expect(s.snapshot().olderAvailable).toBe(false);
-    expect(s.cursor).toBe("6.0");
+    expect(s.cursor).toBe(5);
   });
 
-  it("resumes from a cursor and reads from there, not from the start", async () => {
+  it("closes a hole between what it holds and an anchor with ensure", async () => {
+    const { fake, client } = setup();
+    fake.addAria("a1");
+    fake.pageNodes = 2;
+    for (let t = 1; t <= 6; t++) fake.finishedTurn("a1", t, `q${t}`, [{ type: "prose", markdown: `a${t}` }]);
+    const s = client.attach("a1");
+    await s.ready();
+    expect(closed(s).map((m) => m.turn)).toEqual([5, 6]);
+    await s.ensure({ turn: 1, node: 0 }, { turn: 6, node: 0 });
+    expect(closed(s).map((m) => m.turn)).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(s.snapshot().olderAvailable).toBe(false);
+  });
+
+  it("resumes from a cursor and reads from that turn, not from the start", async () => {
     const { fake, client } = setup();
     fake.addAria("a1");
     for (let t = 1; t <= 3; t++) fake.finishedTurn("a1", t, `q${t}`, [{ type: "prose", markdown: `a${t}` }]);
-    const s = client.attach("a1", { cursor: "3.0" });
-    const events = collect(s);
+    const s = client.attach("a1", { cursor: 3 });
     await s.ready();
     expect(fake.reads[0]).toMatchObject({ at: { turn: 3, node: 0 } });
-    expect(shape(events)).toEqual(["input@3", "prose.settled@3", "turn.end@3"]);
+    expect(closed(s)).toMatchObject([{ turn: 3, inquiry: "q3", nodes: [{ markdown: "a3" }] }]);
+    expect(s.snapshot().olderAvailable).toBe(true);
   });
 
   it("applies frames that arrive while the catch-up read is in flight, once", async () => {
@@ -132,11 +151,9 @@ describe("attach, catch up, follow", () => {
     fake.addAria("a1");
     fake.holdReads = true;
     const s = client.attach("a1");
-    const events = collect(s);
     await settle();
     fake.openTurn("a1", 1, "q");
     fake.update("a1", 1, [prose(0, "one ")]);
-    fake.holdReads = true;
     fake.update("a1", 1, [more(0, 4, "two ")]);
     fake.release();
     await settle();
@@ -145,11 +162,101 @@ describe("attach, catch up, follow", () => {
     fake.seal("a1", 1);
     fake.done("a1");
     await settle();
-    const settled = events.filter((e) => e.type === "prose.settled");
-    expect(settled).toHaveLength(1);
-    expect(settled[0]).toMatchObject({ text: "one two three" });
-    expect(events.filter((e) => e.type === "input")).toHaveLength(1);
-    expect(events.filter((e) => e.type === "turn.end")).toHaveLength(1);
+    expect(closed(s)).toMatchObject([{ turn: 1, from: 0, inquiry: "q", nodes: [{ markdown: "one two three" }] }]);
+    expect(s.snapshot().view.open).toBeUndefined();
+  });
+});
+
+describe("a push that overlaps the read that catches up", () => {
+  it("is not applied twice: a patch repeated on text that already holds it would corrupt it", async () => {
+    const { fake, client } = setup();
+    fake.addAria("a1");
+    fake.openTurn("a1", 1, "q");
+    fake.update("a1", 1, [prose(0, "one ")]);
+    fake.update("a1", 1, [more(0, 4, "two ")]);
+    fake.holdReads = true;
+    const s = client.attach("a1");
+    await settle();
+    fake.update("a1", 1, [more(0, 8, "three ")]);
+    fake.update("a1", 1, [more(0, 14, "four")]);
+    fake.release();
+    await settle();
+    expect(s.snapshot().view.open).toMatchObject({ nodes: [{ markdown: "one two three four" }] });
+    fake.update("a1", 1, [more(0, 18, " five")]);
+    await settle();
+    expect(s.snapshot().view.open).toMatchObject({ nodes: [{ markdown: "one two three four five" }] });
+  });
+});
+
+describe("which turn ended, and why", () => {
+  it("names the turn and the daemon's reason for a turn that ends while it follows", async () => {
+    const { fake, client } = setup();
+    fake.addAria("a1");
+    const s = client.attach("a1");
+    await s.ready();
+    const ends: TurnEnd[] = [];
+    s.onTurnEnd((e) => ends.push(e));
+    for (const [turn, reason] of [[1, "stop"], [2, "interrupted"], [3, "error: provider down"]] as const) {
+      fake.openTurn("a1", turn, `q${turn}`);
+      fake.update("a1", turn, [prose(0, "x")]);
+      fake.seal("a1", turn);
+      fake.done("a1", reason, true);
+      await settle();
+    }
+    expect(ends).toEqual([
+      { turn: 1, replayed: false, done: { reason: "stop", idle: true } },
+      { turn: 2, replayed: false, done: { reason: "interrupted", idle: true } },
+      { turn: 3, replayed: false, done: { reason: "error: provider down", idle: true } },
+    ]);
+    expect(s.snapshot().ends).toEqual(ends);
+  });
+
+  it("names the turn but not the reason for turns it only reads: the daemon does not keep one (figaro#200)", async () => {
+    const { fake, client } = setup();
+    fake.addAria("a1");
+    fake.finishedTurn("a1", 1, "q1", [{ type: "prose", markdown: "a" }]);
+    fake.finishedTurn("a1", 2, "q2", [{ type: "prose", markdown: "b" }]);
+    const s = client.attach("a1");
+    const ends: TurnEnd[] = [];
+    s.onTurnEnd((e) => ends.push(e));
+    await s.ready();
+    expect(ends).toEqual([{ turn: 1, replayed: true }, { turn: 2, replayed: true }]);
+    expect(ends.every((e) => e.done === undefined)).toBe(true);
+  });
+
+  it("tells a turn that finished while the socket was down as replayed, with its turn", async () => {
+    const { fake, client } = setup();
+    fake.addAria("a1");
+    const s = client.attach("a1");
+    await s.ready();
+    const ends: TurnEnd[] = [];
+    s.onTurnEnd((e) => ends.push(e));
+    fake.openTurn("a1", 1, "q");
+    fake.update("a1", 1, [prose(0, "partial")]);
+    await settle();
+    fake.drop();
+    fake.seal("a1", 1);
+    await tick(60);
+    await settle();
+    expect(ends).toEqual([{ turn: 1, replayed: true }]);
+  });
+
+  it("does not tell a turn twice when a re-read meets it again", async () => {
+    const { fake, client } = setup();
+    fake.addAria("a1");
+    const s = client.attach("a1");
+    await s.ready();
+    const ends: TurnEnd[] = [];
+    s.onTurnEnd((e) => ends.push(e));
+    fake.openTurn("a1", 1, "q");
+    fake.update("a1", 1, [prose(0, "x")]);
+    fake.seal("a1", 1);
+    fake.done("a1");
+    await settle();
+    fake.drop();
+    await tick(60);
+    await settle();
+    expect(ends).toHaveLength(1);
   });
 });
 
@@ -158,7 +265,6 @@ describe("reconnect and gaps", () => {
     const { fake, client } = setup();
     fake.addAria("a1");
     const s = client.attach("a1");
-    const events = collect(s);
     await s.ready();
     fake.openTurn("a1", 1, "q");
     fake.update("a1", 1, [prose(0, "alpha ")]);
@@ -169,23 +275,20 @@ describe("reconnect and gaps", () => {
     await tick(60);
     await settle();
     expect(fake.dials).toBe(2);
+    expect(s.snapshot().view.open).toMatchObject({ nodes: [{ markdown: "alpha beta gamma " }] });
     fake.update("a1", 1, [more(0, 17, "delta")]);
     fake.closeRound("a1", 1);
     fake.seal("a1", 1);
     fake.done("a1");
     await settle();
-    const deltas = events.filter((e) => e.type === "prose.delta") as unknown as { text: string }[];
-    expect(deltas.map((d) => d.text)).toEqual(["alpha ", "alpha beta gamma ", "alpha beta gamma delta"]);
-    expect(events.filter((e) => e.type === "prose.settled")).toHaveLength(1);
-    expect(events.filter((e) => e.type === "input")).toHaveLength(1);
-    expect(events.filter((e) => e.type === "turn.end")).toHaveLength(1);
+    expect(closed(s)).toMatchObject([{ turn: 1, from: 0, inquiry: "q", nodes: [{ markdown: "alpha beta gamma delta" }] }]);
+    expect(closed(s)).toHaveLength(1);
   });
 
-  it("reads a turn that finished while the socket was down and ends it as replayed", async () => {
+  it("reads a turn that finished while the socket was down and closes it", async () => {
     const { fake, client } = setup();
     fake.addAria("a1");
     const s = client.attach("a1");
-    const events = collect(s);
     await s.ready();
     fake.openTurn("a1", 1, "q");
     fake.update("a1", 1, [prose(0, "partial")]);
@@ -195,27 +298,28 @@ describe("reconnect and gaps", () => {
     fake.seal("a1", 1);
     await tick(60);
     await settle();
-    expect(events.filter((e) => e.type === "prose.settled")).toMatchObject([{ text: "partial and more" }]);
-    expect(events.filter((e) => e.kind !== "metrics").at(-1)).toMatchObject({ type: "turn.end", replayed: true });
+    expect(closed(s)).toMatchObject([{ turn: 1, nodes: [{ markdown: "partial and more" }] }]);
+    expect(s.snapshot().view.open).toBeUndefined();
+    expect(s.cursor).toBe(1);
   });
 
-  it("repairs a missing frame in the middle of a stream by reading again", async () => {
+  it("reads again when a close marker names a version it never reached", async () => {
     const { fake, client } = setup();
     fake.addAria("a1");
     const s = client.attach("a1");
-    const events = collect(s);
     await s.ready();
     fake.openTurn("a1", 1, "q");
     fake.update("a1", 1, [prose(0, "a ")]);
     fake.update("a1", 1, [more(0, 2, "b ")], { drop: true });
-    fake.update("a1", 1, [more(0, 4, "c ")]);
     await settle();
-    expect(fake.reads.length).toBe(2);
+    const reads = fake.reads.length;
     fake.closeRound("a1", 1);
+    await settle();
+    expect(fake.reads.length).toBe(reads + 1);
+    expect(s.snapshot().view.open).toMatchObject({ nodes: [{ markdown: "a b " }] });
     fake.seal("a1", 1);
     await settle();
-    const settled = events.filter((e) => e.type === "prose.settled") as unknown as { text: string }[];
-    expect(settled.map((e) => e.text)).toEqual(["a b c "]);
+    expect(texts(closed(s))).toEqual(["a b "]);
   });
 
   it("reports offline while the connection is down and live again after", async () => {
@@ -286,14 +390,14 @@ describe("shared streams and detaching", () => {
     fake.addAria("a2");
     const s1 = client.attach("a1");
     const s2 = client.attach("a2");
-    const e1 = collect(s1);
-    const e2 = collect(s2);
+    const e1 = frames(s1);
+    const e2 = frames(s2);
     await Promise.all([s1.ready(), s2.ready()]);
     fake.openTurn("a1", 1, "for one");
     fake.openTurn("a2", 1, "for two");
     await settle();
-    expect(e1.map((e) => (e as { text?: string }).text)).toEqual(["for one"]);
-    expect(e2.map((e) => (e as { text?: string }).text)).toEqual(["for two"]);
+    expect(e1.flatMap((a) => (a.open ? [a.open.inquiry] : []))).toEqual(["for one"]);
+    expect(e2.flatMap((a) => (a.open ? [a.open.inquiry] : []))).toEqual(["for two"]);
   });
 });
 
@@ -306,7 +410,7 @@ describe("calls", () => {
     fake.answers.set("figaro.fork", { parent: "a1", continuation: "a1c", alternative: "a1x" });
     fake.rows = [{ id: "a1", state: "idle", handle: "one" }];
     fake.listRefused = 3;
-    expect(await client.prompt("a1", "ciao")).toEqual({ ok: true, cursor: 4, active: true });
+    expect(await client.qua("a1", "ciao")).toEqual({ ok: true, cursor: 4, active: true });
     expect(await client.interrupt("a1", { queue: "clear" })).toMatchObject({ stopped: true });
     expect(await client.fork("a1", { atTurn: 2 })).toMatchObject({ alternative: "a1x" });
     const list = await client.list({ limit: 10 });
@@ -321,7 +425,7 @@ describe("calls", () => {
 
   it("passes a daemon error through as an RpcError", async () => {
     const { client } = setup();
-    const err = await client.prompt("a1", "x").catch((e: unknown) => e);
+    const err = await client.qua("a1", "x").catch((e: unknown) => e);
     expect(err).toMatchObject({ code: -32601 });
   });
 });

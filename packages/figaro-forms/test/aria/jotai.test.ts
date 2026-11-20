@@ -1,7 +1,7 @@
 import { createStore } from "jotai/vanilla";
 import { describe, expect, it } from "vitest";
 import { AriaClient } from "../../src/aria/client.js";
-import { ariaAtom, ariaEventAtom, ariaListAtom, ariaPhaseAtom } from "../../src/aria/jotai.js";
+import { ariaAtom, ariaFrameAtom, ariaListAtom, ariaPhaseAtom } from "../../src/aria/jotai.js";
 import { FakeAria, settle, tick } from "./fake-aria.js";
 
 describe("aria atoms", () => {
@@ -13,22 +13,22 @@ describe("aria atoms", () => {
     const snap = ariaAtom(client, "a1");
     expect(ariaAtom(client, "a1")).toBe(snap);
     const phase = ariaPhaseAtom(client, "a1");
-    const tool = ariaEventAtom(client, "a1", "tool");
+    const frame = ariaFrameAtom(client, "a1");
     let changes = 0;
     const offSnap = store.sub(snap, () => changes++);
     const offPhase = store.sub(phase, () => {});
-    const offTool = store.sub(tool, () => {});
+    const offFrame = store.sub(frame, () => {});
     await settle();
     expect(store.get(phase)).toBe("live");
     fake.openTurn("a1", 1, "hi");
     fake.update("a1", 1, [{ id: 0, set: { type: "tool", name: "bash", status: "running" } }]);
     await settle();
-    expect(store.get(snap).turns[0]?.input?.text).toBe("hi");
-    expect(store.get(tool)).toMatchObject({ type: "tool.start", tool: { name: "bash" } });
+    expect(store.get(snap).view.open?.inquiry).toBe("hi");
+    expect(store.get(frame)?.nodes[0]).toMatchObject({ node: { type: "tool", name: "bash" } });
     expect(changes).toBeGreaterThan(0);
     offSnap();
     offPhase();
-    offTool();
+    offFrame();
     await tick(40);
     expect(fake.calls.filter((c) => c.method === "figaro.unfollow")).toHaveLength(1);
     client.close();

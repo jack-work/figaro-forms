@@ -1,17 +1,19 @@
 import { ConnectionLost } from "../rpc.js";
 import type { AriaClient } from "./client.js";
 import { ariaRefusal, AriaUnavailable, type AriaRefusal } from "./errors.js";
-import { matches, type AriaEvent, type EventFilter, type EventOf, type Kind, type TurnView } from "./events.js";
-import type { Cursor } from "./cursor.js";
-import { Transcript } from "./transcript.js";
+import { Transcript, type Changed, type View } from "./fold.js";
+import type { Fetcher, Message } from "./store.js";
 import {
   ariaMethod,
   type Anchor,
   type AriaFrame,
+  type DoneEntry,
   type ForkResponse,
   type InterruptResponse,
   type Metrics,
   type Page,
+  type TurnPart,
+  type QuaImage,
   type QuaResponse,
   type QueueDisposition,
   type TurnDone,
@@ -20,40 +22,61 @@ import {
 export type Phase = "connecting" | "catching-up" | "live" | "offline" | "refused" | "gone" | "closed" | "detached";
 
 export interface AttachOptions {
-  readonly cursor?: Cursor;
   readonly from?: "tail" | "start";
+  readonly cursor?: number;
   readonly pageBytes?: number;
+}
+
+export interface TurnEnd {
+  readonly turn: number;
+  readonly replayed: boolean;
+  readonly done?: DoneEntry;
 }
 
 export interface AriaSnapshot {
   readonly aria: string;
-  readonly turns: readonly TurnView[];
+  readonly view: View;
   readonly metrics: Metrics | undefined;
+  readonly done: DoneEntry | undefined;
+  readonly ends: readonly TurnEnd[];
   readonly phase: Phase;
   readonly refusal: AriaRefusal | undefined;
   readonly error: string | undefined;
-  readonly cursor: Cursor;
+  readonly cursor: number;
   readonly olderAvailable: boolean | undefined;
 }
 
-type Listener = (e: AriaEvent) => void;
-
-interface Sub {
-  readonly fn: Listener;
-  readonly filter: EventFilter | undefined;
+export interface AppliedFrame {
+  readonly aria: string;
+  readonly source: "read" | "push";
+  readonly frame: Page;
+  readonly closed: readonly Message[];
+  readonly open: Message | undefined;
+  readonly nodes: readonly Changed[];
+  readonly sealed: readonly number[];
+  readonly desync: number | undefined;
+  readonly metrics: Metrics | undefined;
 }
 
 type Queued = { readonly k: "frame"; readonly frame: AriaFrame } | { readonly k: "done"; readonly done: TurnDone };
 
 const retryAfterMs = 2000;
 const maxPages = 10_000;
+const wireBytesPerMessage = 4096;
+
+const wireBudget = (messages: number): number => (messages <= 0 ? 0 : messages * wireBytesPerMessage);
 
 export class AriaStream {
   readonly aria: string;
+  readonly transcript = new Transcript();
   private readonly host: AriaClient;
   private readonly opts: AttachOptions;
-  private readonly transcript: Transcript;
-  private readonly subs = new Set<Sub>();
+  private readonly frameSubs = new Set<(a: AppliedFrame) => void>();
+  private readonly doneSubs = new Set<(d: DoneEntry) => void>();
+  private readonly endSubs = new Set<(e: TurnEnd) => void>();
+  private readonly endLog = new Map<number, TurnEnd>();
+  private sealedByPush: number | undefined;
+  private readonly versions = new Map<number, number>();
   private readonly changed = new Set<() => void>();
   private readonly ended = new Set<() => void>();
   private readonly waiters: { resolve(): void; reject(e: unknown): void }[] = [];
@@ -61,6 +84,8 @@ export class AriaStream {
   private phase: Phase = "connecting";
   private refusal: AriaRefusal | undefined;
   private error: string | undefined;
+  private lastMetrics: Metrics | undefined;
+  private lastDone: DoneEntry | undefined;
   private buffering = false;
   private buffer: Queued[] = [];
   private catching = false;
@@ -69,16 +94,18 @@ export class AriaStream {
   private older: boolean | undefined;
   private retryTimer: ReturnType<typeof setTimeout> | undefined;
   private closed = false;
+  private resumeFrom: number;
 
   constructor(host: AriaClient, aria: string, opts: AttachOptions = {}) {
     this.host = host;
     this.aria = aria;
     this.opts = opts;
-    this.transcript = new Transcript({ aria, ...(opts.cursor !== undefined ? { from: opts.cursor } : {}), emit: (e) => this.deliver(e) });
+    this.resumeFrom = opts.cursor ?? 0;
+    this.transcript.setFetcher(this.history());
   }
 
-  get cursor(): Cursor {
-    return this.transcript.resume();
+  get cursor(): number {
+    return this.transcript.cursor();
   }
 
   get state(): Phase {
@@ -89,26 +116,33 @@ export class AriaStream {
     if (!this.snap) {
       this.snap = {
         aria: this.aria,
-        turns: this.transcript.view(),
-        metrics: this.transcript.latestMetrics,
+        view: this.transcript.view(),
+        metrics: this.lastMetrics,
+        done: this.lastDone,
+        ends: [...this.endLog.values()].sort((a, b) => a.turn - b.turn),
         phase: this.phase,
         refusal: this.refusal,
         error: this.error,
-        cursor: this.transcript.resume(),
+        cursor: this.transcript.cursor(),
         olderAvailable: this.older,
       };
     }
     return this.snap;
   }
 
-  subscribe(fn: Listener, filter?: EventFilter): () => void {
-    const sub: Sub = { fn, filter };
-    this.subs.add(sub);
-    return () => this.subs.delete(sub);
+  onFrame(fn: (a: AppliedFrame) => void): () => void {
+    this.frameSubs.add(fn);
+    return () => this.frameSubs.delete(fn);
   }
 
-  on<K extends Kind>(kind: K, fn: (e: EventOf<K>) => void): () => void {
-    return this.subscribe(fn as Listener, kind);
+  onDone(fn: (d: DoneEntry) => void): () => void {
+    this.doneSubs.add(fn);
+    return () => this.doneSubs.delete(fn);
+  }
+
+  onTurnEnd(fn: (e: TurnEnd) => void): () => void {
+    this.endSubs.add(fn);
+    return () => this.endSubs.delete(fn);
   }
 
   onChange(fn: () => void): () => void {
@@ -116,14 +150,14 @@ export class AriaStream {
     return () => this.changed.delete(fn);
   }
 
-  events(filter?: EventFilter): AsyncIterableIterator<AriaEvent> {
-    const queue: AriaEvent[] = [];
+  frames(): AsyncIterableIterator<AppliedFrame> {
+    const queue: AppliedFrame[] = [];
     let wake: (() => void) | undefined;
     let over = this.closed;
-    const off = this.subscribe((e) => {
-      queue.push(e);
+    const off = this.onFrame((a) => {
+      queue.push(a);
       wake?.();
-    }, filter);
+    });
     const offEnd = this.onEnd(() => {
       over = true;
       wake?.();
@@ -133,11 +167,11 @@ export class AriaStream {
       offEnd();
       over = true;
     };
-    const it: AsyncIterableIterator<AriaEvent> = {
+    const it: AsyncIterableIterator<AppliedFrame> = {
       next: async () => {
         for (;;) {
-          const e = queue.shift();
-          if (e) return { value: e, done: false };
+          const a = queue.shift();
+          if (a) return { value: a, done: false };
           if (over) {
             stop();
             return { value: undefined, done: true };
@@ -162,8 +196,8 @@ export class AriaStream {
     return new Promise((resolve, reject) => this.waiters.push({ resolve, reject }));
   }
 
-  prompt(text: string, o?: { readonly images?: readonly { readonly mime_type?: string; readonly data: string }[] }): Promise<QuaResponse> {
-    return this.host.prompt(this.aria, text, o);
+  qua(text: string, o?: { readonly images?: readonly QuaImage[] }): Promise<QuaResponse> {
+    return this.host.qua(this.aria, text, o);
   }
 
   interrupt(o?: { readonly queue?: QueueDisposition }): Promise<InterruptResponse> {
@@ -174,22 +208,24 @@ export class AriaStream {
     return this.host.fork(this.aria, o);
   }
 
-  async loadOlder(): Promise<boolean> {
+  async loadOlder(messages = 0): Promise<boolean> {
     const at = this.transcript.oldestHeld();
     if (!at || this.older === false) return false;
-    const page = await this.host.connection.call<Page>(ariaMethod.read, {
-      figaro_id: this.aria,
-      at,
-      backward: true,
-      ...(this.opts.pageBytes ? { limit: this.opts.pageBytes } : {}),
-    });
-    this.transcript.quietly(() => {
-      this.transcript.fold(page, "read");
-      this.transcript.flush();
-    });
+    const page = await this.host.read(this.aria, { at, backward: true, limit: wireBudget(messages) || this.opts.pageBytes || 0 });
+    this.transcript.apply(page, "quiet");
+    this.transcript.setMoreBefore(page.more.before ?? false);
     this.older = page.more.before ?? false;
     this.touch();
     return page.parts.length > 0;
+  }
+
+  async ensure(from: Anchor, to: Anchor): Promise<void> {
+    try {
+      await this.transcript.ensure(from, to);
+    } finally {
+      this.older = this.transcript.moreBefore();
+      this.touch();
+    }
   }
 
   retry(): void {
@@ -205,7 +241,10 @@ export class AriaStream {
     this.setPhase("detached");
     for (const w of this.waiters.splice(0)) w.reject(new Error(`${this.aria}: stream closed`));
     for (const fn of [...this.ended]) fn();
-    this.subs.clear();
+    this.frameSubs.clear();
+    this.doneSubs.clear();
+    this.endSubs.clear();
+    this.transcript.detach();
     this.host.detach(this);
   }
 
@@ -230,7 +269,7 @@ export class AriaStream {
       this.buffer.push({ k: "frame", frame });
       return;
     }
-    if (this.applyFrame(frame)) void this.resync(generation);
+    if (this.applyFrame(frame, "push")) void this.resync(generation);
   }
 
   turnDone(done: TurnDone, generation: number): void {
@@ -245,6 +284,10 @@ export class AriaStream {
   ariaClosed(): void {
     if (this.closed) return;
     this.setPhase("closed");
+  }
+
+  private history(): Fetcher {
+    return (before, limit) => this.host.read(this.aria, { at: before, backward: true, limit: wireBudget(limit) });
   }
 
   private onEnd(fn: () => void): () => void {
@@ -301,7 +344,7 @@ export class AriaStream {
     this.buffer = [];
     let resync = false;
     for (const q of queued) {
-      if (q.k === "frame") resync = this.applyFrame(q.frame) || resync;
+      if (q.k === "frame") resync = this.applyFrame(q.frame, "push") || resync;
       else this.applyDone(q.done);
     }
     this.setPhase("live");
@@ -330,23 +373,27 @@ export class AriaStream {
   }
 
   private async readForward(generation: number): Promise<void> {
-    const fresh = this.transcript.newestTurn === 0 && this.opts.cursor === undefined;
+    const fresh = !this.transcript.heard() && this.resumeFrom === 0;
     const tail = fresh && this.opts.from !== "start";
-    let at: Anchor | undefined = tail || fresh ? undefined : this.transcript.resumeAnchor();
-    if (!tail && at && at.turn === 0 && at.node === 0) at = undefined;
+    const wasHeard = this.transcript.heard();
+    const resume = Math.max(this.transcript.cursor(), this.resumeFrom);
+    let at: Anchor | undefined = tail || resume === 0 ? undefined : { turn: resume, node: 0 };
+    if (!wasHeard && resume > 0 && this.older === undefined) {
+      this.transcript.setMoreBefore(true);
+      this.older = true;
+    }
     for (let i = 0; i < maxPages; i++) {
-      const page = await this.host.connection.call<Page>(ariaMethod.read, {
-        figaro_id: this.aria,
+      const page = await this.host.read(this.aria, {
         ...(at ? { at } : {}),
         ...(tail ? { backward: true } : {}),
         ...(this.opts.pageBytes ? { limit: this.opts.pageBytes } : {}),
       });
       if (this.stale(generation)) return;
-      this.transcript.fold(page, "read");
-      this.transcript.flush();
-      this.touch();
+      this.deliver(page, "read");
       if (tail) {
+        this.transcript.setMoreBefore(page.more.before ?? false);
         this.older = page.more.before ?? false;
+        this.touch();
         return;
       }
       const next = page.more.after ? page.next : undefined;
@@ -355,17 +402,78 @@ export class AriaStream {
     }
   }
 
-  private applyFrame(frame: AriaFrame): boolean {
-    const r = this.transcript.fold(frame, "push");
-    this.transcript.flush();
-    this.touch();
-    return r.resync;
+  private repeated(part: TurnPart): boolean {
+    const live = part.live;
+    if (!live || (live.nodes ?? []).length === 0 || live.v === 0) return false;
+    const seen = this.versions.get(part.turn);
+    return seen !== undefined && live.v <= seen;
   }
 
-  private applyDone(done: TurnDone): void {
-    this.transcript.done(done.reason, done.idle);
-    this.transcript.flush();
+  private noteVersions(page: Page): void {
+    for (const part of page.parts) {
+      if (part.sealed) {
+        this.versions.delete(part.turn);
+        continue;
+      }
+      const live = part.live;
+      if (live && ((live.nodes ?? []).length > 0 || (part.nodes ?? []).length > 0)) this.versions.set(part.turn, live.v);
+    }
+  }
+
+  private deliver(page: Page, source: "read" | "push"): AppliedFrame | undefined {
+    if (source === "push" && page.parts.some((p) => this.repeated(p))) {
+      const parts = page.parts.filter((p) => !this.repeated(p));
+      if (parts.length === 0 && !page.metrics) return undefined;
+      page = { ...page, parts };
+    }
+    this.noteVersions(page);
+    const applied = this.transcript.apply(page, "quiet");
+    if (applied.metrics) this.lastMetrics = applied.metrics;
+    const out: AppliedFrame = {
+      aria: this.aria,
+      source,
+      frame: page,
+      closed: applied.closed,
+      open: applied.open,
+      nodes: this.transcript.touched(page),
+      sealed: applied.sealed,
+      desync: applied.desync,
+      metrics: applied.metrics,
+    };
+    if (source === "read") for (const turn of applied.sealed) this.recordEnd({ turn, replayed: true });
+    else if (applied.sealed.length > 0) this.sealedByPush = Math.max(...applied.sealed);
     this.touch();
+    for (const fn of [...this.frameSubs]) this.tell(() => fn(out));
+    return out;
+  }
+
+  private applyFrame(frame: AriaFrame, source: "read" | "push"): boolean {
+    return this.deliver(frame, source)?.desync !== undefined;
+  }
+
+  private applyDone(done: DoneEntry): void {
+    const entry: DoneEntry = { reason: done.reason, ...(done.idle !== undefined ? { idle: done.idle } : {}) };
+    this.lastDone = entry;
+    const turn = this.sealedByPush ?? this.transcript.cursor();
+    this.sealedByPush = undefined;
+    this.recordEnd({ turn, replayed: false, done: entry });
+    for (const fn of [...this.doneSubs]) this.tell(() => fn(entry));
+  }
+
+  private recordEnd(e: TurnEnd): void {
+    this.endLog.set(e.turn, e);
+    this.touch();
+    for (const fn of [...this.endSubs]) this.tell(() => fn(e));
+  }
+
+  private tell(fn: () => void): void {
+    try {
+      fn();
+    } catch (err) {
+      setTimeout(() => {
+        throw err;
+      }, 0);
+    }
   }
 
   private setPhase(phase: Phase, refusal?: AriaRefusal, error?: string): void {
@@ -378,18 +486,5 @@ export class AriaStream {
   private touch(): void {
     this.snap = undefined;
     for (const fn of [...this.changed]) fn();
-  }
-
-  private deliver(e: AriaEvent): void {
-    for (const sub of [...this.subs]) {
-      if (!matches(sub.filter, e)) continue;
-      try {
-        sub.fn(e);
-      } catch (err) {
-        setTimeout(() => {
-          throw err;
-        }, 0);
-      }
-    }
   }
 }

@@ -28,7 +28,7 @@ export interface AriaClientOptions {
   readonly pageBytes?: number;
 }
 
-export interface PromptOptions {
+export interface QuaOptions {
   readonly images?: readonly QuaImage[];
 }
 
@@ -167,7 +167,7 @@ export class AriaClient {
     return this.connection.call<Page>(ariaMethod.read, { figaro_id: aria, ...req });
   }
 
-  prompt(aria: string, text: string, o: PromptOptions = {}): Promise<QuaResponse> {
+  qua(aria: string, text: string, o: QuaOptions = {}): Promise<QuaResponse> {
     return this.connection.call<QuaResponse>(ariaMethod.qua, {
       figaro_id: aria,
       text,

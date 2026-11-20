@@ -1,7 +1,6 @@
 import { atom, type Atom, type WritableAtom } from "jotai/vanilla";
 import type { AriaClient, AriaList, ListOptions } from "./client.js";
-import type { AriaEvent, EventFilter } from "./events.js";
-import type { AriaSnapshot, AriaStream, Phase } from "./stream.js";
+import type { AppliedFrame, AriaSnapshot, AriaStream, Phase } from "./stream.js";
 
 const families = new WeakMap<AriaClient, Map<string, unknown>>();
 
@@ -52,14 +51,14 @@ export function ariaPhaseAtom(client: AriaClient, aria: string): Atom<Phase> {
   });
 }
 
-export function ariaEventAtom(client: AriaClient, aria: string, filter?: EventFilter): Atom<AriaEvent | undefined> {
-  return memo(client, `e\0${aria}\0${filter === undefined ? "" : JSON.stringify(filter)}`, () => {
-    let latest: AriaEvent | undefined;
+export function ariaFrameAtom(client: AriaClient, aria: string): Atom<AppliedFrame | undefined> {
+  return memo(client, `f\0${aria}`, () => {
+    let latest: AppliedFrame | undefined;
     const tick = ticker(client, aria, (s, bump) =>
-      s.subscribe((e) => {
-        latest = e;
+      s.onFrame((a) => {
+        latest = a;
         bump();
-      }, filter),
+      }),
     );
     return atom((get) => {
       get(tick);

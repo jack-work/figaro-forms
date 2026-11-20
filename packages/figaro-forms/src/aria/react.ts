@@ -1,8 +1,7 @@
 import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import type { ConnectionState } from "../rpc.js";
 import type { AriaClient, AriaList, ListOptions } from "./client.js";
-import type { AriaEvent, EventFilter } from "./events.js";
-import type { AriaSnapshot, AriaStream, Phase } from "./stream.js";
+import type { AppliedFrame, AriaSnapshot, AriaStream, Phase } from "./stream.js";
 
 const Context = createContext<AriaClient | null>(null);
 
@@ -43,15 +42,14 @@ export function useAriaPhase(aria: string | undefined): Phase | undefined {
   return useSyncExternalStore(subscribe, get, get);
 }
 
-export function useAriaEvents(aria: string | undefined, filter: EventFilter | undefined, handler: (e: AriaEvent) => void): void {
+export function useAriaFrames(aria: string | undefined, handler: (a: AppliedFrame) => void): void {
   const stream = useAriaStream(aria);
   const latest = useRef(handler);
   latest.current = handler;
-  const key = filter === undefined ? "" : JSON.stringify(filter);
   useEffect(() => {
     if (!stream) return;
-    return stream.subscribe((e) => latest.current(e), filter);
-  }, [stream, key]);
+    return stream.onFrame((a) => latest.current(a));
+  }, [stream]);
 }
 
 export function useAriaConnection(): ConnectionState {

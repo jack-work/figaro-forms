@@ -29,7 +29,15 @@ export interface View {
 
 export type Fold = "notify" | "quiet";
 
+export interface Changed {
+  readonly turn: number;
+  readonly id: number;
+  readonly node: Node;
+  readonly delta?: NodeDelta;
+}
+
 export interface Applied {
+  readonly sealed: readonly number[];
   readonly closed: readonly Message[];
   readonly open: Message | undefined;
   readonly desync: number | undefined;
@@ -59,6 +67,8 @@ export class Transcript {
   private emitted = new Map<number, number>();
   private inquiry = new Map<number, Mutable<Inquiry>>();
   private fetch: Fetcher | undefined;
+  private sealedSeen = new Set<number>();
+  private sealedNow: number[] = [];
   private offeredCount = 0;
   hooks: Hooks = {};
 
@@ -132,6 +142,7 @@ export class Transcript {
     out.store = this.store.cloneBelow(base);
     for (const [id, inq] of this.inquiry) if (id < base) out.inquiry.set(id, { ...inq });
     for (const [id, n] of this.emitted) if (id < base) out.emitted.set(id, n);
+    for (const id of this.sealedSeen) if (id < base) out.sealedSeen.add(id);
     out.lastCommitted = Math.min(this.lastCommitted, base - 1);
     return out;
   }
@@ -189,12 +200,14 @@ export class Transcript {
   }
 
   apply(p: Page, mode: Fold = "notify"): Applied {
+    this.sealedNow = [];
     const { finalized, desync } = this.foldPage(p);
+    const sealed = this.sealedNow;
     this.rev++;
     this.heardValue = true;
     const haveLive = this.store.openTurn() !== 0;
     const open = haveLive ? this.openMessage() : undefined;
-    const applied: Applied = { closed: finalized, open, desync: desync >= 0 ? desync : undefined, metrics: p.metrics };
+    const applied: Applied = { sealed, closed: finalized, open, desync: desync >= 0 ? desync : undefined, metrics: p.metrics };
     if (mode === "quiet") return applied;
     const h = this.hooks;
     if (p.metrics && h.onMetrics) h.onMetrics(p.metrics);
@@ -239,6 +252,32 @@ export class Transcript {
 
   node(turn: number, id: number): Node | undefined {
     return this.store.nodeAt(turn, id);
+  }
+
+  oldestHeld(): Anchor | undefined {
+    const first = this.store.first();
+    if (first) return { turn: first.turn, node: first.from };
+    const open = this.openKey();
+    return open ? { turn: open.turn, node: open.from } : undefined;
+  }
+
+  touched(frame: Page): readonly Changed[] {
+    const out: Changed[] = [];
+    const seen = new Set<string>();
+    for (const part of frame.parts) {
+      const ids: { id: number; delta?: NodeDelta }[] = [];
+      (part.nodes ?? []).forEach((_, i) => ids.push({ id: part.from + i }));
+      for (const d of part.live?.nodes ?? []) ids.push({ id: d.id, delta: d });
+      for (const { id, delta } of ids) {
+        const node = this.store.nodeAt(part.turn, id);
+        if (!node) continue;
+        const key = `${part.turn}.${id}`;
+        if (delta === undefined && seen.has(key)) continue;
+        seen.add(key);
+        out.push(delta ? { turn: part.turn, id, node, delta } : { turn: part.turn, id, node });
+      }
+    }
+    return out;
   }
 
   private foldPage(p: Page): { finalized: Message[]; desync: number } {
@@ -295,6 +334,10 @@ export class Transcript {
       }
 
       if (!part.sealed) continue;
+      if (!this.sealedSeen.has(id)) {
+        this.sealedSeen.add(id);
+        this.sealedNow.push(id);
+      }
       if (staged) {
         let all: readonly Node[] = nodes;
         if (this.store.openLen() >= all.length) all = this.store.openNodes();

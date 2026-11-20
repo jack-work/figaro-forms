@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { AriaClient, ariaRefusal, type AriaEvent, type AriaStream } from "../../src/aria/index.js";
+import { AriaClient, ariaRefusal, type AppliedFrame, type AriaStream, type Message, type TurnEnd } from "../../src/aria/index.js";
 import { startDaemon, type Daemon } from "./daemon.js";
 
 const bin = process.env.FIGARO_BIN;
@@ -13,7 +13,8 @@ async function until(what: string, ok: () => boolean, ms = 20_000): Promise<void
   }
 }
 
-const quiet = (es: readonly AriaEvent[]): AriaEvent[] => es.filter((e) => e.kind !== "metrics");
+const turnOf = (s: AriaStream, turn: number): Message[] => s.snapshot().view.closed.filter((m) => m.turn === turn);
+const nodesOf = (s: AriaStream, turn: number): Message["nodes"][number][] => turnOf(s, turn).flatMap((m) => [...m.nodes]);
 
 describe.skipIf(!bin)("conformance against a disposable figaro daemon (FIGARO_BIN)", () => {
   let daemon: Daemon;
@@ -25,13 +26,23 @@ describe.skipIf(!bin)("conformance against a disposable figaro daemon (FIGARO_BI
     return c;
   };
 
-  const attend = async (c: AriaClient, id: string, o?: Parameters<AriaClient["attach"]>[1]): Promise<{ s: AriaStream; events: AriaEvent[] }> => {
+  interface Attended {
+    readonly s: AriaStream;
+    readonly frames: AppliedFrame[];
+    readonly ends: TurnEnd[];
+  }
+
+  const attend = async (c: AriaClient, id: string, o?: Parameters<AriaClient["attach"]>[1]): Promise<Attended> => {
     const s = c.attach(id, o);
-    const events: AriaEvent[] = [];
-    s.subscribe((e) => events.push(e));
+    const frames: AppliedFrame[] = [];
+    const ends: TurnEnd[] = [];
+    s.onFrame((a) => frames.push(a));
+    s.onTurnEnd((e) => ends.push(e));
     await s.ready();
-    return { s, events };
+    return { s, frames, ends };
   };
+
+  const ended = (a: Attended, turn: number): boolean => a.ends.some((e) => e.turn === turn);
 
   beforeAll(async () => {
     daemon = await startDaemon(bin as string);
@@ -46,119 +57,112 @@ describe.skipIf(!bin)("conformance against a disposable figaro daemon (FIGARO_BI
     const id = daemon.newAria("seed");
     await sleep(800);
     const c = connect();
-    const { s, events } = await attend(c, id);
-    expect(quiet(events).map((e) => e.type)).toEqual(["input", "prose.settled", "turn.end"]);
-    expect(quiet(events)[0]).toMatchObject({ type: "input", turn: 1, text: "seed" });
-    expect(quiet(events)[1]).toMatchObject({ text: "Buongiorno, signore. Largo al factotum. " });
-    expect(quiet(events)[2]).toMatchObject({ replayed: true });
+    const a = await attend(c, id);
+    expect(a.s.snapshot().view.closed).toMatchObject([{ turn: 1, from: 0, inquiry: "seed", role: "output", nodes: [{ type: "prose", markdown: "Buongiorno, signore. Largo al factotum. " }] }]);
+    expect(a.s.snapshot().view.open).toBeUndefined();
+    expect(a.ends).toEqual([{ turn: 1, replayed: true }]);
 
-    const sent = await s.prompt("say hi");
+    const sent = await a.s.qua("say hi");
     expect(sent.ok).toBe(true);
-    await until("the second turn to end", () => events.some((e) => e.type === "turn.end" && e.turn === 2));
-    const turn2 = quiet(events).filter((e) => "turn" in e && e.turn === 2);
-    expect(turn2[0]).toMatchObject({ type: "input", text: "say hi" });
-    expect(turn2.some((e) => e.type === "prose.delta")).toBe(true);
-    expect(turn2.filter((e) => e.type === "prose.settled")).toMatchObject([{ text: "Buongiorno, signore. Largo al factotum. " }]);
-    expect(turn2.at(-1)).toMatchObject({ type: "turn.end", reason: "stop", idle: true, replayed: false });
-    const grown = turn2.filter((e) => e.type === "prose.delta").map((e) => (e as { text: string }).text);
+    await until("the second turn to end", () => ended(a, 2));
+    expect(a.ends.at(-1)).toEqual({ turn: 2, replayed: false, done: { reason: "stop", idle: true } });
+    expect(turnOf(a.s, 2)).toMatchObject([{ turn: 2, from: 0, inquiry: "say hi", nodes: [{ type: "prose", markdown: "Buongiorno, signore. Largo al factotum. " }] }]);
+    const grown = a.frames.flatMap((f) => f.nodes.filter((n) => n.turn === 2 && n.node.type === "prose").map((n) => n.node.markdown ?? ""));
+    expect(grown.length).toBeGreaterThan(1);
     for (let i = 1; i < grown.length; i++) expect((grown[i] as string).startsWith(grown[i - 1] as string)).toBe(true);
+    expect(a.frames.some((f) => f.source === "push" && f.open?.turn === 2)).toBe(true);
+    expect(a.s.cursor).toBe(2);
   });
 
-  it("reports a tool call as start, updates and end, with its arguments and output", async () => {
+  it("carries a tool call as one node that runs and then reports its arguments and output", async () => {
     const id = daemon.newAria("seed");
     await sleep(800);
     const c = connect();
-    const { s, events } = await attend(c, id);
-    await s.prompt("[tool] run it");
-    await until("the tool turn to end", () => events.some((e) => e.type === "turn.end" && e.turn === 2));
-    const tools = quiet(events).filter((e) => e.kind === "tool");
-    expect(tools[0]).toMatchObject({ type: "tool.start", tool: { name: "bash", status: "running" } });
-    const end = tools.at(-1);
-    expect(end).toMatchObject({ type: "tool.end", failed: false, result: "tool-ran-ok", tool: { name: "bash", status: "ok", args: { command: "echo tool-ran-ok" } } });
-    expect(tools.filter((e) => e.type === "tool.end")).toHaveLength(1);
-    const settled = quiet(events).filter((e) => e.type === "prose.settled" && e.turn === 2) as unknown as { text: string }[];
-    expect(settled.map((e) => e.text)).toEqual(["Let me look. ", "The tool said tool-ran-ok. Done."]);
+    const a = await attend(c, id);
+    await a.s.qua("[tool] run it");
+    await until("the tool turn to end", () => ended(a, 2));
+    const seen = a.frames.flatMap((f) => f.nodes.filter((n) => n.node.type === "tool").map((n) => n.node.status));
+    expect(seen[0]).toBe("running");
+    expect(seen.at(-1)).toBe("ok");
+    const nodes = nodesOf(a.s, 2);
+    expect(nodes.map((n) => n.type)).toEqual(["prose", "tool", "prose"]);
+    expect(nodes[1]).toMatchObject({ name: "bash", status: "ok", output: "tool-ran-ok", args: { command: "echo tool-ran-ok" } });
+    expect(nodes.filter((n) => n.type === "prose").map((n) => n.markdown)).toEqual(["Let me look. ", "The tool said tool-ran-ok. Done."]);
   });
 
   it("shows a message sent mid-turn as a steering node", async () => {
     const id = daemon.newAria("seed");
     await sleep(800);
     const c = connect();
-    const { s, events } = await attend(c, id);
-    await s.prompt("[slowtool] go");
-    await until("the tool to start", () => events.some((e) => e.type === "tool.start"));
-    await s.prompt("also consider this");
-    await until("the turn to end", () => events.some((e) => e.type === "turn.end" && e.turn === 2));
-    const steer = quiet(events).filter((e) => e.kind === "steering");
-    expect(steer.map((e) => e.type)).toEqual(["steering.delta", "steering.settled"]);
-    expect(steer[1]).toMatchObject({ text: "also consider this", turn: 2 });
+    const a = await attend(c, id);
+    await a.s.qua("[slowtool] go");
+    await until("the tool to start", () => a.frames.some((f) => f.nodes.some((n) => n.node.type === "tool")));
+    await a.s.qua("also consider this");
+    await until("the turn to end", () => ended(a, 2));
+    const steer = nodesOf(a.s, 2).filter((n) => n.type === "steering");
+    expect(steer).toMatchObject([{ type: "steering", role: "input", markdown: "also consider this" }]);
   }, 30_000);
 
-  it("ends a refused turn with turn.error carrying the provider's words", async () => {
+  it("ends a refused turn with the provider's words in the reason", async () => {
     const id = daemon.newAria("seed");
     await sleep(800);
     const c = connect();
-    const { s, events } = await attend(c, id);
-    await s.prompt("[boom] now");
-    await until("the error", () => events.some((e) => e.type === "turn.error"));
-    const failed = events.find((e) => e.type === "turn.error") as unknown as { reason: string; turn: number; idle: boolean };
-    expect(failed.turn).toBe(2);
-    expect(failed.reason).toContain("the fake model refused on purpose");
-    expect(failed.idle).toBe(true);
+    const a = await attend(c, id);
+    await a.s.qua("[boom] now");
+    await until("the error", () => ended(a, 2));
+    const end = a.ends.find((e) => e.turn === 2);
+    expect(end?.replayed).toBe(false);
+    expect(end?.done?.reason).toContain("the fake model refused on purpose");
+    expect(end?.done?.reason.startsWith("error")).toBe(true);
+    expect(end?.done?.idle).toBe(true);
   });
 
   it("resumes across a dropped connection mid-reply with no gap and no duplicate", async () => {
     const id = daemon.newAria("seed");
     await sleep(800);
     const c = connect();
-    const { s, events } = await attend(c, id);
-    await s.prompt("[slow] stream for a while");
-    await until("some prose", () => events.some((e) => e.type === "prose.delta" && e.turn === 2));
+    const a = await attend(c, id);
+    await a.s.qua("[slow] stream for a while");
+    await until("some prose", () => a.frames.some((f) => f.source === "push" && f.nodes.some((n) => n.turn === 2 && n.node.type === "prose")));
     c.connection.reconnectNow();
-    await until("the turn to end", () => events.some((e) => e.type === "turn.end" && e.turn === 2), 30_000);
-    const settled = quiet(events).filter((e) => e.type === "prose.settled" && e.turn === 2);
-    expect(settled).toHaveLength(1);
-    expect((settled[0] as unknown as { text: string }).text).toBe("one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen. ");
-    expect(quiet(events).filter((e) => e.type === "input" && e.turn === 2)).toHaveLength(1);
-    expect(quiet(events).filter((e) => e.type === "turn.end" && e.turn === 2)).toHaveLength(1);
-    const last = quiet(events).filter((e) => e.type === "prose.delta").at(-1) as unknown as { text: string };
-    expect(last.text).toBe((settled[0] as unknown as { text: string }).text);
+    await until("the turn to end", () => ended(a, 2), 30_000);
+    expect(turnOf(a.s, 2)).toHaveLength(1);
+    expect(turnOf(a.s, 2)).toMatchObject([{ inquiry: "[slow] stream for a while", nodes: [{ markdown: "one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen. " }] }]);
+    expect(a.ends.filter((e) => e.turn === 2)).toHaveLength(1);
+    expect(a.s.snapshot().view.open).toBeUndefined();
   }, 40_000);
 
-  it("resumes in a second client from the cursor of the first, and hears only what is new", async () => {
+  it("resumes in a second client from the cursor of the first, and holds the same new turn", async () => {
     const id = daemon.newAria("seed");
     await sleep(800);
     const a = connect();
     const first = await attend(a, id);
-    await first.s.prompt("say hi");
-    await until("turn 2", () => first.events.some((e) => e.type === "turn.end" && e.turn === 2));
-    const cursor = first.events.at(-1)?.cursor as string;
-    expect(cursor).toBe(first.s.cursor);
+    await first.s.qua("say hi");
+    await until("turn 2", () => ended(first, 2));
+    const cursor = first.s.cursor;
+    expect(cursor).toBe(2);
 
     const b = connect();
     const second = await attend(b, id, { cursor });
-    expect(quiet(second.events)).toEqual([]);
-    await first.s.prompt("[tool] again");
-    await until("turn 3 on both", () => [first.events, second.events].every((es) => es.some((e) => e.type === "turn.end" && e.turn === 3)));
-    const key = (e: AriaEvent): string => `${e.type}/${"turn" in e ? e.turn : ""}/${"node" in e ? e.node : "tool" in e ? e.tool.node : ""}`;
-    const settledA = quiet(first.events).filter((e) => "turn" in e && e.turn === 3 && /settled|end|input/.test(e.type)).map(key);
-    const settledB = quiet(second.events).filter((e) => /settled|end|input/.test(e.type)).map(key);
-    expect(settledB).toEqual(settledA);
-    expect(second.events.some((e) => "turn" in e && e.turn < 3)).toBe(false);
+    expect(second.s.snapshot().view.closed.map((m) => m.turn)).toEqual([2]);
+    await first.s.qua("[tool] again");
+    await until("turn 3 on both", () => ended(first, 3) && ended(second, 3));
+    expect(turnOf(second.s, 3)).toEqual(turnOf(first.s, 3));
+    expect(second.s.snapshot().view.closed.some((m) => m.turn < 2)).toBe(false);
   }, 40_000);
 
-  it("interrupts a running turn", async () => {
+  it("interrupts a running turn and reports it as interrupted", async () => {
     const id = daemon.newAria("seed");
     await sleep(800);
     const c = connect();
-    const { s, events } = await attend(c, id);
-    await s.prompt("[slow] stream for a while");
-    await until("some prose", () => events.some((e) => e.type === "prose.delta" && e.turn === 2));
-    const r = await s.interrupt();
+    const a = await attend(c, id);
+    await a.s.qua("[slow] stream for a while");
+    await until("some prose", () => a.frames.some((f) => f.source === "push" && f.nodes.some((n) => n.turn === 2 && n.node.type === "prose")));
+    const r = await a.s.interrupt();
     expect(r.ok).toBe(true);
-    await until("the turn to end", () => events.some((e) => (e.type === "turn.end" || e.type === "turn.error") && e.turn === 2));
-    const settled = quiet(events).filter((e) => e.type === "prose.settled" && e.turn === 2);
-    expect(settled.length).toBeLessThanOrEqual(1);
+    await until("the turn to end", () => ended(a, 2));
+    expect(a.ends.find((e) => e.turn === 2)).toMatchObject({ replayed: false, done: { reason: "interrupted" } });
+    expect(a.s.snapshot().view.open).toBeUndefined();
   }, 30_000);
 
   it("lists figaros, forks one, and attends the fork", async () => {
@@ -169,17 +173,17 @@ describe.skipIf(!bin)("conformance against a disposable figaro daemon (FIGARO_BI
     expect(list.rows.map((r) => r.id)).toContain(id);
     const forked = await c.fork(id);
     expect(forked.alternative).not.toBe(id);
-    const { events } = await attend(c, forked.alternative);
-    expect(quiet(events).some((e) => e.type === "input" && e.turn === 1)).toBe(true);
+    const a = await attend(c, forked.alternative);
+    expect(a.s.snapshot().view.closed.some((m) => m.turn === 1 && m.inquiry === "seed")).toBe(true);
   });
 
-  it("lets a read-only principal attend, and refuses it a prompt, an interrupt and a fork in the daemon's words", async () => {
+  it("lets a read-only principal attend, and refuses it a qua, an interrupt and a fork in the daemon's words", async () => {
     const id = daemon.newAria("seed");
     await sleep(800);
     const v = connect("viewer");
-    const { events } = await attend(v, id);
-    expect(quiet(events).map((e) => e.type)).toEqual(["input", "prose.settled", "turn.end"]);
-    for (const attempt of [() => v.prompt(id, "nope"), () => v.interrupt(id), () => v.fork(id)]) {
+    const a = await attend(v, id);
+    expect(a.s.snapshot().view.closed).toMatchObject([{ turn: 1, inquiry: "seed" }]);
+    for (const attempt of [() => v.qua(id, "nope"), () => v.interrupt(id), () => v.fork(id)]) {
       const err = await attempt().catch((e: unknown) => e);
       expect(ariaRefusal(err)).toMatchObject({ kind: "denied", code: -32020 });
     }
