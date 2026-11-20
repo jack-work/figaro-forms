@@ -4,8 +4,8 @@ import { join } from "node:path";
 import { parseArgs } from "node:util";
 import WebSocket from "ws";
 import { webSocketDial } from "figaro-forms";
-import { bearer } from "figaro-forms/auth";
-import { redact } from "./door.js";
+import { bearer, type Credential } from "figaro-forms/auth";
+import { onBehalfOf, redact } from "./door.js";
 import { ClientCredentials, redialAfterRejection } from "./token.js";
 import { startGateway, type GatewayListen } from "./gateway.js";
 import { speechOverSocket } from "./speech.js";
@@ -28,6 +28,9 @@ Usage: figaro-gateway --door-url URL --speech-socket PATH --admin USER --store N
   --client-id ID        the client (e.g. figaro-gateway)
   --client-secret-file P  its secret (default $CREDENTIALS_DIRECTORY/client-secret); never logged
   --audience URL        the audience asked for (e.g. https://fig.kelliher.info)
+  --on-behalf-of        send X-Figaro-On-Behalf-Of: <Remote-User> on each door dial, so the
+                        daemon seats the connection as that user (needs [[authz.delegation]]
+                        on the daemon; without a match the door answers 403)
   --speech-socket PATH  figchat-speech, e.g. /run/figchat/speech.sock
   --store NAME          the store id in audio keys, <store>/<aria>:<turn>/out
   --listen-socket PATH  serve on a unix socket (default /run/figaro-gateway/gateway.sock mode 0660;
@@ -49,6 +52,7 @@ const { values } = parseArgs({
     "client-id": { type: "string" },
     "client-secret-file": { type: "string" },
     audience: { type: "string" },
+    "on-behalf-of": { type: "boolean" },
     "speech-socket": { type: "string" },
     store: { type: "string" },
     "listen-socket": { type: "string" },
@@ -105,10 +109,12 @@ try {
   const g = await startGateway({
     listen,
     edge: { secret, admin: values.admin ?? "", ...(values.port ? { peers: values.peer ?? [] } : {}) },
-    door: () => {
+    door: (user) => {
+      const base: Credential | undefined = minter ? bearer(() => (minter as ClientCredentials).token()) : token ? bearer(token) : undefined;
+      const credential = base && values["on-behalf-of"] ? onBehalfOf(base, user) : base;
       const dial = webSocketDial({
         url,
-        ...(minter ? { credential: bearer(() => (minter as ClientCredentials).token()) } : token ? { credential: bearer(token) } : {}),
+        ...(credential ? { credential } : {}),
         WebSocket: WebSocket as unknown as NonNullable<Parameters<typeof webSocketDial>[0]["WebSocket"]>,
       });
       return minter ? redialAfterRejection(dial, (g) => (minter as ClientCredentials).rejected(g), () => (minter as ClientCredentials).generation) : dial;

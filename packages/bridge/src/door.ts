@@ -1,4 +1,5 @@
 import type { Dial, Socket } from "figaro-forms";
+import type { Credential } from "figaro-forms/auth";
 import type { WebSocket } from "ws";
 import type { AudioHub } from "./audio.js";
 
@@ -31,6 +32,18 @@ function forbiddenField(method: string, params: unknown): string | undefined {
 
 function refuse(ws: WebSocket, id: unknown, message: string): void {
   ws.send(JSON.stringify({ jsonrpc: "2.0", id, error: { code: -32020, message } }));
+}
+
+export const onBehalfHeader = "X-Figaro-On-Behalf-Of";
+
+export function onBehalfOf(base: Credential, user: string): Credential {
+  return {
+    name: `${base.name}+on-behalf-of`,
+    upgrade: async () => {
+      const up = await base.upgrade();
+      return { ...up, headers: { ...(up.headers ?? {}), [onBehalfHeader]: user } };
+    },
+  };
 }
 
 export function redact(text: string): string {

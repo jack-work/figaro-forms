@@ -142,6 +142,15 @@ old token is kept until it expires; a dial after that mints on demand. A door
 that refuses the upgrade with 401 makes the gateway mint a new token and redial
 once. The secret file is read at each mint, so a rotated credential is picked up.
 `--token-url` and `--door-token-file` are alternatives; the static bearer stays.
+
+## Acting for the signed-in user
+
+With `--on-behalf-of`, each door dial (for `/door` clients and for the audio
+follow) also sends `X-Figaro-On-Behalf-Of: <Remote-User>`. A daemon that lists the
+gateway under `[[authz.delegation]]` then seats the connection as that user: the
+user's seat and grants, the user as the sender of messages, with the service's verbs
+as a ceiling. A daemon that does not list it answers 403. Without the flag the
+gateway acts as its own service principal.
  The audio follow dials the door as the admin;
 `/door` clients dial it as their own `Remote-User`, passed to the `door` option
 (where an on-behalf-of rule would attach).

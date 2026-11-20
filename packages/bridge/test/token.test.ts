@@ -3,6 +3,7 @@ import type { AddressInfo } from "node:net";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import WebSocket from "ws";
 import { webSocketDial } from "figaro-forms";
+import { onBehalfOf } from "../src/door.js";
 import { ClientCredentials, redialAfterRejection } from "../src/token.js";
 
 interface Hit {
@@ -189,5 +190,21 @@ describe("client credentials", () => {
       WebSocket: WebSocket as never,
     });
     await expect(dial({ message: () => {}, closed: () => {} })).rejects.toMatchObject({ status: 401 });
+  });
+
+  it("adds the user the gateway acts for to the upgrade, beside the bearer", async () => {
+    const seen: Record<string, string | string[] | undefined>[] = [];
+    const server = createServer();
+    server.on("upgrade", (req, sock) => {
+      seen.push(req.headers);
+      sock.end("HTTP/1.1 403 Forbidden\r\nConnection: close\r\nContent-Length: 0\r\n\r\n");
+    });
+    await new Promise<void>((ok) => server.listen(0, "127.0.0.1", ok));
+    cleanups.push(() => new Promise<void>((ok) => server.close(() => ok())));
+    const cred = onBehalfOf({ name: "bearer", upgrade: () => ({ headers: { Authorization: "Bearer t" } }) }, "gluck");
+    const dial = webSocketDial({ url: `ws://127.0.0.1:${(server.address() as AddressInfo).port}/door`, credential: cred, WebSocket: WebSocket as never });
+    await expect(dial({ message: () => {}, closed: () => {} })).rejects.toMatchObject({ status: 403 });
+    expect(seen[0]?.["x-figaro-on-behalf-of"]).toBe("gluck");
+    expect(seen[0]?.authorization).toBe("Bearer t");
   });
 });
