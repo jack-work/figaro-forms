@@ -60,8 +60,8 @@ gateway's routes, frames and flags).
   publishes a JWKS (Authelia, Keycloak, Authentik, Zitadel ...), and a user directory
   behind it (lldap in the example).
 - An Azure subscription for Speech (or replace `figchat-speech`; its API is below).
-- An S3-compatible bucket for stored audio (Garage in the example). Expiry is
-  swept by the service (30 days by default).
+- An S3-compatible bucket for stored audio (Garage in the example). The speech
+  service requires one. Expiry is swept by the service (30 days by default).
 - Sockets, no new public ports: the daemon's web door is a unix socket, the gateway
   listens on a unix socket (or loopback TCP with `--port`), the speech service on a
   unix socket. The only network hop is gateway to daemon (below).
@@ -155,10 +155,30 @@ Notes:
   `none grants use here`.
 - Never grant the gateway `kill`, `set` or `system`; the gateway refuses those
   methods itself, but the policy is the real fence.
-- Until the on-behalf-of rule ships, the gateway acts as the service principal, not
-  as the person: messages sent from the web show that sender. After it ships, the
-  gateway presents the person from `Remote-User`; the policy then needs the grant
-  that rule names (**unverified**: not released at the time of writing).
+- On behalf of the person (figaro after v0.78.1; merged on the figaro northstar branch
+  at `d4afc09be`, shipping in the next release). Without it the gateway acts as its
+  own service principal and messages sent from the web show that sender. With it, a
+  listed service acts as a listed user: add
+
+  ```toml
+  [[authz.delegation]]
+  principal = "service:figaro-gateway@auth.kelliher.info"
+  users     = ["user:gluck@auth.kelliher.info"]
+  ```
+
+  (the user must belong to the same issuer as the service; nothing is delegable until
+  you write it) and start the gateway with `--on-behalf-of`, which sends
+  `X-Figaro-On-Behalf-Of: <Remote-User>`, the bare name your proxy calls `Remote-User`.
+  The daemon then seats the connection as that user: the user's seat and grants, the
+  user as the sender. The service's verbs are a ceiling on them: effective grants are
+  the user's **and** the service's allowed verbs (`read`, `listen`, `send`, `fork`, and
+  `use` on `sandbox:local`); `kill`, `set`, `admin` and any send or fork carrying a
+  form patch, outfits, a seat or an abdication are refused. A request the daemon
+  refuses is a 403 with the reason, never a fallback to the service principal.
+- **Install `policy.toml` before you enable the gateway's issuer client.** On a node
+  with no policy file the owner holds every verb implicitly, and a delegated owner
+  then skips the service ceiling above. Name the policy file, bind the owner, and only
+  then add the `[[authz.issuers]]` entry and the delegation.
 - If the daemon already trusts the same issuer URL elsewhere (a troupe), keep one
   `[[authz.issuers]]` entry for it and add the client to that entry; two entries for
   one issuer with one scope are refused.
@@ -214,12 +234,17 @@ piped to the credential file. The region is configuration, not a secret.
 
 ### Audio bucket
 
-Stored clips and replies live in an S3 bucket (Garage in the example: bucket
-`figchat-audio`, one key with read and write on that bucket only, no bucket-create).
-The service sweeps objects older than its expiry. Without a reachable bucket the
-service cannot start storing; if you do not want storage, that is a change to the
-service, not a flag (**unverified**: confirm with the speech service's owner).
-
+Stored clips and replies live in an S3-compatible bucket. The service reads the
+bucket name from `--bucket` (default `figchat-audio`), and the endpoint and region
+from its S3 flags (the example: Garage at `127.0.0.1:3900`, region `spain`). Keys come
+as the credentials `garage-key-id` and `garage-secret`. Create one key with read and
+write on that bucket only (no bucket-create), create the bucket yourself, and keep
+the key's egress to the bucket alone. The service sweeps objects past its expiry
+(30 days by default). The service always stores through the bucket: there is no
+flag to run without one, so a self-host needs an S3 endpoint (a local Garage or MinIO
+is enough). In the example the key lives in SOPS as `figchat-speech-garage-key-id` and
+`figchat-speech-garage-secret`, and the unit's egress is fenced to the DNS resolver,
+Garage and the Azure Speech hosts for the region.
 ## 5. The gateway
 
 Build: `nix build .#bridge` in figaro-forms gives `bin/figaro-gateway`; without Nix,
@@ -247,6 +272,8 @@ figaro-gateway \
   expires with its token). The gateway fetches a token at start (and refuses to
   start if that fails), refreshes at 80% of its lifetime, retries failures with
   backoff keeping the old token, and mints again once after a 401.
+- `--on-behalf-of` (optional, needs the daemon's `[[authz.delegation]]`, section 2) makes
+  the gateway act as the signed-in user instead of as itself.
 - `--origin URL` admits pages from other origins; same-origin pages always pass.
 - A unit: see `docs/gateway.md` ("Sample unit"). Give it the group that can reach the
   speech socket and the proxy's group on its own socket (`Group=`, `UMask=0007`).
@@ -308,7 +335,7 @@ tunnel hostname is excluded from any cache rule.
 | edge secret | one credential file on the gateway, the same value in the proxy's config | `openssl rand -hex 32` | gateway (`--edge-secret-file`), proxy (header injection) |
 | Azure Speech key | credential `azure-speech-key` | `az cognitiveservices account keys list ... -o tsv` into the secret store | figchat-speech |
 | Azure credential for terraform | the CI/secret store of whoever applies it | a service principal with rights on the one resource group | the terraform run only |
-| bucket key id and secret | credentials `garage-key-id`, `garage-secret` | the bucket's own tool (Garage: create a key, grant it read and write on the bucket only) | figchat-speech |
+| bucket key id and secret | credentials `garage-key-id`, `garage-secret` (SOPS names in the example: `figchat-speech-garage-key-id`, `figchat-speech-garage-secret`) | the bucket's own tool (Garage: create a key, grant it read and write on the bucket only) | figchat-speech |
 | a static door bearer (only if you do not use the token flags) | `--door-token-file` | the provider | figaro-gateway |
 
 In the example these are in SOPS and delivered by systemd credentials. Type secrets
