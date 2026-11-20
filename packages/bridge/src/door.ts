@@ -16,11 +16,28 @@ export const gatewayMethods = [
 
 const allowed: ReadonlySet<string> = new Set(gatewayMethods);
 
+const permitted: Readonly<Record<string, ReadonlySet<string>>> = {
+  "figaro.qua": new Set(["figaro_id", "text", "images"]),
+  "figaro.fork": new Set(["figaro_id", "at_turn", "at_lt"]),
+};
+
+function forbiddenField(method: string, params: unknown): string | undefined {
+  const keys = permitted[method];
+  if (!keys) return undefined;
+  if (typeof params !== "object" || params === null || Array.isArray(params)) return undefined;
+  for (const k of Object.keys(params)) if (!keys.has(k)) return k;
+  return undefined;
+}
+
 function refuse(ws: WebSocket, id: unknown, message: string): void {
   ws.send(JSON.stringify({ jsonrpc: "2.0", id, error: { code: -32020, message } }));
 }
 
-export function proxyDoor(ws: WebSocket, dial: Dial, hub: AudioHub | undefined): void {
+export function redact(text: string): string {
+  return text.replace(/(\w+:\/\/)[^@/\s]*@/g, "$1").replace(/\?[^\s"')]*/g, "");
+}
+
+export function proxyDoor(ws: WebSocket, dial: Dial, hub: AudioHub | undefined, log: (line: string) => void = () => {}): void {
   const queue: string[] = [];
   let up: Socket | undefined;
   let gone = false;
@@ -30,7 +47,8 @@ export function proxyDoor(ws: WebSocket, dial: Dial, hub: AudioHub | undefined):
     },
     closed: (reason) => {
       gone = true;
-      ws.close(1011, `door: ${reason}`.slice(0, 120));
+      log(`door closed: ${redact(reason)}`);
+      ws.close(1011, "door closed");
     },
   }).then(
     (socket) => {
@@ -43,7 +61,8 @@ export function proxyDoor(ws: WebSocket, dial: Dial, hub: AudioHub | undefined):
     },
     (e: unknown) => {
       gone = true;
-      ws.close(1011, `door unreachable: ${e instanceof Error ? e.message : String(e)}`.slice(0, 120));
+      log(`door unreachable: ${redact(e instanceof Error ? e.message : String(e))}`);
+      ws.close(1011, "door unreachable");
     },
   );
   ws.on("close", () => {
@@ -69,6 +88,11 @@ export function proxyDoor(ws: WebSocket, dial: Dial, hub: AudioHub | undefined):
     if (typeof frame.method !== "string" || !allowed.has(frame.method)) {
       const name = typeof frame.method === "string" ? frame.method : "a frame without a method";
       refuse(ws, frame.id ?? null, `gateway: ${name} is not allowed`);
+      return;
+    }
+    const field = forbiddenField(frame.method, frame.params);
+    if (field !== undefined) {
+      refuse(ws, frame.id ?? null, `gateway: ${frame.method} may not carry ${field}; the gateway passes no form patch, outfit, seat, study or abdication`);
       return;
     }
     if (frame.method === "figaro.interrupt") {

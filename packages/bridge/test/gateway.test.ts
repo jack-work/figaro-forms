@@ -1,5 +1,6 @@
 import { mkdtempSync, statSync } from "node:fs";
 import { request } from "node:http";
+import { connect } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import WebSocket from "ws";
@@ -29,7 +30,7 @@ async function until(what: string, ok: () => boolean, ms = 3000): Promise<void> 
 
 const good = { "x-figaro-edge": secret, "remote-user": "gluck" };
 
-async function rig(listen?: Parameters<typeof startGateway>[0]["listen"]): Promise<{ fake: FakeAria; speech: FakeSpeech; gw: Gateway; port: number; users: string[] }> {
+async function rig(listen?: Parameters<typeof startGateway>[0]["listen"], extra: Partial<Parameters<typeof startGateway>[0]> = {}): Promise<{ fake: FakeAria; speech: FakeSpeech; gw: Gateway; port: number; users: string[] }> {
   const fake = new FakeAria();
   fake.addAria(id);
   const speech = await startFakeSpeech();
@@ -45,6 +46,7 @@ async function rig(listen?: Parameters<typeof startGateway>[0]["listen"]): Promi
     speech: speechOverSocket(speech.path),
     speechSocket: speech.path,
     store: "gluck",
+    ...extra,
   });
   cleanups.push(() => gw.close());
   const addr = gw.server.address();
@@ -118,6 +120,73 @@ describe("figaro gateway", () => {
     await until("both answers", () => got.length === 2);
     expect(got.map((g) => (g as { id: number }).id)).toEqual([7, 8]);
     expect(JSON.stringify(got[0])).toContain("not allowed");
+  });
+
+  it("refuses a qua or fork that carries a form patch, outfits, seat, studies or abdication, naming the field", async () => {
+    const { fake, port } = await rig();
+    const ws = await open(`ws://127.0.0.1:${port}/door`);
+    const got = collect(ws);
+    const cases: [string, Record<string, unknown>, string][] = [
+      ["figaro.qua", { figaro_id: id, text: "x", form: { patch: { set: {} } } }, "form"],
+      ["figaro.qua", { figaro_id: id, text: "x", form: { context: { a: 1 } } }, "form"],
+      ["figaro.qua", { figaro_id: id, text: "x", form: { outfits: ["o"] } }, "form"],
+      ["figaro.fork", { figaro_id: id, patch: { set: {} } }, "patch"],
+      ["figaro.fork", { figaro_id: id, seat: "@role" }, "seat"],
+      ["figaro.fork", { figaro_id: id, abdicates: true }, "abdicates"],
+      ["figaro.fork", { figaro_id: id, outfits: ["o"] }, "outfits"],
+      ["figaro.fork", { figaro_id: id, studies: "all" }, "studies"],
+    ];
+    cases.forEach(([method, params], i) => ws.send(JSON.stringify({ jsonrpc: "2.0", id: 100 + i, method, params })));
+    await until("every refusal", () => got.length === cases.length);
+    cases.forEach(([method, , field], i) => {
+      const reply = got.find((g) => (g as { id: number }).id === 100 + i) as { error?: { message: string } };
+      expect(reply.error?.message, `${method} ${field}`).toContain(`may not carry ${field}`);
+    });
+    expect(fake.calls.map((c) => c.method)).not.toContain("figaro.qua");
+    expect(fake.calls.map((c) => c.method)).not.toContain("figaro.fork");
+  });
+
+  it("still passes a plain qua with images and a fork at a turn", async () => {
+    const { fake, port } = await rig();
+    fake.answers.set("figaro.qua", { ok: true, cursor: 1 });
+    fake.answers.set("figaro.fork", { parent: id, continuation: "c", alternative: "a" });
+    const ws = await open(`ws://127.0.0.1:${port}/door`);
+    const got = collect(ws);
+    ws.send(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "angelus.hello", params: { version: 1 } }));
+    ws.send(JSON.stringify({ jsonrpc: "2.0", id: 2, method: "figaro.qua", params: { figaro_id: id, text: "x", images: [{ data: "AA==" }] } }));
+    ws.send(JSON.stringify({ jsonrpc: "2.0", id: 3, method: "figaro.fork", params: { figaro_id: id, at_turn: 2 } }));
+    await until("answers", () => got.length === 3);
+    expect(got.every((g) => "result" in (g as object))).toBe(true);
+  });
+
+  it("answers 400 to a request target or escape that cannot be parsed, and stays up", async () => {
+    const { port } = await rig();
+    const raw = (target: string): Promise<string> =>
+      new Promise((ok) => {
+        const s = connect(port, "127.0.0.1", () => s.write(`GET ${target} HTTP/1.1\r\nHost: x\r\nx-figaro-edge: ${secret}\r\nremote-user: gluck\r\nConnection: close\r\n\r\n`));
+        let out = "";
+        s.on("data", (d) => (out += d.toString()));
+        s.on("close", () => ok(out.split("\r\n")[0] ?? ""));
+      });
+    expect(await raw("//")).toContain("400");
+    expect(await raw("/audio/key/%E0%A4%A")).toContain("400");
+    expect(await raw("/nothing")).toContain("404");
+  });
+
+  it("replays only keys of its own store", async () => {
+    const { port } = await rig();
+    const r = await fetch(`http://127.0.0.1:${port}/audio/key/${encodeURIComponent(`other/${id}:1/out`)}`, { headers: good });
+    expect(r.status).toBe(404);
+  });
+
+  it("does not put the door's address in the close reason when the door is unreachable", async () => {
+    const lines: string[] = [];
+    const { port } = await rig(undefined, { door: () => async () => { throw new Error("could not open wss://user:pw@door.example/door?token=SECRET"); }, log: (l) => lines.push(l) });
+    const ws = await open(`ws://127.0.0.1:${port}/door`);
+    const closed = await new Promise<string>((ok) => ws.on("close", (_c, reason) => ok(reason.toString())));
+    expect(closed).toBe("door unreachable");
+    expect(lines.join("\n")).toContain("door.example");
+    expect(lines.join("\n")).not.toMatch(/SECRET|pw@/);
   });
 
   it("voices an aria over /audio: ready, then audio before the turn ends, then end with the replay key", async () => {

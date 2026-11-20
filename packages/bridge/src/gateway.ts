@@ -26,6 +26,7 @@ export interface GatewayOptions {
   readonly store: string;
   readonly origins?: readonly string[];
   readonly maxFrameBytes?: number;
+  readonly log?: (line: string) => void;
   readonly joinTimeoutMs?: number;
   readonly routes?: GatewayRoute;
 }
@@ -58,6 +59,14 @@ export function gatewayRefusal(edge: GatewayEdge, req: IncomingMessage): string 
 
 const keyPattern = /^[a-z0-9-]{1,63}\/[0-9a-f]{32}:\d{1,20}\/out$/;
 const bufferCeiling = 8 << 20;
+
+function pathOf(req: IncomingMessage): string | undefined {
+  try {
+    return new URL(req.url ?? "/", "http://gateway").pathname;
+  } catch {
+    return undefined;
+  }
+}
 
 function originOk(req: IncomingMessage, extra: ReadonlySet<string>): boolean {
   const origin = req.headers.origin;
@@ -102,9 +111,20 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
       res.writeHead(403, { "Content-Type": "text/plain; charset=utf-8" }).end(refusal);
       return;
     }
-    const path = new URL(req.url ?? "/", "http://gateway").pathname;
+    const path = pathOf(req);
+    if (path === undefined) {
+      res.writeHead(400).end();
+      return;
+    }
     if (path.startsWith("/audio/key/")) {
-      replay(o.speechSocket, decodeURIComponent(path.slice("/audio/key/".length)), req, res);
+      let key: string;
+      try {
+        key = decodeURIComponent(path.slice("/audio/key/".length));
+      } catch {
+        res.writeHead(400).end();
+        return;
+      }
+      replay(o.speechSocket, o.store, key, req, res);
       return;
     }
     if (o.routes?.(req, res, path, String(req.headers["remote-user"]))) return;
@@ -134,12 +154,16 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
       refuseUpgrade(sock, "403 Forbidden");
       return;
     }
-    const path = new URL(req.url ?? "/", "http://gateway").pathname;
+    const path = pathOf(req);
+    if (path === undefined) {
+      refuseUpgrade(sock, "400 Bad Request");
+      return;
+    }
     const audio = /^\/audio\/([^/]+)$/.exec(path)?.[1];
     if (path === "/door") {
       wss.handleUpgrade(req, sock, head, (ws) => {
         track(ws);
-        proxyDoor(ws, o.door(String(req.headers["remote-user"])), hub);
+        proxyDoor(ws, o.door(String(req.headers["remote-user"])), hub, o.log ?? ((line) => process.stderr.write(`figaro-gateway: ${line}\n`)));
       });
     } else if (audio !== undefined && ariaIdPattern.test(audio)) {
       wss.handleUpgrade(req, sock, head, (ws) => {
@@ -232,13 +256,17 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
   };
 }
 
-function replay(socket: string | undefined, key: string, req: IncomingMessage, res: ServerResponse): void {
+function replay(socket: string | undefined, store: string, key: string, req: IncomingMessage, res: ServerResponse): void {
   if (req.method !== "GET" && req.method !== "HEAD") {
     res.writeHead(405, { Allow: "GET, HEAD" }).end();
     return;
   }
   if (!socket || !keyPattern.test(key)) {
     res.writeHead(socket ? 400 : 404).end();
+    return;
+  }
+  if (!key.startsWith(`${store}/`)) {
+    res.writeHead(404).end();
     return;
   }
   const headers: Record<string, string> = {};

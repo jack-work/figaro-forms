@@ -5,6 +5,7 @@ import { parseArgs } from "node:util";
 import WebSocket from "ws";
 import { webSocketDial } from "figaro-forms";
 import { bearer } from "figaro-forms/auth";
+import { redact } from "./door.js";
 import { startGateway, type GatewayListen } from "./gateway.js";
 import { speechOverSocket } from "./speech.js";
 import { sttRoute } from "./stt.js";
@@ -89,7 +90,7 @@ try {
     routes: sttRoute({ socket: values["speech-socket"], store: values.store }),
     ...(values.origin ? { origins: values.origin } : {}),
   });
-  process.stderr.write(`figaro-gateway: listening on ${g.address}, door ${url.replace(/\?.*$/, "")}\n`);
+  process.stderr.write(`figaro-gateway: listening on ${g.address}, door ${redact(url)}\n`);
   const stop = (): void => void g.close().then(() => process.exit(0));
   process.on("SIGINT", stop);
   process.on("SIGTERM", stop);
