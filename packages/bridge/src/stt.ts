@@ -55,51 +55,118 @@ function readClip(req: IncomingMessage, limit: number): Promise<Buffer | "too-la
   });
 }
 
-function transcribe(o: SttOptions, clip: Buffer, contentType: string): Promise<{ status: number; body: Record<string, unknown> }> {
+interface SpeechAnswer {
+  readonly status: number;
+  readonly json: Record<string, unknown> | undefined;
+  readonly error?: string;
+}
+
+function callSpeech(o: SttOptions, path: string, body: Buffer, contentType: string): Promise<SpeechAnswer> {
   return new Promise((ok) => {
-    const bad = (error: string): void => ok({ status: 502, body: { error } });
     const up = request(
       {
         socketPath: o.socket,
-        path: "/stt",
+        path,
         method: "POST",
-        headers: { "Content-Type": contentType, "Content-Length": clip.length },
+        headers: { "Content-Type": contentType, "Content-Length": body.length },
         timeout: o.timeoutMs ?? 60_000,
       },
       (r) => {
         const parts: Buffer[] = [];
         r.on("data", (c: Buffer) => parts.push(c));
         r.once("end", () => {
-          let j: Record<string, unknown> = {};
           try {
-            j = JSON.parse(Buffer.concat(parts).toString()) as Record<string, unknown>;
+            ok({ status: r.statusCode ?? 0, json: JSON.parse(Buffer.concat(parts).toString()) as Record<string, unknown> });
           } catch {
-            bad("speech answered with something other than JSON");
-            return;
+            ok({ status: r.statusCode ?? 0, json: undefined });
           }
-          if (r.statusCode !== 200) {
-            bad(typeof j.error === "string" ? j.error : `speech answered ${r.statusCode}`);
-            return;
-          }
-          if (typeof j.text !== "string" || typeof j.duration_ms !== "number" || typeof j.audio_id !== "string") {
-            bad("speech answered without text, duration_ms and audio_id");
-            return;
-          }
-          ok({ status: 200, body: { text: j.text, duration_ms: j.duration_ms, audio_id: j.audio_id } });
         });
-        r.once("error", (e) => bad(e.message));
+        r.once("error", (e) => ok({ status: 0, json: undefined, error: e.message }));
       },
     );
     up.once("timeout", () => up.destroy(new Error("speech timed out")));
-    up.once("error", (e) => bad(`speech unreachable: ${e.message}`));
-    up.end(clip);
+    up.once("error", (e) => ok({ status: 0, json: undefined, error: `speech unreachable: ${e.message}` }));
+    up.end(body);
   });
+}
+
+type Outcome = { status: number; body: Record<string, unknown> };
+
+function speechFailure(a: SpeechAnswer): Outcome | undefined {
+  if (a.error !== undefined) return { status: 502, body: { error: a.error } };
+  if (a.json === undefined) return { status: 502, body: { error: "speech answered with something other than JSON" } };
+  if (a.status !== 200) return { status: 502, body: { error: typeof a.json.error === "string" ? a.json.error : `speech answered ${a.status}` } };
+  return undefined;
+}
+
+function transcription(j: Record<string, unknown>, audioId: unknown): Outcome {
+  if (typeof j.text !== "string" || typeof j.duration_ms !== "number" || typeof audioId !== "string") {
+    return { status: 502, body: { error: "speech answered without text, duration_ms and audio_id" } };
+  }
+  return { status: 200, body: { text: j.text, duration_ms: j.duration_ms, audio_id: audioId } };
+}
+
+async function transcribe(o: SttOptions, clip: Buffer, contentType: string): Promise<Outcome> {
+  const a = await callSpeech(o, "/stt", clip, contentType);
+  return speechFailure(a) ?? transcription(a.json!, a.json!.audio_id);
+}
+
+const clipKey = /^([a-z0-9-]{1,63})\/[0-9a-f]{32}:\d{1,20}\/in$/;
+const audioId = /^[0-9]{6}-[0-9a-f]{16}$/;
+
+async function retranscribe(o: SttOptions, key: string): Promise<Outcome> {
+  const found = await callSpeech(o, "/audio/keys", Buffer.from(JSON.stringify({ keys: [key] })), "application/json");
+  const lookupFailed = speechFailure(found);
+  if (lookupFailed) return lookupFailed;
+  const id = found.json![key];
+  if (typeof id !== "string" || !audioId.test(id)) return { status: 404, body: { error: "no clip under that key" } };
+  const a = await callSpeech(o, `/stt/${encodeURIComponent(id)}`, Buffer.alloc(0), "application/octet-stream");
+  if (a.error === undefined && a.status === 404) return { status: 404, body: { error: "no clip under that key" } };
+  if (a.error === undefined && a.status === 409) return { status: 409, body: { error: "the key names a reply, not a clip" } };
+  return speechFailure(a) ?? transcription(a.json!, id);
+}
+
+function keyRoute(o: SttOptions, req: IncomingMessage, res: ServerResponse, raw: string, admit: () => (() => void) | undefined): void {
+  if (req.method !== "POST") {
+    res.writeHead(405, { Allow: "POST" }).end();
+    return;
+  }
+  let key: string;
+  try {
+    key = decodeURIComponent(raw);
+  } catch {
+    reply(req, res, 400, { error: "key is not URL-encoded text" });
+    return;
+  }
+  const m = clipKey.exec(key);
+  if (!m || m[1] !== o.store) {
+    reply(req, res, 400, { error: `key must be ${o.store}/<32 hex>:<turn>/in` });
+    return;
+  }
+  const done = admit();
+  if (!done) {
+    reply(req, res, 503, { error: "too many clips in flight" });
+    return;
+  }
+  void retranscribe(o, key)
+    .then((r) => reply(req, res, r.status, r.body))
+    .finally(done);
 }
 
 export function sttRoute(o: SttOptions): GatewayRoute {
   const limit = o.maxBytes ?? maxClipBytes;
   let running = 0;
+  const max = o.maxConcurrent ?? 4;
+  const admit = (): (() => void) | undefined => {
+    if (running >= max) return undefined;
+    running++;
+    return () => void running--;
+  };
   return (req, res, path) => {
+    if (path.startsWith("/stt/key/")) {
+      keyRoute(o, req, res, path.slice("/stt/key/".length), admit);
+      return true;
+    }
     if (path !== "/stt") return false;
     if (req.method !== "POST") {
       res.writeHead(405, { Allow: "POST" }).end();
@@ -120,11 +187,11 @@ export function sttRoute(o: SttOptions): GatewayRoute {
       reply(req, res, 413, { error: `clip over ${limit} bytes` });
       return true;
     }
-    if (running >= (o.maxConcurrent ?? 4)) {
+    const done = admit();
+    if (!done) {
       reply(req, res, 503, { error: "too many clips in flight" });
       return true;
     }
-    running++;
     void (async () => {
       let clip: Buffer | "too-large";
       try {
@@ -146,7 +213,7 @@ export function sttRoute(o: SttOptions): GatewayRoute {
       }
       const r = await transcribe(o, clip, type);
       reply(req, res, r.status, r.body);
-    })().finally(() => running--);
+    })().finally(done);
     return true;
   };
 }
