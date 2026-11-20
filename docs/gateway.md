@@ -1,9 +1,13 @@
 # figchat-gateway
 
 The `figchat-gateway` binary (packages/bridge) fronts gluck's figaro door for the
-figchat web client and tees a followed aria's spoken prose into figchat-speech.
-It sits behind the edge: every request needs the edge secret in `X-Figaro-Edge`
-and the admin in `Remote-User`.
+figaro web client and adds voice, and nothing else: speech out (it tees a followed
+aria's spoken prose into figchat-speech) and transcription in (`POST /stt`). The
+conversation itself is figaro's UI IR, native and untouched: `/door` is a raw
+passthrough of the door's JSON-RPC, so a page folds the same `figaro.aria` frames
+the pager does with `figaro-forms/aria` (docs/aria.md). It sits behind the edge:
+every request needs the edge secret in `X-Figaro-Edge` and the admin in
+`Remote-User`.
 
 ## Routes
 
@@ -13,8 +17,10 @@ and the admin in `Remote-User`.
   Everything else (set, form.create, kill) is refused. A `figaro.interrupt` also
   cancels pending audio for that aria.
 - `/audio/<aria>` (WebSocket, aria is the 32-hex id): follows the aria server-side
-  with `figaro-forms/aria`, one follow and one speech session per reply however
-  many sockets listen.
+  with `figaro-forms/aria` (the native store: `onFrame` and `onTurnEnd`), one follow
+  and one speech session per reply however many sockets listen. It speaks the
+  output-role prose nodes (`node.type === "prose"`, `node.role === "output"`) of
+  the frames it is told. Its frames are the gateway's own side channel, not UI IR.
 - `GET /audio/key/<store>/<aria>:<turn>/out`: replay, passed to the speech socket
   with `Range`.
 - `POST /stt?aria=<store>/<aria>`: dictation. See below.
@@ -44,16 +50,26 @@ audio key yet. The text belongs in the composer; sending it is an ordinary promp
 
 Server to client, text (JSON):
 
-- `{type:"ready", aria, store}` once the follow is live. Turns already running or
-  finished are not spoken; only turns that start after it.
-- `{type:"audio.start", turn, key, format:"pcm", rate:24000, bits:16, channels:1, node, cursor}`
-- `{type:"audio.chunk", turn, node, cursor, offset, bytes}` followed at once by one
-  binary frame of `bytes` PCM (s16le, even length). `node` and `cursor` name the
-  text the speech service had been fed when this audio arrived: the audio is at or
-  after that point in the text, never before. `offset` is the byte position in the
-  turn's audio.
-- `{type:"audio.end", turn, key, audio_id?}` after the last chunk. `key` is
-  `<store>/<aria>:<turn>/out`, replayable at `/audio/key/<key>`.
+- `{type:"ready", aria, store}` once the follow is live. Finished turns are never
+  spoken. A turn already running when the follow starts is spoken **from the join
+  point on**: the text its open message holds at that moment counts as heard, and
+  what arrives after it is spoken (a sentence cut in half by the join is spoken
+  from its second half). A turn that starts after the follow is spoken whole. After a
+  reconnect the stream re-reads the running turn and the gateway speaks what it
+  gained while offline, once; a turn that ended while offline is spoken from where
+  it had got to.
+- `{type:"audio.start", turn, key, format:"pcm", rate:24000, bits:16, channels:1, node, chars, cursor}`
+- `{type:"audio.chunk", turn, node, chars, cursor, offset, bytes}` followed at once
+  by one binary frame of `bytes` PCM (s16le, even length). The tags are native
+  coordinates: `turn` is the turn id, `node` the ordinal of the prose node
+  (`from + i` in the UI IR) and `chars` the number of UTF-16 units of that node's
+  `markdown` the speech service had been fed when this audio arrived; `cursor` is
+  the stream's cursor (the highest sealed turn, `Client.Cursor`) at that moment. The
+  audio is at or after that point in the text, never before. `offset` is the byte
+  position in the turn's audio.
+- `{type:"audio.end", turn, key, audio_id?}` after the last chunk. `key` is always
+  present: the A9 key `<store>/<aria>:<turn>/out`, replayable at
+  `/audio/key/<key>`. `audio_id` is present when the speech service reports one.
 - `{type:"audio.cancel", turn, key, why}`; `why` is `new-turn`, `interrupt` or
   `client`. No `audio.end` follows.
 - `{type:"error", turn?, code, text}`: `code` is `speech` (that turn's audio is over),
@@ -62,8 +78,10 @@ Server to client, text (JSON):
 Client to server: `{type:"cancel"}` stops the aria's pending speech for everyone.
 
 Prose is fed to speech from the first sentence (a terminator followed by space, a
-newline, or 160 characters), not at node settle. Thinking, tools, steering and the
-question are never spoken. Markdown stripping is the speech service's.
+newline, or 160 characters), not when a node closes. Thinking, tools, steering
+(role `input`) and the question are never spoken. A turn's end comes from the
+daemon's `turn.done`: `interrupted` cancels the audio (`why: "interrupt"`), any
+other end finishes it. Markdown stripping is the speech service's.
 
 ## Sample unit
 
