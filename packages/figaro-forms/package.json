@@ -40,6 +40,14 @@
     "./aria": {
       "types": "./dist/aria/index.d.ts",
       "default": "./dist/aria/index.js"
+    },
+    "./aria/react": {
+      "types": "./dist/aria/react.d.ts",
+      "default": "./dist/aria/react.js"
+    },
+    "./aria/jotai": {
+      "types": "./dist/aria/jotai.d.ts",
+      "default": "./dist/aria/jotai.js"
     }
   },
   "scripts": {

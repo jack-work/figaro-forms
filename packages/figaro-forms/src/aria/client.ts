@@ -113,17 +113,18 @@ export class AriaClient {
     return stream;
   }
 
-  stream(aria: string): AriaStream {
+  peek(aria: string): AriaStream {
     let e = this.shared.get(aria);
     if (!e) {
       e = { stream: this.attach(aria), refs: 0, reap: undefined };
       this.shared.set(aria, e);
     }
+    if (e.refs === 0) this.scheduleReap(aria, e);
     return e.stream;
   }
 
   retain(aria: string): AriaStream {
-    const stream = this.stream(aria);
+    const stream = this.peek(aria);
     const e = this.shared.get(aria) as Shared;
     e.refs++;
     if (e.reap) clearTimeout(e.reap);
@@ -134,7 +135,11 @@ export class AriaClient {
   release(aria: string): void {
     const e = this.shared.get(aria);
     if (!e || e.refs === 0) return;
-    if (--e.refs > 0) return;
+    if (--e.refs === 0) this.scheduleReap(aria, e);
+  }
+
+  private scheduleReap(aria: string, e: Shared): void {
+    if (e.reap) clearTimeout(e.reap);
     e.reap = setTimeout(() => {
       e.reap = undefined;
       if (e.refs > 0 || this.shared.get(aria) !== e) return;
