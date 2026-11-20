@@ -1,6 +1,6 @@
 import type { Json } from "../../src/json.js";
 import type { Dial, Socket, SocketEvents } from "../../src/rpc.js";
-import type { Anchor, NodeDelta, Page, TurnPart, WireNode } from "../../src/aria/wire.js";
+import type { Anchor, NodeDelta, Page, TurnPart, Node } from "../../src/aria/wire.js";
 
 interface Frame {
   id: number;
@@ -130,7 +130,7 @@ export class FakeAria {
     this.pushRaw(id, "figaro.closed", {});
   }
 
-  finishedTurn(id: string, turn: number, inquiry: string, nodes: WireNode[]): void {
+  finishedTurn(id: string, turn: number, inquiry: string, nodes: Node[]): void {
     this.turns.get(id)?.push({ id: turn, inquiry, nodes: nodes.map((n) => ({ ...n })), sealed: true, open: undefined });
   }
 
@@ -143,7 +143,7 @@ export class FakeAria {
   private part(t: FakeTurn, o: { inquiry: boolean; nodes: boolean; from?: number; to?: number }): TurnPart {
     const from = o.from ?? 0;
     const to = o.to ?? t.nodes.length;
-    const nodes = o.nodes ? (t.nodes.slice(from, to) as unknown as WireNode[]) : undefined;
+    const nodes = o.nodes ? (t.nodes.slice(from, to) as unknown as Node[]) : undefined;
     return {
       turn: t.id,
       from: o.nodes ? from : 0,

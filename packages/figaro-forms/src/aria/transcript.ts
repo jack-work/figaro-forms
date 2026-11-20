@@ -12,9 +12,9 @@ import {
   type Uncursored,
 } from "./events.js";
 import { diffText, spliceBytes } from "./utf8.js";
-import type { Anchor, Metrics, NodeDelta, Page, TurnPart, WireNode } from "./wire.js";
+import type { Anchor, Metrics, NodeDelta, Page, TurnPart, Node } from "./wire.js";
 
-type Raw = { -readonly [K in keyof WireNode]?: WireNode[K] } & { type?: string };
+type Raw = { -readonly [K in keyof Node]?: Node[K] } & { type?: string };
 
 interface NodeState {
   raw: Raw;
@@ -266,7 +266,7 @@ export class Transcript {
       const settled = part.sealed || idx < liveFrom;
       const cur = t.nodes[idx];
       if (cur?.settled) continue;
-      t.nodes[idx] = absorb(cur, nodes[i] as WireNode, settled);
+      t.nodes[idx] = absorb(cur, nodes[i] as Node, settled);
     }
     if (nodes.length > 0 && part.from < t.lowest && part.from >= floorNode) t.lowest = part.from;
     if (part.clipped_tail) t.tailPending = true;
@@ -482,7 +482,7 @@ function blank(): NodeState {
   return { raw: {}, settled: false, toldStarted: false, toldText: "", toldTool: undefined, toldSettled: false, toldEnd: false };
 }
 
-function absorb(cur: NodeState | undefined, wire: WireNode, settled: boolean): NodeState {
+function absorb(cur: NodeState | undefined, wire: Node, settled: boolean): NodeState {
   const n = cur ?? blank();
   n.raw = { ...wire } as Raw;
   if (settled) n.settled = true;

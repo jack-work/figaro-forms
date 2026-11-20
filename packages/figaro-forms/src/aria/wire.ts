@@ -22,26 +22,48 @@ export interface Anchor {
   readonly node: number;
 }
 
-export interface WireDelta {
+export interface Delta {
   readonly at: number;
   readonly del: number;
   readonly ins: string;
 }
 
-export interface WireSrc {
+export interface Src {
   readonly lt: number;
   readonly block: number;
 }
 
+export const roleInput = "input";
+export const roleOutput = "output";
+
+export const statusRunning = "running";
+export const statusOK = "ok";
+export const statusError = "error";
+
 export type NodeType = "prose" | "thinking" | "tool" | "steering" | (string & {});
 
-export interface WireNode {
+export type FormKind = "bound" | "studied" | "role" | (string & {});
+export type FormEvent = "set" | "removed" | "deleted" | (string & {});
+
+export interface FormDelta {
+  readonly value?: Json;
+  readonly prev?: Json;
+  readonly kind: FormKind;
+  readonly event?: FormEvent;
+  readonly form: string;
+}
+
+export interface Node {
   readonly type: NodeType;
   readonly role?: "input" | "output" | (string & {});
+  readonly lts?: readonly number[];
+  readonly src?: readonly Src[];
+  readonly tool_call_id?: string;
+  readonly v?: number;
+  readonly at?: number;
   readonly markdown?: string;
   readonly sender?: string;
   readonly sender_name?: string;
-  readonly tool_call_id?: string;
   readonly id?: string;
   readonly name?: string;
   readonly args?: { readonly [name: string]: Json };
@@ -50,20 +72,17 @@ export interface WireNode {
   readonly output?: string;
   readonly output_base?: number;
   readonly summary?: string;
-  readonly at?: number;
   readonly opened_at?: number;
   readonly started_at?: number;
   readonly finished_at?: number;
-  readonly lts?: readonly number[];
-  readonly src?: readonly WireSrc[];
-  readonly formDeltas?: { readonly [key: string]: Json };
+  readonly formDeltas?: { readonly [key: string]: FormDelta };
 }
 
 export interface NodeDelta {
   readonly id: number;
   readonly set?: { readonly [field: string]: Json };
   readonly unset?: readonly string[];
-  readonly patch?: { readonly [field: string]: WireDelta };
+  readonly patch?: { readonly [field: string]: Delta };
 }
 
 export interface Live {
@@ -78,19 +97,22 @@ export interface InquirySegment {
   readonly text: string;
 }
 
-export interface TurnPart {
+export interface Turn {
   readonly turn: number;
-  readonly from: number;
-  readonly sealed: boolean;
   readonly inquiry?: string;
   readonly inquiry_segments?: readonly InquirySegment[];
   readonly at?: number;
+  readonly formDeltas?: { readonly [key: string]: FormDelta };
   readonly lts?: readonly number[];
-  readonly nodes?: readonly WireNode[];
+  readonly sealed: boolean;
+  readonly nodes?: readonly Node[];
   readonly live?: Live;
+}
+
+export interface TurnPart extends Turn {
+  readonly from: number;
   readonly clipped_head?: boolean;
   readonly clipped_tail?: boolean;
-  readonly formDeltas?: { readonly [key: string]: Json };
 }
 
 export interface Metrics {
@@ -120,10 +142,13 @@ export interface AriaFrame extends Page {
   readonly figaro_id: string;
 }
 
-export interface TurnDone {
-  readonly figaro_id: string;
+export interface DoneEntry {
   readonly reason: string;
   readonly idle?: boolean;
+}
+
+export interface TurnDone extends DoneEntry {
+  readonly figaro_id: string;
 }
 
 export interface ReadRequest {
