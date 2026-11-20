@@ -1,0 +1,214 @@
+import type { Json } from "../json.js";
+
+export const ariaMethod = {
+  frame: "figaro.aria",
+  turnDone: "turn.done",
+  closed: "figaro.closed",
+  read: "figaro.read",
+  follow: "figaro.follow",
+  unfollow: "figaro.unfollow",
+  qua: "figaro.qua",
+  interrupt: "figaro.interrupt",
+  fork: "figaro.fork",
+  list: "figaro.list",
+} as const;
+
+export const errDeniedCode = -32020;
+export const errDormantCode = -32042;
+export const errMovedCode = -32030;
+
+export interface Anchor {
+  readonly turn: number;
+  readonly node: number;
+}
+
+export interface WireDelta {
+  readonly at: number;
+  readonly del: number;
+  readonly ins: string;
+}
+
+export interface WireSrc {
+  readonly lt: number;
+  readonly block: number;
+}
+
+export type NodeType = "prose" | "thinking" | "tool" | "steering" | (string & {});
+
+export interface WireNode {
+  readonly type: NodeType;
+  readonly role?: "input" | "output" | (string & {});
+  readonly markdown?: string;
+  readonly sender?: string;
+  readonly sender_name?: string;
+  readonly tool_call_id?: string;
+  readonly id?: string;
+  readonly name?: string;
+  readonly args?: { readonly [name: string]: Json };
+  readonly status?: "running" | "ok" | "error" | (string & {});
+  readonly input?: string;
+  readonly output?: string;
+  readonly output_base?: number;
+  readonly summary?: string;
+  readonly at?: number;
+  readonly opened_at?: number;
+  readonly started_at?: number;
+  readonly finished_at?: number;
+  readonly lts?: readonly number[];
+  readonly src?: readonly WireSrc[];
+  readonly formDeltas?: { readonly [key: string]: Json };
+}
+
+export interface NodeDelta {
+  readonly id: number;
+  readonly set?: { readonly [field: string]: Json };
+  readonly unset?: readonly string[];
+  readonly patch?: { readonly [field: string]: WireDelta };
+}
+
+export interface Live {
+  readonly from: number;
+  readonly v: number;
+  readonly nodes?: readonly NodeDelta[];
+}
+
+export interface InquirySegment {
+  readonly sender?: string;
+  readonly name?: string;
+  readonly text: string;
+}
+
+export interface TurnPart {
+  readonly turn: number;
+  readonly from: number;
+  readonly sealed: boolean;
+  readonly inquiry?: string;
+  readonly inquiry_segments?: readonly InquirySegment[];
+  readonly at?: number;
+  readonly lts?: readonly number[];
+  readonly nodes?: readonly WireNode[];
+  readonly live?: Live;
+  readonly clipped_head?: boolean;
+  readonly clipped_tail?: boolean;
+  readonly formDeltas?: { readonly [key: string]: Json };
+}
+
+export interface Metrics {
+  readonly context_tokens: number;
+  readonly context_exact: boolean;
+  readonly tokens_in: number;
+  readonly tokens_out: number;
+  readonly cache_read_tokens: number;
+  readonly cache_write_tokens: number;
+  readonly mantra?: string;
+}
+
+export interface More {
+  readonly before?: boolean;
+  readonly after?: boolean;
+}
+
+export interface Page {
+  readonly parts: readonly TurnPart[];
+  readonly more: More;
+  readonly next?: Anchor;
+  readonly prev?: Anchor;
+  readonly metrics?: Metrics;
+}
+
+export interface AriaFrame extends Page {
+  readonly figaro_id: string;
+}
+
+export interface TurnDone {
+  readonly figaro_id: string;
+  readonly reason: string;
+  readonly idle?: boolean;
+}
+
+export interface ReadRequest {
+  readonly figaro_id: string;
+  readonly at?: Anchor;
+  readonly backward?: boolean;
+  readonly limit?: number;
+  readonly floor?: Anchor;
+}
+
+export interface QuaImage {
+  readonly mime_type?: string;
+  readonly data: string;
+}
+
+export interface QuaRequest {
+  readonly figaro_id: string;
+  readonly text: string;
+  readonly images?: readonly QuaImage[];
+}
+
+export interface QuaResponse {
+  readonly ok: boolean;
+  readonly cursor: number;
+  readonly active?: boolean;
+}
+
+export type QueueDisposition = "keep" | "clear";
+
+export interface InterruptResponse {
+  readonly ok: boolean;
+  readonly stopped?: boolean;
+  readonly cleared?: boolean;
+  readonly epoch?: string;
+  readonly queue?: readonly { readonly [field: string]: Json }[];
+}
+
+export interface ForkRequest {
+  readonly figaro_id: string;
+  readonly at_turn?: number;
+  readonly at_lt?: number;
+  readonly outfits?: readonly string[];
+}
+
+export interface ForkResponse {
+  readonly parent: string;
+  readonly continuation: string;
+  readonly alternative: string;
+  readonly owner_note?: string;
+}
+
+export interface ListRequest {
+  readonly global?: boolean;
+  readonly limit?: number;
+  readonly before?: string;
+  readonly ids_only?: boolean;
+}
+
+export interface AriaRow {
+  readonly id: string;
+  readonly short?: string;
+  readonly handle?: string;
+  readonly node?: string;
+  readonly state: "active" | "idle" | "dormant" | (string & {});
+  readonly mantra?: string;
+  readonly parent?: string;
+  readonly present?: string;
+  readonly trunk?: string;
+  readonly vector?: readonly number[];
+  readonly roles?: readonly string[];
+  readonly kind?: string;
+  readonly created_at?: number;
+  readonly last_active?: number;
+  readonly message_count?: number;
+  readonly retired_at?: number;
+  readonly reaped_at?: number;
+  readonly outfit_name?: string;
+  readonly provider?: string;
+  readonly model?: string;
+}
+
+export interface ListResponse {
+  readonly figaros: readonly AriaRow[];
+  readonly next_before?: string;
+  readonly refused?: number;
+  readonly refused_why?: string;
+  readonly unreachable?: readonly { readonly [field: string]: Json }[];
+}
