@@ -1,0 +1,54 @@
+import { mkdtempSync } from "node:fs";
+import { createServer } from "node:http";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { WebSocketServer, type WebSocket } from "ws";
+
+export interface SpeechCall {
+  readonly url: string;
+  readonly frames: Record<string, unknown>[];
+  readonly socket: WebSocket;
+  closed: boolean;
+}
+
+export interface FakeSpeech {
+  readonly path: string;
+  readonly calls: SpeechCall[];
+  pcmPerText: number;
+  audioId: string;
+  rejectVoice: boolean;
+  stop(): Promise<void>;
+}
+
+export const fakePcm = (bytes: number, fill = 1): Buffer => Buffer.alloc(bytes, fill);
+
+export async function startFakeSpeech(): Promise<FakeSpeech> {
+  const path = join(mkdtempSync(join(tmpdir(), "ffs-")), "speech.sock");
+  const calls: SpeechCall[] = [];
+  const server = createServer();
+  const ws = new WebSocketServer({ noServer: true });
+  const fake: FakeSpeech = { path, calls, pcmPerText: 480, audioId: "a-1", rejectVoice: false, stop: () => new Promise((ok) => { for (const c of calls) c.socket.terminate(); server.close(() => ok()); server.closeAllConnections(); }) };
+  server.on("upgrade", (req, sock, head) => {
+    const url = req.url ?? "";
+    if (fake.rejectVoice && url.includes("voice=")) {
+      sock.end("HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+      return;
+    }
+    ws.handleUpgrade(req, sock, head, (socket) => {
+      const call: SpeechCall = { url, frames: [], socket, closed: false };
+      calls.push(call);
+      socket.on("close", () => (call.closed = true));
+      socket.on("message", (data) => {
+        const f = JSON.parse(data.toString()) as Record<string, unknown>;
+        call.frames.push(f);
+        if (typeof f.text === "string" && fake.pcmPerText > 0) socket.send(fakePcm(fake.pcmPerText));
+        if (f.end === true) {
+          socket.send(JSON.stringify({ audio_id: fake.audioId }));
+          socket.close();
+        }
+      });
+    });
+  });
+  await new Promise<void>((ok) => server.listen(path, ok));
+  return fake;
+}
