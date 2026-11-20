@@ -5,7 +5,8 @@
   "license": "SEE LICENSE IN LICENSE",
   "type": "module",
   "bin": {
-    "figaro-forms-bridge": "dist/main.js"
+    "figaro-forms-bridge": "dist/main.js",
+    "figchat-gateway": "dist/gateway-main.js"
   },
   "files": [
     "dist"
@@ -14,6 +15,10 @@
     ".": {
       "types": "./dist/bridge.d.ts",
       "default": "./dist/bridge.js"
+    },
+    "./gateway": {
+      "types": "./dist/gateway.d.ts",
+      "default": "./dist/gateway.js"
     }
   },
   "scripts": {
