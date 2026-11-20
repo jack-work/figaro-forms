@@ -1,6 +1,6 @@
-# figchat-gateway
+# figaro-gateway
 
-The `figchat-gateway` binary (packages/bridge) fronts gluck's figaro door for the
+The `figaro-gateway` binary (packages/bridge) fronts gluck's figaro door for the
 figaro web client and adds voice, and nothing else: speech out (it tees a followed
 aria's spoken prose into figchat-speech) and transcription in (`POST /stt`). The
 conversation itself is figaro's UI IR, native and untouched: `/door` is a raw
@@ -24,7 +24,7 @@ every request needs the edge secret in `X-Figaro-Edge` and the admin in
 - `GET /audio/key/<store>/<aria>:<turn>/out`: replay, passed to the speech socket
   with `Range`.
 - `POST /stt?aria=<store>/<aria>`: dictation. See below.
-- Anything else goes to `GatewayOptions.routes`, else 404. `figchat-gateway` mounts
+- Anything else goes to `GatewayOptions.routes`, else 404. `figaro-gateway` mounts
   `sttRoute({socket, store})` there.
 
 ## POST /stt
@@ -87,22 +87,22 @@ other end finishes it. Markdown stripping is the speech service's.
 
 ```
 [Unit]
-Description=figchat gateway
+Description=figaro gateway
 After=network-online.target figchat-speech.service
 
 [Service]
-ExecStart=figchat-gateway \
+ExecStart=figaro-gateway \
   --door-url wss://gluck.example.ts.net:7445/door \
   --speech-socket /run/figchat/speech.sock \
   --store gluck \
-  --listen-socket /run/figchat/gateway.sock \
+  --listen-socket /run/figaro-gateway/gateway.sock \
   --admin gluck
-LoadCredential=door:/run/secrets/figchat-door-bearer
-LoadCredential=edge:/run/secrets/figchat-edge
+LoadCredential=door:/run/secrets/figaro-gateway-door-bearer
+LoadCredential=edge:/run/secrets/figaro-gateway-edge
 DynamicUser=yes
 Group=figchat
 UMask=0007
-RuntimeDirectory=figchat
+RuntimeDirectory=figaro-gateway
 RuntimeDirectoryPreserve=yes
 Restart=on-failure
 ```

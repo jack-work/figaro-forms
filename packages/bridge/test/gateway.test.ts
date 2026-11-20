@@ -70,7 +70,7 @@ const collect = (ws: WebSocket): (Record<string, unknown> | Buffer)[] => inbox.g
 
 const ofType = (got: (Record<string, unknown> | Buffer)[], t: string): Record<string, unknown>[] => got.filter((f): f is Record<string, unknown> => !Buffer.isBuffer(f) && f.type === t);
 
-describe("figchat gateway", () => {
+describe("figaro gateway", () => {
   it("refuses a request without the edge secret, from the wrong user, or from a foreign origin", async () => {
     const { port } = await rig();
     await expect(open(`ws://127.0.0.1:${port}/door`, { "remote-user": "gluck" })).rejects.toThrow("403");

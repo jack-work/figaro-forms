@@ -9,9 +9,9 @@ import { startGateway, type GatewayListen } from "./gateway.js";
 import { speechOverSocket } from "./speech.js";
 import { sttRoute } from "./stt.js";
 
-const usage = `figchat-gateway: the door and a speech side channel for the figchat web client.
+const usage = `figaro-gateway: the door, passed through, and a speech side channel for the figaro web client.
 
-Usage: figchat-gateway --door-url URL --speech-socket PATH --admin USER --store NAME
+Usage: figaro-gateway --door-url URL --speech-socket PATH --admin USER --store NAME
                        (--listen-socket PATH [--mode OCTAL] | --port N --peer ADDR...)
                        [--edge-secret-file PATH] [--door-token-file PATH] [--origin URL]...
 
@@ -21,7 +21,7 @@ Usage: figchat-gateway --door-url URL --speech-socket PATH --admin USER --store 
                         without a file the door is dialled with no credential
   --speech-socket PATH  figchat-speech, e.g. /run/figchat/speech.sock
   --store NAME          the store id in audio keys, <store>/<aria>:<turn>/out
-  --listen-socket PATH  serve on a unix socket (default /run/figchat/gateway.sock mode 0660;
+  --listen-socket PATH  serve on a unix socket (default /run/figaro-gateway/gateway.sock mode 0660;
                         the unit's Group= and UMask= decide who reaches it)
   --port N --peer ADDR  serve on loopback TCP instead; --peer is the edge's address
   --admin USER          the one Remote-User served
@@ -73,7 +73,7 @@ try {
   const secret = credential(values["edge-secret-file"], "edge", true) as string;
   const listen: GatewayListen = values.port
     ? { port: Number(values.port), host: "127.0.0.1" }
-    : { path: values["listen-socket"] ?? "/run/figchat/gateway.sock", mode: values.mode ? parseInt(values.mode, 8) : 0o660 };
+    : { path: values["listen-socket"] ?? "/run/figaro-gateway/gateway.sock", mode: values.mode ? parseInt(values.mode, 8) : 0o660 };
   const g = await startGateway({
     listen,
     edge: { secret, admin: values.admin ?? "", ...(values.port ? { peers: values.peer ?? [] } : {}) },
@@ -89,11 +89,11 @@ try {
     routes: sttRoute({ socket: values["speech-socket"], store: values.store }),
     ...(values.origin ? { origins: values.origin } : {}),
   });
-  process.stderr.write(`figchat-gateway: listening on ${g.address}, door ${url.replace(/\?.*$/, "")}\n`);
+  process.stderr.write(`figaro-gateway: listening on ${g.address}, door ${url.replace(/\?.*$/, "")}\n`);
   const stop = (): void => void g.close().then(() => process.exit(0));
   process.on("SIGINT", stop);
   process.on("SIGTERM", stop);
 } catch (e) {
-  process.stderr.write(`figchat-gateway: ${e instanceof Error ? e.message : String(e)}\n`);
+  process.stderr.write(`figaro-gateway: ${e instanceof Error ? e.message : String(e)}\n`);
   process.exit(1);
 }

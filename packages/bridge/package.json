@@ -6,7 +6,7 @@
   "type": "module",
   "bin": {
     "figaro-forms-bridge": "dist/main.js",
-    "figchat-gateway": "dist/gateway-main.js"
+    "figaro-gateway": "dist/gateway-main.js"
   },
   "files": [
     "dist"
