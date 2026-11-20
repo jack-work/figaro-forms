@@ -25,6 +25,7 @@ export class ClientCredentials {
   private timer: ReturnType<typeof setTimeout> | undefined;
   private inflight: Promise<void> | undefined;
   private failures = 0;
+  private minted = 0;
   private closed = false;
   private readonly fetchFn: typeof fetch;
   private readonly now: () => number;
@@ -45,8 +46,12 @@ export class ClientCredentials {
     return (this.held as Held).value;
   }
 
-  rejected(): void {
-    if (this.held) this.held.expiresAt = 0;
+  get generation(): number {
+    return this.minted;
+  }
+
+  rejected(generation: number): void {
+    if (this.held && this.minted === generation) this.held.expiresAt = 0;
   }
 
   close(): void {
@@ -65,7 +70,13 @@ export class ClientCredentials {
   private async request(): Promise<void> {
     const form = new URLSearchParams({ grant_type: "client_credentials" });
     if (this.o.audience) form.set("audience", this.o.audience);
-    const basic = Buffer.from(`${encodeURIComponent(this.o.clientId)}:${encodeURIComponent(this.o.secret())}`).toString("base64");
+    let secret: string;
+    try {
+      secret = this.o.secret();
+    } catch (e) {
+      throw this.failed(`client secret unreadable: ${e instanceof Error ? e.message.replace(/'[^']*'/g, "'<path>'") : "error"}`);
+    }
+    const basic = Buffer.from(`${encodeURIComponent(this.o.clientId)}:${encodeURIComponent(secret)}`).toString("base64");
     let res: Response;
     try {
       res = await this.fetchFn(this.o.tokenUrl, {
@@ -87,6 +98,7 @@ export class ClientCredentials {
     const lifetime = Number(body.expires_in);
     if (typeof value !== "string" || value === "" || !Number.isFinite(lifetime) || lifetime <= 0) throw this.failed("token endpoint answered without access_token and expires_in");
     this.held = { value, expiresAt: this.now() + lifetime * 1000 };
+    this.minted++;
     this.failures = 0;
     this.schedule(lifetime * 1000 * (this.o.refreshAt ?? 0.8));
   }
@@ -113,13 +125,14 @@ export class ClientCredentials {
   }
 }
 
-export function redialAfterRejection(dial: Dial, rejected: () => void): Dial {
+export function redialAfterRejection(dial: Dial, rejected: (generation: number) => void, generation: () => number): Dial {
   return async (events) => {
+    const used = generation();
     try {
       return await dial(events);
     } catch (e) {
       if ((e as { status?: number }).status !== 401) throw e;
-      rejected();
+      rejected(used);
       return dial(events);
     }
   };

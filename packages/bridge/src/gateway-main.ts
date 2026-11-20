@@ -111,7 +111,7 @@ try {
         ...(minter ? { credential: bearer(() => (minter as ClientCredentials).token()) } : token ? { credential: bearer(token) } : {}),
         WebSocket: WebSocket as unknown as NonNullable<Parameters<typeof webSocketDial>[0]["WebSocket"]>,
       });
-      return minter ? redialAfterRejection(dial, () => (minter as ClientCredentials).rejected()) : dial;
+      return minter ? redialAfterRejection(dial, (g) => (minter as ClientCredentials).rejected(g), () => (minter as ClientCredentials).generation) : dial;
     },
     speech: speechOverSocket(values["speech-socket"]),
     speechSocket: values["speech-socket"],

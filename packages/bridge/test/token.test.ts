@@ -128,9 +128,44 @@ describe("client credentials", () => {
       used.push(t);
       if (t === "tok-1") throw Object.assign(new Error("could not open"), { status: 401 });
       return { send: () => {}, close: () => {} };
-    }, () => c.rejected());
+    }, (g) => c.rejected(g), () => c.generation);
     await dial({ message: () => {}, closed: () => {} });
     expect(used).toEqual(["tok-1", "tok-2"]);
+  });
+
+  it("does not throw away a token minted since the one that was refused", async () => {
+    const ep = await endpoint();
+    const c = new ClientCredentials(opts(ep.url));
+    cleanups.push(() => c.close());
+    await c.start();
+    const stale = c.generation;
+    await c.token();
+    c.rejected(0);
+    expect(await c.token()).toBe("tok-1");
+    c.rejected(stale);
+    expect(await c.token()).toBe("tok-2");
+    const fresh = c.generation;
+    c.rejected(stale);
+    expect(c.generation).toBe(fresh);
+    expect(await c.token()).toBe("tok-2");
+  });
+
+  it("logs and backs off when the secret file cannot be read, keeping the token it has", async () => {
+    vi.useFakeTimers();
+    const f = stub();
+    const lines: string[] = [];
+    let readable = true;
+    const c = new ClientCredentials(opts("http://x/token", { fetch: f.fetch, log: (l) => lines.push(l), retryMinMs: 1000, secret: () => { if (!readable) throw new Error("ENOENT: no such file '/run/credentials/client-secret'"); return "s"; } }));
+    cleanups.push(() => c.close());
+    await c.start();
+    readable = false;
+    await vi.advanceTimersByTimeAsync(80_000);
+    expect(lines.join("\n")).toContain("unreadable");
+    expect(lines.join("\n")).not.toContain("/run/credentials");
+    expect(await c.token()).toBe("tok-1");
+    readable = true;
+    await vi.advanceTimersByTimeAsync(1_500);
+    expect(await c.token()).toBe("tok-2");
   });
 
   it("does not retry other failures", async () => {
@@ -138,7 +173,7 @@ describe("client credentials", () => {
     const dial = redialAfterRejection(async () => {
       n++;
       throw Object.assign(new Error("boom"), { status: 500 });
-    }, () => {});
+    }, () => {}, () => 0);
     await expect(dial({ message: () => {}, closed: () => {} })).rejects.toThrow("boom");
     expect(n).toBe(1);
   });
