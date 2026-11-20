@@ -17,7 +17,28 @@ and the admin in `Remote-User`.
   many sockets listen.
 - `GET /audio/key/<store>/<aria>:<turn>/out`: replay, passed to the speech socket
   with `Range`.
-- Anything else goes to `GatewayOptions.routes` (the seam for `POST /stt`), else 404.
+- `POST /stt?aria=<store>/<aria>`: dictation. See below.
+- Anything else goes to `GatewayOptions.routes`, else 404. `figchat-gateway` mounts
+  `sttRoute({socket, store})` there.
+
+## POST /stt
+
+Body is the browser's recording, with its own `Content-Type`: `audio/webm`
+(`codecs=opus` allowed) or `audio/mp4`. At most 10 MB. The gateway passes the clip
+unchanged to figchat-speech `POST /stt` on the speech socket and answers:
+
+- `200 {"text", "duration_ms", "audio_id"}`. `audio_id` names the stored clip in
+  figchat-speech (`POST /stt/<audio_id>` there re-transcribes it).
+- `400 {"error"}`: `aria` is missing, malformed, or names another store; or the body is empty.
+- `405` for anything but POST.
+- `413 {"error"}`: over 10 MB. A declared `Content-Length` over the limit is refused
+  unread; otherwise reading stops at the limit and the connection closes.
+- `415 {"error"}`: any other type (`audio/ogg` included), refused before the body is read.
+- `502 {"error"}`: speech is unreachable, answers non-200 (its error text is passed on),
+  or answers without `text`, `duration_ms` and `audio_id`.
+
+`aria` is checked and not forwarded: a clip usually precedes its turn, so it has no
+audio key yet. The text belongs in the composer; sending it is an ordinary prompt.
 
 ## /audio frames
 

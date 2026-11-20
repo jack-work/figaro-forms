@@ -7,6 +7,7 @@ import { webSocketDial } from "figaro-forms";
 import { bearer } from "figaro-forms/auth";
 import { startGateway, type GatewayListen } from "./gateway.js";
 import { speechOverSocket } from "./speech.js";
+import { sttRoute } from "./stt.js";
 
 const usage = `figchat-gateway: the door and a speech side channel for the figchat web client.
 
@@ -28,7 +29,8 @@ Usage: figchat-gateway --door-url URL --speech-socket PATH --admin USER --store 
   --origin URL          also admit pages from URL (same-origin pages always pass)
 
 Routes behind the edge gate: /door (WebSocket, JSON-RPC, aria methods), /audio/<aria>
-(WebSocket, audio frames), GET /audio/key/<key> (replay from the speech service).`;
+(WebSocket, audio frames), GET /audio/key/<key> (replay from the speech service), POST /stt?aria=<store>/<aria>
+(a recording in, {text, duration_ms, audio_id} out).`;
 
 const { values } = parseArgs({
   options: {
@@ -84,6 +86,7 @@ try {
     speech: speechOverSocket(values["speech-socket"]),
     speechSocket: values["speech-socket"],
     store: values.store,
+    routes: sttRoute({ socket: values["speech-socket"], store: values.store }),
     ...(values.origin ? { origins: values.origin } : {}),
   });
   process.stderr.write(`figchat-gateway: listening on ${g.address}, door ${url.replace(/\?.*$/, "")}\n`);

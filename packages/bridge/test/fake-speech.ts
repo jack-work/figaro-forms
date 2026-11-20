@@ -18,6 +18,9 @@ export interface FakeSpeech {
   audioId: string;
   rejectVoice: boolean;
   readonly replays: { url: string; range: string | undefined }[];
+  readonly clips: { url: string; contentType: string | undefined; body: Buffer }[];
+  sttStatus: number;
+  sttReply: unknown;
   stop(): Promise<void>;
 }
 
@@ -28,8 +31,17 @@ export async function startFakeSpeech(): Promise<FakeSpeech> {
   const calls: SpeechCall[] = [];
   const server = createServer();
   const ws = new WebSocketServer({ noServer: true });
-  const fake: FakeSpeech = { path, calls, pcmPerText: 480, audioId: "a-1", rejectVoice: false, replays: [], stop: () => new Promise((ok) => { for (const c of calls) c.socket.terminate(); server.close(() => ok()); server.closeAllConnections(); }) };
+  const fake: FakeSpeech = { path, calls, pcmPerText: 480, audioId: "a-1", rejectVoice: false, replays: [], clips: [], sttStatus: 200, sttReply: { text: "hello figaro", duration_ms: 1200, audio_id: "clip-1" }, stop: () => new Promise((ok) => { for (const c of calls) c.socket.terminate(); server.close(() => ok()); server.closeAllConnections(); }) };
   server.on("request", (req, res) => {
+    if (req.method === "POST" && req.url?.startsWith("/stt")) {
+      const parts: Buffer[] = [];
+      req.on("data", (c: Buffer) => parts.push(c));
+      req.on("end", () => {
+        fake.clips.push({ url: req.url ?? "", contentType: req.headers["content-type"], body: Buffer.concat(parts) });
+        res.writeHead(fake.sttStatus, { "Content-Type": "application/json" }).end(JSON.stringify(fake.sttReply));
+      });
+      return;
+    }
     fake.replays.push({ url: req.url ?? "", range: req.headers.range });
     if (req.url?.startsWith("/audio/key/") && !req.url.includes("missing")) res.writeHead(200, { "Content-Type": "audio/mpeg", "Content-Length": 7 }).end("MP3DATA");
     else res.writeHead(404).end();
