@@ -29,7 +29,10 @@ export function webSocketDial(o: WebSocketDialOptions): Dial {
     }
     await new Promise<void>((resolve, reject) => {
       ws.onopen = () => resolve();
-      ws.onerror = () => reject(new Error(`could not open ${String(url)}`));
+      ws.onerror = (e) => {
+        const status = Number(/Unexpected server response: (\d{3})/.exec((e as { message?: string }).message ?? "")?.[1]);
+        reject(Object.assign(new Error(`could not open ${String(url)}`), Number.isFinite(status) && status > 0 ? { status } : {}));
+      };
       ws.onclose = (e) => reject(new Error(e.reason || `upgrade refused or socket closed (${e.code})`));
     });
     ws.onerror = null;
