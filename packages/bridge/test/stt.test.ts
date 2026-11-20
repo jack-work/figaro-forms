@@ -151,3 +151,58 @@ describe("POST /stt", () => {
     expect(get).toBe(405);
   });
 });
+
+function postKey(port: number, key: string, method = "POST"): Promise<Reply> {
+  return new Promise((ok, fail) => {
+    const req = request({ port, host: "127.0.0.1", method, path: `/stt/key/${key}`, headers }, (res) => {
+      const parts: Buffer[] = [];
+      res.on("data", (c: Buffer) => parts.push(c));
+      res.on("end", () => ok({ status: res.statusCode ?? 0, body: json(Buffer.concat(parts).toString()) }));
+    });
+    req.on("error", fail);
+    req.end();
+  });
+}
+
+describe("POST /stt/key/<key>", () => {
+  const key = `${aria}:7/in`;
+  const id = "202611-0123456789abcdef";
+
+  it("re-transcribes the stored webm clip the key names, in /stt's shape", async () => {
+    const { speech, port } = await rig();
+    speech.keyed[key] = id;
+    speech.sttReply = { text: "hello again", duration_ms: 900 };
+    const r = await postKey(port, key);
+    expect(r).toEqual({ status: 200, body: { text: "hello again", duration_ms: 900, audio_id: id } });
+    expect(speech.clips.map((c) => c.url)).toEqual([`/stt/${id}`]);
+  });
+
+  it("takes the key URL-encoded too", async () => {
+    const { speech, port } = await rig();
+    speech.keyed[key] = id;
+    speech.sttReply = { text: "x", duration_ms: 1 };
+    expect((await postKey(port, encodeURIComponent(key))).status).toBe(200);
+  });
+
+  it("answers 404 for a key with no clip, before transcribing", async () => {
+    const { speech, port } = await rig();
+    expect((await postKey(port, key)).status).toBe(404);
+    expect(speech.clips).toHaveLength(0);
+  });
+
+  it("refuses a reply's key, another store's key and a non-POST", async () => {
+    const { speech, port } = await rig();
+    expect((await postKey(port, `${aria}:7/out`)).status).toBe(400);
+    expect((await postKey(port, `other/0123456789abcdef0123456789abcdef:7/in`)).status).toBe(400);
+    expect((await postKey(port, key, "GET")).status).toBe(405);
+    expect(speech.clips).toHaveLength(0);
+  });
+
+  it("passes speech's refusal of a reply clip as 409", async () => {
+    const { speech, port } = await rig();
+    speech.keyed[key] = id;
+    speech.sttStatus = 409;
+    speech.sttReply = { error: "audio is a reply, not a clip" };
+    expect((await postKey(port, key)).status).toBe(409);
+  });
+});

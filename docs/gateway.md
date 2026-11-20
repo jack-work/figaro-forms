@@ -34,6 +34,7 @@ every request needs the edge secret in `X-Figaro-Edge` and the admin in
   with `Range`. Only keys of the gateway's own store (404 otherwise); an unparsable
   target or escape answers 400.
 - `POST /stt?aria=<store>/<aria>`: dictation. See below.
+- `POST /stt/key/<store>/<aria>:<turn>/in`: re-transcribe a stored clip. See below.
 - Anything else goes to `GatewayOptions.routes`, else 404. `figaro-gateway` mounts
   `sttRoute({socket, store})` there.
 
@@ -58,6 +59,20 @@ the bare media type as its `Content-Type`, `POST /stt` on the speech socket and 
 
 `aria` is checked and not forwarded: a clip usually precedes its turn, so it has no
 audio key yet. The text belongs in the composer; sending it is an ordinary prompt.
+
+## POST /stt/key/<key>
+
+Re-runs speech-to-text on a clip figchat-speech already holds, named by its turn key
+`<store>/<aria>:<turn>/in` (plain or URL-encoded). The gateway looks the key up
+(`POST /audio/keys`) and asks for `POST /stt/<audio_id>`; no body. Answers in
+`/stt`'s shape, `200 {"text", "duration_ms", "audio_id"}`, or:
+
+- `400 {"error"}`: not a clip key (`/out` included), or another store's.
+- `404 {"error"}`: no clip under that key.
+- `405` for anything but POST.
+- `409 {"error"}`: speech holds a reply under it, not a clip.
+- `503 {"error"}`: too many clips in flight (shared with `/stt`).
+- `502 {"error"}`: speech unreachable or answering anything else.
 
 ## /audio frames
 

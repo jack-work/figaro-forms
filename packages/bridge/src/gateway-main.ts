@@ -42,7 +42,7 @@ Usage: figaro-gateway --door-url URL --speech-socket PATH --admin USER --store N
 
 Routes behind the edge gate: /door (WebSocket, JSON-RPC, aria methods), /audio/<aria>
 (WebSocket, audio frames), GET /audio/key/<key> (replay from the speech service), POST /stt?aria=<store>/<aria>
-(a recording in, {text, duration_ms, audio_id} out).`;
+(a recording in, {text, duration_ms, audio_id} out), POST /stt/key/<key> (re-transcribe a stored clip).`;
 
 const { values } = parseArgs({
   options: {
