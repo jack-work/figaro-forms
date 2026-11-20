@@ -8,10 +8,14 @@ export interface SttOptions {
   readonly store: string;
   readonly maxBytes?: number;
   readonly timeoutMs?: number;
+  readonly maxConcurrent?: number;
 }
 
 const clipTypes = new Set(["audio/webm", "audio/mp4"]);
 const ariaParam = /^([a-z0-9-]{1,63})\/[0-9a-f]{32}$/;
+
+const looksLike = (type: string, clip: Buffer): boolean =>
+  type === "audio/webm" ? clip.length >= 4 && clip.readUInt32BE(0) === 0x1a45dfa3 : clip.length >= 8 && clip.toString("latin1", 4, 8) === "ftyp";
 
 const mediaType = (header: string | undefined): string => (header ?? "").split(";")[0]?.trim().toLowerCase() ?? "";
 
@@ -94,6 +98,7 @@ function transcribe(o: SttOptions, clip: Buffer, contentType: string): Promise<{
 
 export function sttRoute(o: SttOptions): GatewayRoute {
   const limit = o.maxBytes ?? maxClipBytes;
+  let running = 0;
   return (req, res, path) => {
     if (path !== "/stt") return false;
     if (req.method !== "POST") {
@@ -115,6 +120,11 @@ export function sttRoute(o: SttOptions): GatewayRoute {
       reply(req, res, 413, { error: `clip over ${limit} bytes` });
       return true;
     }
+    if (running >= (o.maxConcurrent ?? 4)) {
+      reply(req, res, 503, { error: "too many clips in flight" });
+      return true;
+    }
+    running++;
     void (async () => {
       let clip: Buffer | "too-large";
       try {
@@ -130,9 +140,13 @@ export function sttRoute(o: SttOptions): GatewayRoute {
         reply(req, res, 400, { error: "empty clip" });
         return;
       }
-      const r = await transcribe(o, clip, req.headers["content-type"] as string);
+      if (!looksLike(type, clip)) {
+        reply(req, res, 415, { error: `the body is not ${type}` });
+        return;
+      }
+      const r = await transcribe(o, clip, type);
       reply(req, res, r.status, r.body);
-    })();
+    })().finally(() => running--);
     return true;
   };
 }

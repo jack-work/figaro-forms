@@ -14,7 +14,7 @@ afterEach(async () => {
   for (const c of cleanups.splice(0).reverse()) await c();
 });
 
-async function rig(maxBytes?: number): Promise<{ speech: FakeSpeech; port: number }> {
+async function rig(maxBytes?: number, maxConcurrent?: number): Promise<{ speech: FakeSpeech; port: number }> {
   const speech = await startFakeSpeech();
   cleanups.push(() => speech.stop());
   const gw: Gateway = await startGateway({
@@ -24,7 +24,7 @@ async function rig(maxBytes?: number): Promise<{ speech: FakeSpeech; port: numbe
     speech: speechOverSocket(speech.path),
     speechSocket: speech.path,
     store: "gluck",
-    routes: sttRoute({ socket: speech.path, store: "gluck", ...(maxBytes ? { maxBytes } : {}) }),
+    routes: sttRoute({ socket: speech.path, store: "gluck", ...(maxBytes ? { maxBytes } : {}), ...(maxConcurrent !== undefined ? { maxConcurrent } : {}) }),
   });
   cleanups.push(() => gw.close());
   const addr = gw.server.address();
@@ -56,15 +56,30 @@ function post(port: number, query: string, type: string | undefined, body: Buffe
   });
 }
 
+const magic = { "audio/webm": Buffer.from([0x1a, 0x45, 0xdf, 0xa3]), "audio/mp4": Buffer.from([0, 0, 0, 0x18, 0x66, 0x74, 0x79, 0x70]) };
+const clipOf = (type: string, rest = "not really audio"): Buffer => Buffer.concat([type.startsWith("audio/mp4") ? magic["audio/mp4"] : magic["audio/webm"], Buffer.from(rest)]);
+
 describe("POST /stt", () => {
   it.each(["audio/webm;codecs=opus", "audio/mp4"])("passes a %s clip to speech and answers its text", async (type) => {
     const { speech, port } = await rig();
-    const clip = Buffer.from("not really audio");
+    const clip = clipOf(type);
     const r = await post(port, `?aria=${encodeURIComponent(aria)}`, type, clip);
     expect(r).toEqual({ status: 200, body: { text: "hello figaro", duration_ms: 1200, audio_id: "clip-1" } });
     expect(speech.clips).toHaveLength(1);
-    expect(speech.clips[0]?.contentType).toBe(type);
+    expect(speech.clips[0]?.contentType).toBe(type.split(";")[0]);
     expect(speech.clips[0]?.body.equals(clip)).toBe(true);
+  });
+
+  it("refuses a body whose first bytes are not the type it claims, before speech", async () => {
+    const { speech, port } = await rig();
+    expect((await post(port, `?aria=${aria}`, "audio/webm", Buffer.from("plain text, not audio"))).status).toBe(415);
+    expect((await post(port, `?aria=${aria}`, "audio/mp4", clipOf("audio/webm"))).status).toBe(415);
+    expect(speech.clips).toHaveLength(0);
+  });
+
+  it("refuses with 503 past the clips it will hold at once", async () => {
+    const { port } = await rig(undefined, 0);
+    expect((await post(port, `?aria=${aria}`, "audio/webm", clipOf("audio/webm"))).status).toBe(503);
   });
 
   it("refuses any other type with 415 and never reaches speech", async () => {
@@ -80,7 +95,7 @@ describe("POST /stt", () => {
   it("refuses a malformed or foreign aria with 400", async () => {
     const { speech, port } = await rig();
     for (const q of ["", "?aria=nope", "?aria=other/0123456789abcdef0123456789abcdef"]) {
-      expect((await post(port, q, "audio/webm", Buffer.from("x"))).status).toBe(400);
+      expect((await post(port, q, "audio/webm", clipOf("audio/webm", "x"))).status).toBe(400);
     }
     expect(speech.clips).toHaveLength(0);
   });
@@ -116,21 +131,21 @@ describe("POST /stt", () => {
     const { speech, port } = await rig();
     speech.sttStatus = status;
     speech.sttReply = reply;
-    const r = await post(port, `?aria=${aria}`, "audio/webm", Buffer.from("x"));
+    const r = await post(port, `?aria=${aria}`, "audio/webm", clipOf("audio/webm", "x"));
     expect(r).toEqual({ status: 502, body: { error } });
   });
 
   it("answers 502 when the speech socket is gone", async () => {
     const { speech, port } = await rig();
     await speech.stop();
-    const r = await post(port, `?aria=${aria}`, "audio/webm", Buffer.from("x"));
+    const r = await post(port, `?aria=${aria}`, "audio/webm", clipOf("audio/webm", "x"));
     expect(r.status).toBe(502);
     expect(String(r.body.error)).toContain("speech unreachable");
   });
 
   it("is behind the edge gate and takes POST only", async () => {
     const { port } = await rig();
-    const r = await post(port, `?aria=${aria}`, "audio/webm", Buffer.from("x"), { "x-figaro-edge": "w".repeat(40) });
+    const r = await post(port, `?aria=${aria}`, "audio/webm", clipOf("audio/webm", "x"), { "x-figaro-edge": "w".repeat(40) });
     expect(r.status).toBe(403);
     const get = await new Promise<number>((ok, fail) => request({ port, host: "127.0.0.1", path: "/stt", headers }, (res) => { res.resume(); ok(res.statusCode ?? 0); }).on("error", fail).end());
     expect(get).toBe(405);
