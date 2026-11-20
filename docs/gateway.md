@@ -14,15 +14,23 @@ every request needs the edge secret in `X-Figaro-Edge` and the admin in
 - `/door` (WebSocket): JSON-RPC to the door, one upstream connection per client.
   Allowed: `angelus.hello`, `figaro.follow`, `figaro.unfollow`, `figaro.form`,
   `figaro.read`, `figaro.qua`, `figaro.interrupt`, `figaro.fork`, `figaro.list`.
-  Everything else (set, form.create, kill) is refused. A `figaro.interrupt` also
-  cancels pending audio for that aria.
+  Everything else (set, form.create, kill) is refused. `figaro.qua` may carry only
+  `figaro_id`, `text` and `images`, and `figaro.fork` only `figaro_id`, `at_turn` and
+  `at_lt`: any other field (`form` with its patch, context or outfits; a fork's
+  `patch`, `outfits`, `seat`, `studies`, `abdicates`) is refused with an error naming
+  it, never dropped silently. A `figaro.interrupt` also cancels pending audio for
+  that aria. Frames are limited to 1 MiB, so `qua` images (the daemon allows up to
+  4 of 10 MiB) are out of scope here and close the socket with 1009. A failure to
+  reach the door closes the socket with a fixed reason; the detail goes to the
+  gateway's log with the query and userinfo removed.
 - `/audio/<aria>` (WebSocket, aria is the 32-hex id): follows the aria server-side
   with `figaro-forms/aria` (the native store: `onFrame` and `onTurnEnd`), one follow
   and one speech session per reply however many sockets listen. It speaks the
   output-role prose nodes (`node.type === "prose"`, `node.role === "output"`) of
   the frames it is told. Its frames are the gateway's own side channel, not UI IR.
 - `GET /audio/key/<store>/<aria>:<turn>/out`: replay, passed to the speech socket
-  with `Range`.
+  with `Range`. Only keys of the gateway's own store (404 otherwise); an unparsable
+  target or escape answers 400.
 - `POST /stt?aria=<store>/<aria>`: dictation. See below.
 - Anything else goes to `GatewayOptions.routes`, else 404. `figaro-gateway` mounts
   `sttRoute({socket, store})` there.
@@ -30,8 +38,10 @@ every request needs the edge secret in `X-Figaro-Edge` and the admin in
 ## POST /stt
 
 Body is the browser's recording, with its own `Content-Type`: `audio/webm`
-(`codecs=opus` allowed) or `audio/mp4`. At most 10 MB. The gateway passes the clip
-unchanged to figchat-speech `POST /stt` on the speech socket and answers:
+(`codecs=opus` allowed) or `audio/mp4`. At most 10 MB, and the first bytes must be
+those of the type claimed (EBML for webm, `ftyp` for mp4). At most 4 clips are in
+flight at once (`503` beyond). The gateway passes the clip to figchat-speech, with
+the bare media type as its `Content-Type`, `POST /stt` on the speech socket and answers:
 
 - `200 {"text", "duration_ms", "audio_id"}`. `audio_id` names the stored clip in
   figchat-speech (`POST /stt/<audio_id>` there re-transcribes it).
@@ -39,7 +49,8 @@ unchanged to figchat-speech `POST /stt` on the speech socket and answers:
 - `405` for anything but POST.
 - `413 {"error"}`: over 10 MB. A declared `Content-Length` over the limit is refused
   unread; otherwise reading stops at the limit and the connection closes.
-- `415 {"error"}`: any other type (`audio/ogg` included), refused before the body is read.
+- `415 {"error"}`: any other type (`audio/ogg` included), refused before the body is read, or a body that is not the type it claims.
+- `503 {"error"}`: too many clips in flight.
 - `502 {"error"}`: speech is unreachable, answers non-200 (its error text is passed on),
   or answers without `text`, `duration_ms` and `audio_id`.
 
