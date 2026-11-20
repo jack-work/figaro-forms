@@ -1,6 +1,7 @@
 import type { AppliedFrame, AriaClient, AriaStream, Node, TurnEnd } from "figaro-forms/aria";
 import { pcmFormat, type SpeechDial, type SpeechSession } from "./speech.js";
 import { takeSentences } from "./sentences.js";
+import { redact } from "./door.js";
 
 export interface AudioListener {
   json(frame: Record<string, unknown>): void;
@@ -12,6 +13,7 @@ export interface AudioHubOptions {
   readonly speech: SpeechDial;
   readonly store: string;
   readonly voiceOf?: (aria: string) => Promise<string | undefined>;
+  readonly log?: (line: string) => void;
 }
 
 export type CancelReason = "interrupt" | "new-turn" | "client" | "reaped";
@@ -38,6 +40,7 @@ interface Active {
   retried: boolean;
   started: boolean;
   offset: number;
+  chunks: number;
   carry: Buffer;
   dead: boolean;
 }
@@ -83,7 +86,12 @@ class Follower {
     this.finished = Math.max(this.finished, a.turn);
     a.dead = true;
     a.speech?.cancel();
+    this.log(`turn cancelled aria=${this.aria} turn=${a.turn} why=${why} chunks=${a.chunks} bytes=${a.offset}`);
     if (tell && (a.started || a.written.length > 0 || a.buf !== "")) this.send({ type: "audio.cancel", turn: a.turn, key: a.key, why });
+  }
+
+  private log(line: string): void {
+    this.hub.options.log?.(line);
   }
 
   private cursor(): number {
@@ -166,10 +174,12 @@ class Follower {
       retried: false,
       started: false,
       offset: 0,
+      chunks: 0,
       carry: Buffer.alloc(0),
       dead: false,
     };
     this.active = a;
+    this.log(`turn seen aria=${this.aria} turn=${turn}`);
     return a;
   }
 
@@ -224,37 +234,55 @@ class Follower {
     });
   }
 
+  private speechFailed(a: Active, text: string): void {
+    if (this.active === a) this.active = undefined;
+    a.dead = true;
+    this.log(`tts error aria=${this.aria} turn=${a.turn} chunks=${a.chunks} text=${redact(text)}`);
+    this.send({ type: "error", turn: a.turn, code: "speech", text });
+  }
+
   private openSpeech(a: Active, voice: string | undefined): void {
     let heard = false;
-    const session = this.hub.options.speech(
+    this.log(`tts open aria=${this.aria} turn=${a.turn} key=${a.key}${voice ? " voice=" + voice : ""}`);
+    let session: SpeechSession;
+    try {
+      session = this.openSession(a, voice, () => (heard = true), () => heard);
+    } catch (e) {
+      this.speechFailed(a, e instanceof Error ? e.message : String(e));
+      return;
+    }
+    a.speech = session;
+    for (const t of a.written) session.write(t);
+    if (a.ended) session.end();
+  }
+
+  private openSession(a: Active, voice: string | undefined, hear: () => void, wasHeard: () => boolean): SpeechSession {
+    return this.hub.options.speech(
       { key: a.key, ...(voice ? { voice } : {}) },
       {
         audio: (pcm) => {
           if (a.dead) return;
-          heard = true;
+          hear();
           this.audio(a, pcm);
         },
         done: (audioId) => {
           if (a.dead) return;
           if (this.active === a) this.active = undefined;
+          this.log(`tts done aria=${this.aria} turn=${a.turn} chunks=${a.chunks} bytes=${a.offset}${audioId !== undefined ? " audio_id=" + audioId : ""}`);
           this.send({ type: "audio.end", turn: a.turn, key: a.key, ...(audioId !== undefined ? { audio_id: audioId } : {}) });
         },
         error: (text) => {
           if (a.dead) return;
-          if (voice && !heard && !a.retried) {
+          if (voice && !wasHeard() && !a.retried) {
             a.retried = true;
+            this.log(`tts retry without voice aria=${this.aria} turn=${a.turn} text=${redact(text)}`);
             this.openSpeech(a, undefined);
             return;
           }
-          if (this.active === a) this.active = undefined;
-          a.dead = true;
-          this.send({ type: "error", turn: a.turn, code: "speech", text });
+          this.speechFailed(a, text);
         },
       },
     );
-    a.speech = session;
-    for (const t of a.written) session.write(t);
-    if (a.ended) session.end();
   }
 
   private audio(a: Active, chunk: Buffer): void {
@@ -269,6 +297,7 @@ class Follower {
     }
     const header = { type: "audio.chunk", turn: a.turn, node: a.fedNode, chars: a.fedChars, cursor: this.cursor(), offset: a.offset, bytes: out.length };
     a.offset += out.length;
+    a.chunks += 1;
     for (const l of this.listeners) {
       l.json(header);
       l.binary(out);

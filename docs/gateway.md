@@ -23,7 +23,9 @@ every request needs the edge secret in `X-Figaro-Edge` and the admin in
   4 of 10 MiB) are out of scope here and close the socket with 1009. A failure to
   reach the door closes the socket with a fixed reason; the detail goes to the
   gateway's log with the query and userinfo removed.
-- `/audio/<aria>` (WebSocket, aria is the 32-hex id): follows the aria server-side
+- `/audio/<aria>` or `/audio/<store>/<aria>` (WebSocket, aria is the 32-hex id; a
+  store the gateway does not serve is answered with an `error` frame, code `store`,
+  and the socket closes): follows the aria server-side
   with `figaro-forms/aria` (the native store: `onFrame` and `onTurnEnd`), one follow
   and one speech session per reply however many sockets listen. It speaks the
   output-role prose nodes (`node.type === "prose"`, `node.role === "output"`) of
@@ -84,7 +86,8 @@ Server to client, text (JSON):
 - `{type:"audio.cancel", turn, key, why}`; `why` is `new-turn`, `interrupt` or
   `client`. No `audio.end` follows.
 - `{type:"error", turn?, code, text}`: `code` is `speech` (that turn's audio is over),
-  or on attach `aria_gone`, `denied`, `unavailable`, after which the socket closes.
+  or on attach `aria_gone`, `denied`, `unavailable`, or `store` for a store this
+  gateway does not serve, after which the socket closes.
 
 Client to server: `{type:"cancel"}` stops the aria's pending speech for everyone.
 
@@ -93,6 +96,15 @@ newline, or 160 characters), not when a node closes. Thinking, tools, steering
 (role `input`) and the question are never spoken. A turn's end comes from the
 daemon's `turn.done`: `interrupted` cancels the audio (`why: "interrupt"`), any
 other end finishes it. Markdown stripping is the speech service's.
+
+## Log
+
+Each `/audio` connection writes to stderr (the journal), never a token or query
+string: `audio: connect aria= user=` (and `store=` when the client named one),
+`audio: dialing the door`, `audio: follow ready` or `audio: follow failed code=
+text=` with the refusal verbatim, `turn seen`, `tts open`, `tts done` / `tts error`
+/ `turn cancelled` with chunk and byte counts, and `audio: closed code= reason=
+json= binary=` with the frame counts sent.
 
 ## Sample unit
 

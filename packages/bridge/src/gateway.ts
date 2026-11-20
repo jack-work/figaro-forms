@@ -5,7 +5,7 @@ import { WebSocketServer, type WebSocket } from "ws";
 import type { Dial } from "figaro-forms";
 import { AriaClient, ariaRefusal, AriaUnavailable } from "figaro-forms/aria";
 import { AudioHub, ariaIdPattern, type AudioListener } from "./audio.js";
-import { proxyDoor } from "./door.js";
+import { proxyDoor, redact } from "./door.js";
 import { edgeHeader } from "./bridge.js";
 import type { SpeechDial } from "./speech.js";
 
@@ -93,9 +93,14 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
   const origins = new Set(o.origins ?? []);
   const maxPayload = o.maxFrameBytes ?? 1 << 20;
 
+  const log = o.log ?? ((line: string) => process.stderr.write(`figaro-gateway: ${line}\n`));
   let shared: AriaClient | undefined;
   const hub = new AudioHub({
-    connect: () => (shared = new AriaClient({ dial: o.door(e.admin) })),
+    log,
+    connect: () => {
+      log("audio: dialing the door");
+      return (shared = new AriaClient({ dial: o.door(e.admin) }));
+    },
     speech: o.speech,
     store: o.store,
     voiceOf: async (aria) => {
@@ -159,16 +164,18 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
       refuseUpgrade(sock, "400 Bad Request");
       return;
     }
-    const audio = /^\/audio\/([^/]+)$/.exec(path)?.[1];
+    const target = /^\/audio\/(?:([^/]+)\/)?([^/]+)$/.exec(path);
+    const audio = target?.[2];
+    const asked = target?.[1];
     if (path === "/door") {
       wss.handleUpgrade(req, sock, head, (ws) => {
         track(ws);
-        proxyDoor(ws, o.door(String(req.headers["remote-user"])), hub, o.log ?? ((line) => process.stderr.write(`figaro-gateway: ${line}\n`)));
+        proxyDoor(ws, o.door(String(req.headers["remote-user"])), hub, log);
       });
     } else if (audio !== undefined && ariaIdPattern.test(audio)) {
       wss.handleUpgrade(req, sock, head, (ws) => {
         track(ws);
-        void attend(ws, audio);
+        void attend(ws, audio, asked, String(req.headers["remote-user"]));
       });
     } else {
       refuseUpgrade(sock, "404 Not Found");
@@ -182,26 +189,40 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
     ws.on("close", () => pings.delete(ws));
   }
 
-  async function attend(ws: WebSocket, aria: string): Promise<void> {
+  async function attend(ws: WebSocket, aria: string, asked: string | undefined, user: string): Promise<void> {
+    let jsonSent = 0;
+    let binarySent = 0;
     const listener: AudioListener = {
       json: (f) => {
-        if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(f));
+        if (ws.readyState !== ws.OPEN) return;
+        jsonSent += 1;
+        ws.send(JSON.stringify(f));
       },
       binary: (b) => {
         if (ws.readyState !== ws.OPEN) return;
         if (ws.bufferedAmount > bufferCeiling) {
+          log(`audio: closing aria=${aria}, client too slow`);
           ws.close(1013, "client too slow for audio");
           return;
         }
+        binarySent += 1;
         ws.send(b, { binary: true });
       },
     };
     let leave: (() => void) | undefined;
     let closed = false;
-    ws.on("close", () => {
+    log(`audio: connect aria=${aria} user=${user}${asked !== undefined ? ` store=${asked}` : ""}`);
+    ws.on("close", (code, reason) => {
       closed = true;
       leave?.();
+      log(`audio: closed aria=${aria} code=${code} reason=${redact(reason.toString())} json=${jsonSent} binary=${binarySent}`);
     });
+    if (asked !== undefined && asked !== o.store) {
+      log(`audio: refused aria=${aria}, store ${redact(asked)} is not served here`);
+      listener.json({ type: "error", code: "store", text: `this gateway serves the store ${o.store}, not ${asked}` });
+      ws.close(1008, "unknown store");
+      return;
+    }
     ws.on("message", (data, binary) => {
       if (binary) {
         ws.close(1003, "text frames only");
@@ -222,9 +243,12 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
         return;
       }
       leave = left;
+      log(`audio: follow ready aria=${aria}`);
       listener.json({ type: "ready", aria, store: o.store });
     } catch (err) {
-      listener.json({ type: "error", code: refusalCode(err), text: err instanceof Error ? err.message : String(err) });
+      const text = err instanceof Error ? err.message : String(err);
+      log(`audio: follow failed aria=${aria} code=${refusalCode(err)} text=${redact(text)}`);
+      listener.json({ type: "error", code: refusalCode(err), text });
       ws.close(1011, "cannot attend");
     }
   }

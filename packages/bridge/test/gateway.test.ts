@@ -235,6 +235,93 @@ describe("figaro gateway", () => {
     expect(ofType(got, "error")[0]).toMatchObject({ code: "aria_gone" });
   });
 
+  it("logs each step of an /audio follow without secrets or query strings", async () => {
+    const lines: string[] = [];
+    const { fake, port } = await rig(undefined, { log: (l) => lines.push(l) });
+    const ws = await open(`ws://127.0.0.1:${port}/audio/${id}?token=hunter2`);
+    const got = collect(ws);
+    await until("ready", () => ofType(got, "ready").length === 1);
+    fake.openTurn(id, 1, "hi");
+    fake.update(id, 1, [prose(0, "Hello there. Rest")]);
+    await until("audio", () => got.some((f) => Buffer.isBuffer(f)));
+    fake.seal(id, 1);
+    fake.done(id);
+    await until("end", () => ofType(got, "audio.end").length === 1);
+    ws.close();
+    await until("closed log", () => lines.some((l) => l.startsWith("audio: closed")));
+    const text = lines.join("\n");
+    expect(text).toContain(`audio: connect aria=${id} user=gluck`);
+    expect(text).toContain(`audio: follow ready aria=${id}`);
+    expect(text).toContain(`turn seen aria=${id} turn=1`);
+    expect(text).toContain(`tts open aria=${id} turn=1 key=gluck/${id}:1/out`);
+    expect(text).toMatch(/tts done aria=\w+ turn=1 chunks=\d+ bytes=\d+ audio_id=a-1/);
+    expect(text).toMatch(/audio: closed aria=\w+ code=\d+ reason=.* json=\d+ binary=[1-9]/);
+    expect(text).not.toContain("hunter2");
+    expect(text).not.toContain("token=");
+  });
+
+  it("logs and tells the client when the follow cannot start: unknown aria, refused follow", async () => {
+    const lines: string[] = [];
+    const { fake, port } = await rig(undefined, { log: (l) => lines.push(l) });
+    const gone = "f".repeat(32);
+    const a = await open(`ws://127.0.0.1:${port}/audio/${gone}`);
+    await until("gone", () => ofType(collect(a), "error").length === 1);
+    expect(ofType(collect(a), "error")[0]).toMatchObject({ code: "aria_gone" });
+    expect(lines.join("\n")).toContain(`audio: follow failed aria=${gone} code=aria_gone`);
+
+    const denied = "e".repeat(32);
+    fake.addAria(denied);
+    fake.refuseFollow.set(denied, { code: -32020, message: "user:gluck lacks listen on aria:e" });
+    const b = await open(`ws://127.0.0.1:${port}/audio/${denied}`);
+    await until("denied", () => ofType(collect(b), "error").length === 1);
+    expect(ofType(collect(b), "error")[0]).toMatchObject({ code: "denied", text: expect.stringContaining("lacks listen") });
+    expect(lines.join("\n")).toContain(`audio: follow failed aria=${denied} code=denied`);
+    await until("closed", () => b.readyState === WebSocket.CLOSED);
+  });
+
+  it("refuses a store the gateway does not serve with an error frame, and accepts its own", async () => {
+    const lines: string[] = [];
+    const { port } = await rig(undefined, { log: (l) => lines.push(l) });
+    const other = await open(`ws://127.0.0.1:${port}/audio/spain/${id}`);
+    await until("error", () => ofType(collect(other), "error").length === 1);
+    expect(ofType(collect(other), "error")[0]).toMatchObject({ code: "store" });
+    await until("closed", () => other.readyState === WebSocket.CLOSED);
+    expect(lines.join("\n")).toContain("store spain is not served here");
+    const own = await open(`ws://127.0.0.1:${port}/audio/gluck/${id}`);
+    await until("ready", () => ofType(collect(own), "ready").length === 1);
+    expect(ofType(collect(own), "ready")[0]).toEqual({ type: "ready", aria: id, store: "gluck" });
+  });
+
+  it("answers a speech service that cannot be reached with a speech error frame and a log line", async () => {
+    const lines: string[] = [];
+    const { fake, port } = await rig(undefined, { log: (l) => lines.push(l), speech: speechOverSocket("/nonexistent/speech.sock") });
+    const ws = await open(`ws://127.0.0.1:${port}/audio/${id}`);
+    const got = collect(ws);
+    await until("ready", () => ofType(got, "ready").length === 1);
+    fake.openTurn(id, 1, "hi");
+    fake.update(id, 1, [prose(0, "Hello there. Rest")]);
+    await until("error", () => ofType(got, "error").length === 1);
+    expect(ofType(got, "error")[0]).toMatchObject({ turn: 1, code: "speech" });
+    expect(lines.join("\n")).toMatch(/tts error aria=\w+ turn=1/);
+  });
+
+  it("answers a speech dial that throws with a speech error frame", async () => {
+    const lines: string[] = [];
+    const { fake, port } = await rig(undefined, {
+      log: (l) => lines.push(l),
+      speech: () => {
+        throw new Error("no speech for you");
+      },
+    });
+    const ws = await open(`ws://127.0.0.1:${port}/audio/${id}`);
+    const got = collect(ws);
+    await until("ready", () => ofType(got, "ready").length === 1);
+    fake.openTurn(id, 1, "hi");
+    fake.update(id, 1, [prose(0, "Hello there. Rest")]);
+    await until("error", () => ofType(got, "error").length === 1);
+    expect(ofType(got, "error")[0]).toMatchObject({ turn: 1, code: "speech", text: "no speech for you" });
+  });
+
   it("proxies GET /audio/key/{key} to the speech socket with Range, and refuses a malformed key", async () => {
     const { port, speech } = await rig();
     const get = (path: string): Promise<{ status: number; body: string }> =>
