@@ -22,6 +22,9 @@ DOM. `apps/demo` is the one place anything is drawn.
 | `figaro-forms/hierarchy` | server-authorized role/figaro hierarchy: `readHierarchy` (server side, as the caller), `hierarchyHttp`, `HierarchyFeed` (client side) |
 | `figaro-forms/react` | `FormsProvider`, `useFormValue`, `useForm`, `useFormStatus`, `useFormEditor`, `useFormView`, `useConnectionState` |
 | `figaro-forms/jotai` | `formValueAtom`, `formAtom`, `formStatusAtom` |
+| `figaro-forms/aria` | `AriaClient`, `AriaStream`: attach to one figaro's live transcript, catch up from a cursor, follow, resume after a reconnect; one typed event per node kind; `prompt`, `interrupt`, `fork`, `list`. Wire contract in [docs/aria.md](docs/aria.md) |
+| `figaro-forms/aria/react` | `AriaProvider`, `useAria`, `useAriaEvents`, `useAriaPhase`, `useAriaList`, `useAriaStream` |
+| `figaro-forms/aria/jotai` | `ariaAtom`, `ariaPhaseAtom`, `ariaEventAtom`, `ariaListAtom` |
 
 ```ts
 import { FormsClient, webSocketDial } from "figaro-forms";
