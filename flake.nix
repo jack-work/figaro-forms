@@ -57,6 +57,7 @@
             cp -r ${ws}/bridge/lib/node_modules-ws $out/lib/node_modules/ws
             cp -r ${ws}/lib/dist ${ws}/lib/package.json $out/lib/node_modules/figaro-forms/
             makeWrapper ${pkgs.nodejs_24}/bin/node $out/bin/figaro-forms-bridge --add-flags $out/lib/dist/main.js
+            makeWrapper ${pkgs.nodejs_24}/bin/node $out/bin/figaro-gateway --add-flags $out/lib/dist/gateway-main.js
           '';
         });
 
