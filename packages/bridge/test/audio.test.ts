@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { AriaClient } from "../../figaro-forms/src/aria/index.js";
+import { AriaClient } from "figaro-forms/aria";
 import { FakeAria, settle, tick } from "../../figaro-forms/test/aria/fake-aria.js";
 import { AudioHub, audioKey, type AudioListener } from "../src/audio.js";
 import { speechOverSocket } from "../src/speech.js";
