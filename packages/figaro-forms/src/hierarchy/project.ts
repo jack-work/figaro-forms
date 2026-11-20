@@ -77,7 +77,7 @@ async function project(call: CallerCall, o: ReadHierarchyOptions): Promise<Hiera
 
   const children = new Map<string, string[]>();
   for (const f of forms.values()) {
-    const p = f.parent && forms.has(f.parent) ? f.parent : "";
+    const p = placedUnder(f, forms);
     if (p) (children.get(p) ?? children.set(p, []).get(p)!).push(f.id);
   }
 
@@ -86,7 +86,7 @@ async function project(call: CallerCall, o: ReadHierarchyOptions): Promise<Hiera
     if (!forms.has(o.root)) return { status: "denied", reason: `${o.root} is not visible to this caller` };
     roots = [o.root];
   } else {
-    roots = [...forms.values()].filter((f) => !(f.parent && forms.has(f.parent)) && f.target_aria).map((f) => f.id);
+    roots = [...forms.values()].filter((f) => !placedUnder(f, forms) && f.target_aria).map((f) => f.id);
   }
   roots.sort();
 
@@ -129,6 +129,10 @@ function subtree(root: string, children: ReadonlyMap<string, readonly string[]>,
   return out;
 }
 
+function placedUnder(f: ListRow, forms: ReadonlyMap<string, ListRow>): string {
+  return [f.present, f.parent].find((p) => p && forms.has(p)) ?? "";
+}
+
 function order(
   root: string,
   children: ReadonlyMap<string, readonly string[]>,
@@ -150,7 +154,7 @@ function order(
     out.push({
       id,
       ...(row.handle ? { handle: row.handle } : {}),
-      parent: id !== root && row.parent && inOrder.has(row.parent) ? row.parent : null,
+      parent: id !== root && inOrder.has(placedUnder(row, forms)) ? placedUnder(row, forms) : null,
       ...(target ? { target_aria: target } : {}),
       state,
     });

@@ -55,6 +55,18 @@ describe("readHierarchy: the server decides what the caller sees", () => {
     for (const leak of ["secret-system", "/private/handoff", "secret-note", "target-aria", "gone", "@scratch"]) expect(text).not.toContain(leak);
   });
 
+  it("draws a form under the form it was placed under", async () => {
+    const d = door();
+    d.add("@backend", { "role-name": "Backend" });
+    d.rows.push({ id: "@backend", kind: "form", state: "form", target_aria: "ab", parent: "", present: "@king" });
+    d.rows.push({ id: "ab", kind: "conversation", state: "active" });
+    const r = await readHierarchy(caller(d), at);
+    expect(r.status).toBe("current");
+    if (r.status !== "current") return;
+    expect(r.orders.map((o) => o.root)).toEqual(["@king"]);
+    expect(r.orders[0]!.forms.find((f) => f.id === "@backend")?.parent).toBe("@king");
+  });
+
   it("omits what the daemon hides, and every reference to it", async () => {
     const d = door();
     const hidden = new Set(["@king", "@spy", "@spyling", "ak", "as", "hid"]);
