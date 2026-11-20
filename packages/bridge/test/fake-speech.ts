@@ -17,6 +17,7 @@ export interface FakeSpeech {
   pcmPerText: number;
   audioId: string;
   rejectVoice: boolean;
+  readonly replays: { url: string; range: string | undefined }[];
   stop(): Promise<void>;
 }
 
@@ -27,7 +28,12 @@ export async function startFakeSpeech(): Promise<FakeSpeech> {
   const calls: SpeechCall[] = [];
   const server = createServer();
   const ws = new WebSocketServer({ noServer: true });
-  const fake: FakeSpeech = { path, calls, pcmPerText: 480, audioId: "a-1", rejectVoice: false, stop: () => new Promise((ok) => { for (const c of calls) c.socket.terminate(); server.close(() => ok()); server.closeAllConnections(); }) };
+  const fake: FakeSpeech = { path, calls, pcmPerText: 480, audioId: "a-1", rejectVoice: false, replays: [], stop: () => new Promise((ok) => { for (const c of calls) c.socket.terminate(); server.close(() => ok()); server.closeAllConnections(); }) };
+  server.on("request", (req, res) => {
+    fake.replays.push({ url: req.url ?? "", range: req.headers.range });
+    if (req.url?.startsWith("/audio/key/") && !req.url.includes("missing")) res.writeHead(200, { "Content-Type": "audio/mpeg", "Content-Length": 7 }).end("MP3DATA");
+    else res.writeHead(404).end();
+  });
   server.on("upgrade", (req, sock, head) => {
     const url = req.url ?? "";
     if (fake.rejectVoice && url.includes("voice=")) {
