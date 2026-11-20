@@ -1,5 +1,7 @@
 import { atom, type Atom, type WritableAtom } from "jotai/vanilla";
+import type { ConnectionState } from "../rpc.js";
 import type { AriaClient, AriaList, ListOptions } from "./client.js";
+import type { AriaRow } from "./wire.js";
 import type { AppliedFrame, AriaSnapshot, AriaStream, Phase } from "./stream.js";
 
 const families = new WeakMap<AriaClient, Map<string, unknown>>();
@@ -76,6 +78,79 @@ export function ariaListAtom(client: AriaClient, o: ListOptions = {}): WritableA
         return client.list(o);
       },
       (_get, set) => set(rev, (n) => n + 1),
+    );
+  });
+}
+
+export function ariaConnectionAtom(client: AriaClient): Atom<ConnectionState> {
+  return memo(client, "c", () => {
+    const tick = atom(0);
+    tick.onMount = (set) => client.connection.onState(() => set((n) => n + 1));
+    return atom((get) => {
+      get(tick);
+      return client.connection.state;
+    });
+  });
+}
+
+export interface AriaRoster {
+  readonly rows: readonly AriaRow[];
+  readonly next: string | undefined;
+  readonly refused: number;
+  readonly refusedWhy: string | undefined;
+  readonly loading: boolean;
+  readonly error: unknown;
+}
+
+export type RosterAction = "more" | "refresh";
+
+export function ariaRosterAtom(client: AriaClient, o: Omit<ListOptions, "before"> = {}): WritableAtom<AriaRoster, [RosterAction], Promise<void>> {
+  return memo(client, `r\0${JSON.stringify(o)}`, () => {
+    const initial: AriaRoster = { rows: [], next: undefined, refused: 0, refusedWhy: undefined, loading: true, error: undefined };
+    const state = atom(initial);
+    let generation = 0;
+    let cursor: string | undefined;
+    let inflight = false;
+
+    const load = (write: (fn: (prev: AriaRoster) => AriaRoster) => void, action: RosterAction): Promise<void> => {
+      if (action === "more" && (cursor === undefined || inflight)) return Promise.resolve();
+      const mine = ++generation;
+      inflight = true;
+      write((s) => ({ ...s, loading: true }));
+      const req: ListOptions = action === "more" ? { ...o, before: cursor as string } : o;
+      return client.list(req).then(
+        (list) => {
+          if (mine !== generation) return;
+          inflight = false;
+          cursor = list.nextBefore;
+          write((s) => ({
+            rows: action === "more" ? [...s.rows, ...list.rows] : list.rows,
+            next: list.nextBefore,
+            refused: list.refused,
+            refusedWhy: list.refusedWhy,
+            loading: false,
+            error: undefined,
+          }));
+        },
+        (error: unknown) => {
+          if (mine !== generation) return;
+          inflight = false;
+          write((s) => ({ ...s, loading: false, error }));
+        },
+      );
+    };
+
+    state.onMount = (set) => {
+      const reload = () => void load(set, "refresh");
+      if (client.connection.state === "open") reload();
+      return client.connection.onState((s) => {
+        if (s === "open") reload();
+      });
+    };
+
+    return atom(
+      (get) => get(state),
+      (_get, set, action: RosterAction) => load((fn) => set(state, fn), action),
     );
   });
 }

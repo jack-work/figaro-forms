@@ -239,9 +239,20 @@ export class FakeAria {
         else this.reply(c, f.id, { result: read() });
         return;
       }
-      case "figaro.list":
-        this.reply(c, f.id, { result: { figaros: this.rows, ...(this.listRefused ? { refused: this.listRefused, refused_why: "policy" } : {}) } });
+      case "figaro.list": {
+        const limit = typeof f.params.limit === "number" ? f.params.limit : undefined;
+        const from = typeof f.params.before === "string" ? this.rows.findIndex((r) => r.id === f.params.before) + 1 : 0;
+        const page = limit === undefined ? this.rows : this.rows.slice(from, from + limit);
+        const more = limit !== undefined && from + limit < this.rows.length;
+        this.reply(c, f.id, {
+          result: {
+            figaros: page,
+            ...(more ? { next_before: String(page[page.length - 1]?.id) } : {}),
+            ...(this.listRefused ? { refused: this.listRefused, refused_why: "policy" } : {}),
+          },
+        });
         return;
+      }
       default: {
         const canned = this.answers.get(f.method);
         if (canned !== undefined) return this.reply(c, f.id, { result: canned });

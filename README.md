@@ -24,7 +24,7 @@ DOM. `apps/demo` is the one place anything is drawn.
 | `figaro-forms/jotai` | `formValueAtom`, `formAtom`, `formStatusAtom` |
 | `figaro-forms/aria` | `AriaClient`, `AriaStream`, `Transcript`: figaro's UI IR (`figaro.aria` pages, livedoc nodes) as the daemon sends it, folded the way the pager folds it; attach, catch up, follow, resume after a reconnect; `qua`, `interrupt`, `fork`, `list`. Wire contract in [docs/aria.md](docs/aria.md) |
 | `figaro-forms/aria/react` | `AriaProvider`, `useAria`, `useAriaFrames`, `useAriaPhase`, `useAriaList`, `useAriaStream` |
-| `figaro-forms/aria/jotai` | `ariaAtom`, `ariaPhaseAtom`, `ariaFrameAtom`, `ariaListAtom` |
+| `figaro-forms/aria/jotai` | `ariaAtom`, `ariaPhaseAtom`, `ariaFrameAtom`, `ariaListAtom`, `ariaConnectionAtom`, `ariaRosterAtom` (paged list, written with `"more"` or `"refresh"`, refetched when the connection reopens) |
 
 ```ts
 import { FormsClient, webSocketDial } from "figaro-forms";

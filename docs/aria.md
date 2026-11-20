@@ -317,8 +317,11 @@ const { closed, open } = stream.snapshot().view;
 
 `figaro-forms/aria/react` has `AriaProvider`, `useAria(id)` (the snapshot),
 `useAriaFrames(id, handler)`, `useAriaPhase`, `useAriaList` and `useAriaStream`.
-`figaro-forms/aria/jotai` has `ariaAtom`, `ariaPhaseAtom`, `ariaFrameAtom` and
-`ariaListAtom`. `apps/demo` has a page that attends one figaro and renders each
+`figaro-forms/aria/jotai` has `ariaAtom`, `ariaPhaseAtom`, `ariaFrameAtom`,
+`ariaListAtom`, `ariaConnectionAtom` and `ariaRosterAtom`. The roster reads
+`{ rows, next, refused, refusedWhy, loading, error }` and is written with
+`"more"` (the next page, appended) or `"refresh"`; it loads when mounted and
+again whenever the connection reopens. `apps/demo` has a page that attends one figaro and renders each
 node by its native `type`.
 
 ## Running the tests
