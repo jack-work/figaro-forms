@@ -38,7 +38,7 @@ export interface ReadHierarchyOptions {
   readonly now?: () => number;
 }
 
-export const publicStateKeys = ["role-name", "name", "title", "charter", "summary", "owns", "boundary", "kind", "lifecycle", "reports-to"] as const;
+export const publicStateKeys = ["role-name", "name", "title", "charter", "summary", "owns", "boundary", "kind", "lifecycle", "reports-to", "lanes"] as const;
 
 export async function readHierarchy(call: CallerCall, o: ReadHierarchyOptions = {}): Promise<HierarchyReply> {
   try {
@@ -198,6 +198,13 @@ function publicState(snap: JsonObject, visible: (ref: string) => boolean): JsonO
     if (k === "lifecycle") {
       if (typeof v === "string") out[k] = v;
       else if (isObject(v) && typeof v.status === "string") out[k] = { status: v.status };
+      continue;
+    }
+    if (k === "lanes") {
+      if (isObject(v)) {
+        const lanes = Object.fromEntries(Object.entries(v).filter(([, h]) => typeof h === "string"));
+        if (Object.keys(lanes).length > 0) out[k] = lanes;
+      }
       continue;
     }
     if (k === "owns") {

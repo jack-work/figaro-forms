@@ -6,7 +6,7 @@ import { FakeDoor } from "./fake-door.js";
 function door(): FakeDoor {
   const d = new FakeDoor();
   d.add("@king", { "role-name": "King", charter: "Governs.", "target-aria": "ak", system: { key: "secret-system" }, handoff: "/private/handoff" });
-  d.add("@eng", { "role-name": "Engineer", lifecycle: { status: "active", note: "secret-note" }, "reports-to": "@king", owns: ["figaro"] });
+  d.add("@eng", { "role-name": "Engineer", lifecycle: { status: "active", note: "secret-note" }, "reports-to": "@king", owns: ["figaro"], lanes: { "aria-log": "fleet.lane.figaro.aria-log", bad: 7 } });
   d.add("@spy", { "role-name": "Hidden Seat", charter: "secret-charter" });
   d.add("@spyling", { "role-name": "Below Hidden" });
   d.add("@scratch", { name: "scratch" });
@@ -48,7 +48,7 @@ describe("readHierarchy: the server decides what the caller sees", () => {
       ["@spy", "@king"],
       ["@spyling", "@spy"],
     ]);
-    expect(o.forms.find((f) => f.id === "@eng")?.state).toEqual({ "role-name": "Engineer", lifecycle: { status: "active" }, "reports-to": "@king", owns: ["figaro"] });
+    expect(o.forms.find((f) => f.id === "@eng")?.state).toEqual({ "role-name": "Engineer", lifecycle: { status: "active" }, "reports-to": "@king", owns: ["figaro"], lanes: { "aria-log": "fleet.lane.figaro.aria-log" } });
     expect(o.topology).toEqual({ w1: "ae", w2: "w1", hid: "ae" });
     expect(o.arias.map((a) => a.id)).toEqual(["ae", "ak", "as", "hid", "w1", "w2"]);
     const text = JSON.stringify(r);
@@ -64,7 +64,7 @@ describe("readHierarchy: the server decides what the caller sees", () => {
     if (r.status !== "current") return;
     expect(r.orders.map((o) => o.root)).toEqual(["@eng"]);
     const o = r.orders[0]!;
-    expect(o.forms).toEqual([{ id: "@eng", handle: "@urgent-dynamite", parent: null, target_aria: "ae", state: { "role-name": "Engineer", lifecycle: { status: "active" }, owns: ["figaro"] } }]);
+    expect(o.forms).toEqual([{ id: "@eng", handle: "@urgent-dynamite", parent: null, target_aria: "ae", state: { "role-name": "Engineer", lifecycle: { status: "active" }, owns: ["figaro"], lanes: { "aria-log": "fleet.lane.figaro.aria-log" } } }]);
     expect(o.arias.map((a) => a.id)).toEqual(["ae", "w1", "w2"]);
     const text = JSON.stringify(r);
     for (const leak of hidden) expect(text).not.toContain(`"${leak}"`);
