@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { chmodSync, mkdtempSync, writeFileSync } from "node:fs";
 import { request } from "node:http";
 import { createServer, type Server } from "node:net";
@@ -273,5 +274,73 @@ describe("GET /drift", () => {
     expect(body.roles).toBeUndefined();
     const garbled = await bridge({}, async () => ({ code: 0, stdout: "{not json\n", stderr: "" }));
     expect((await get(garbled, "/drift", { Authorization: `Bearer ${garbled.token}` })).code).toBe(502);
+  });
+});
+
+describe("--edge", () => {
+  const secret = randomBytes(32).toString("base64url");
+  const edge = { secret, peers: ["127.0.0.1"], admin: "admin" };
+  const good = { "X-Figaro-Edge": secret, "Remote-User": "admin", Host: "order.kelliher.info" };
+
+  it("serves /hierarchy and /drift to the edge, signed in as the admin, and nothing else", async () => {
+    const b = await bridge({ edge });
+    const h = await get(b, "/hierarchy", good);
+    expect(h.code).toBe(200);
+    expect(JSON.parse(h.body)).toMatchObject({ status: "current" });
+    const d = await get(b, "/drift", good);
+    expect(d.code).toBe(200);
+    expect((JSON.parse(d.body) as DriftReport).roles).toHaveLength(2);
+    expect((await get(b, "/", good)).code).toBe(404);
+    expect((await get(b, `/door?token=${b.token}`, good)).code).toBe(404);
+  });
+
+  for (const [name, headers] of [
+    ["no secret", { "Remote-User": "admin" }],
+    ["a wrong secret", { "X-Figaro-Edge": secret.slice(0, -1) + (secret.endsWith("A") ? "B" : "A"), "Remote-User": "admin" }],
+    ["a short secret", { "X-Figaro-Edge": secret.slice(0, 8), "Remote-User": "admin" }],
+    ["a bearer instead", { Authorization: "Bearer x", "Remote-User": "admin" }],
+  ] as const) {
+    it(`refuses ${name} before reading the request`, async () => {
+      let runs = 0;
+      const b = await bridge({ edge }, async () => {
+        runs++;
+        return { code: 0, stdout: checkOut, stderr: "" };
+      });
+      for (const path of ["/hierarchy", "/drift", "/"]) expect(await get(b, path, headers)).toEqual({ code: 403, body: "not from the edge" });
+      expect(runs).toBe(0);
+    });
+  }
+
+  it("refuses a peer outside the allowlist even with the secret", async () => {
+    const b = await bridge({ edge: { ...edge, peers: ["10.0.0.9"] } });
+    expect(await get(b, "/drift", good)).toEqual({ code: 403, body: "not from the edge" });
+  });
+
+  it("refuses any Remote-User but the admin", async () => {
+    const b = await bridge({ edge });
+    for (const user of [{ "Remote-User": "gluck" }, {}]) {
+      expect(await get(b, "/drift", { "X-Figaro-Edge": secret, ...user })).toEqual({ code: 403, body: "admin only" });
+    }
+  });
+
+  it("refuses to start with a short secret, no peer, a bad peer, no admin, or door options", async () => {
+    const s = "/nonexistent";
+    await expect(startBridge({ socket: s, edge: { ...edge, secret: "x".repeat(31) } })).rejects.toThrow(/32 bytes/);
+    await expect(startBridge({ socket: s, edge: { ...edge, peers: [] } })).rejects.toThrow(/--peer/);
+    await expect(startBridge({ socket: s, edge: { ...edge, peers: ["spain"] } })).rejects.toThrow(/not an IP/);
+    await expect(startBridge({ socket: s, edge: { ...edge, admin: "" } })).rejects.toThrow(/--admin/);
+    for (const extra of [{ write: true }, { staticDir: "/tmp" }, { origins: ["http://127.0.0.1:1"] }, { frameOrigins: ["http://127.0.0.1:1"] }]) {
+      await expect(startBridge({ socket: s, edge, ...extra })).rejects.toThrow(/--edge serves/);
+    }
+  });
+
+  it("opens no door", async () => {
+    const b = await bridge({ edge });
+    const status = await new Promise<string>((ok) => {
+      const ws = new WebSocket(b.doorUrl);
+      ws.onopen = () => (ws.close(), ok("open"));
+      ws.onerror = () => ok("refused");
+    });
+    expect(status).toBe("refused");
   });
 });

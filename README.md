@@ -144,6 +144,16 @@ line that is not a row, is a 502 `{error}`, never an empty list. Exit 1
 counts only when stderr tallies exactly the rows that failed, or, with
 none failed, exactly the rows that drift.
 
+## Behind an edge
+
+`--edge` serves `GET /hierarchy` and `GET /drift` and nothing else, on
+loopback, to an edge proxy that reaches it through a tunnel. Before the
+request is read, the peer must be a `--peer` and `X-Figaro-Edge` must equal
+the secret from `$CREDENTIALS_DIRECTORY/edge` (or `--edge-secret-file`, 32
+bytes or more); then `Remote-User` must be `--admin`. No door, no pages, no
+bearer. The proxy strips client `Remote-*` and `X-Figaro-Edge` and injects
+its own.
+
 ## Reaching a daemon
 
 - Behind the edge (fig.kelliher.info): same-origin `/door`, `edgeSession()`.

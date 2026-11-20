@@ -2,7 +2,7 @@ import { randomBytes, timingSafeEqual } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { connect, type Socket } from "node:net";
+import { connect, isIP, type Socket } from "node:net";
 import { extname, join, normalize, resolve, sep } from "node:path";
 import { WebSocketServer, type WebSocket } from "ws";
 import { RpcError, touchedKeys, type Patch } from "figaro-forms";
@@ -24,10 +24,18 @@ export interface BridgeOptions {
   readonly frameOrigins?: readonly string[];
   readonly token?: string;
   readonly maxFrameBytes?: number;
-  readonly hierarchyOnly?: boolean;
+  readonly edge?: EdgeGate;
   readonly driftCommand?: string;
   readonly checkRun?: () => Promise<CheckRun>;
 }
+
+export interface EdgeGate {
+  readonly secret: string;
+  readonly peers: readonly string[];
+  readonly admin: string;
+}
+
+export const edgeHeader = "x-figaro-edge";
 
 export interface Bridge {
   readonly server: Server;
@@ -195,13 +203,19 @@ export function defaultSocket(env: NodeJS.ProcessEnv = process.env): string {
 
 export async function startBridge(o: BridgeOptions): Promise<Bridge> {
   const host = o.host ?? "127.0.0.1";
-  if (o.hierarchyOnly) {
+  if (host !== "127.0.0.1" && host !== "::1" && host !== "localhost") {
+    throw new Error(`refusing to listen on ${host}: the bridge carries the daemon's owner reach and listens on loopback only; reach it from an edge through a tunnel and --edge`);
+  }
+  const edge = o.edge;
+  if (edge) {
     if (o.write || o.writeSystem || o.staticDir || o.origins?.length || o.frameOrigins?.length) {
-      throw new Error("--hierarchy-only serves GET /hierarchy and GET /drift alone: drop --write, --static, --origin and --frame-src");
+      throw new Error("--edge serves GET /hierarchy and GET /drift alone: drop --write, --static, --origin and --frame-src");
     }
-    if (!o.token) throw new Error("--hierarchy-only needs a token from FIGARO_FORMS_BRIDGE_TOKEN, never a random one");
-  } else if (host !== "127.0.0.1" && host !== "::1" && host !== "localhost") {
-    throw new Error(`refusing to listen on ${host}: the bridge carries the daemon's owner reach and listens on loopback only; --hierarchy-only may listen elsewhere`);
+    if (Buffer.byteLength(edge.secret) < 32) throw new Error("--edge: the edge secret is shorter than 32 bytes");
+    if (edge.peers.length === 0) throw new Error("--edge needs --peer: the address the edge proxy connects from");
+    const bad = edge.peers.find((p) => isIP(p) === 0);
+    if (bad !== undefined) throw new Error(`--peer ${bad}: not an IP address`);
+    if (!edge.admin) throw new Error("--edge needs --admin: the Remote-User the edge signs in");
   }
   const token = o.token ?? randomBytes(24).toString("base64url");
   const allowed = new Set<string>([...readMethods, ...(o.write ? writeMethods : [])]);
@@ -221,16 +235,22 @@ export async function startBridge(o: BridgeOptions): Promise<Bridge> {
   };
   const drift = cachedDrift(async () => mapDrift(parseCheck(await (o.checkRun ?? (() => runCheck(o.driftCommand ?? "figaro-apply")))()), socketDaemon(o.socket)));
   const server = createServer((req, res) => {
-    if (!loopbackHost(req)) {
+    if (edge) {
+      const refusal = edgeRefusal(edge, req);
+      if (refusal) {
+        res.writeHead(403, { "Content-Type": "text/plain; charset=utf-8" }).end(refusal);
+        return;
+      }
+    } else if (!loopbackHost(req)) {
       res.writeHead(421).end();
       return;
     }
     const path = new URL(req.url ?? "/", "http://bridge").pathname;
     if (path === "/hierarchy" || path === "/drift") {
-      void serveRead(path, o.socket, token, drift, req, res);
+      void serveRead(path, o.socket, edge ? undefined : token, drift, req, res);
       return;
     }
-    if (o.hierarchyOnly) {
+    if (edge) {
       res.writeHead(404).end();
       return;
     }
@@ -246,7 +266,7 @@ export async function startBridge(o: BridgeOptions): Promise<Bridge> {
     const given = url.searchParams.get("token") ?? "";
     const origin = req.headers.origin;
     const originOk = origin === undefined || own.has(origin) || origins.has(origin);
-    if (o.hierarchyOnly) {
+    if (edge) {
       sock.end("HTTP/1.1 404 Not Found\r\nConnection: close\r\nContent-Length: 0\r\n\r\n");
       return;
     }
@@ -340,18 +360,28 @@ function relay(ws: WebSocket, path: string, allowed: ReadonlySet<string>, write:
   });
 }
 
+export function edgeRefusal(edge: EdgeGate, req: IncomingMessage): string | undefined {
+  const peer = (req.socket.remoteAddress ?? "").replace(/^::ffff:/, "");
+  const given = req.headers[edgeHeader];
+  if (!edge.peers.includes(peer) || typeof given !== "string" || !sameToken(given, edge.secret)) return "not from the edge";
+  if (req.headers["remote-user"] !== edge.admin) return "admin only";
+  return undefined;
+}
+
 const readHead = { "Content-Type": "application/json", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer" };
 
-async function serveRead(path: string, socket: string, token: string, drift: DriftSource, req: IncomingMessage, res: ServerResponse): Promise<void> {
+async function serveRead(path: string, socket: string, token: string | undefined, drift: DriftSource, req: IncomingMessage, res: ServerResponse): Promise<void> {
   if (req.method !== "GET") {
     res.writeHead(405, { ...readHead, Allow: "GET" }).end();
     return;
   }
-  const auth = req.headers.authorization ?? "";
-  if (!sameToken(auth.startsWith("Bearer ") ? auth.slice(7) : "", token)) {
-    const { code, body } = hierarchyHttp({ status: "signedout", reason: `${path} needs the bridge token as a bearer` });
-    res.writeHead(code, readHead).end(JSON.stringify(body));
-    return;
+  if (token !== undefined) {
+    const auth = req.headers.authorization ?? "";
+    if (!sameToken(auth.startsWith("Bearer ") ? auth.slice(7) : "", token)) {
+      const { code, body } = hierarchyHttp({ status: "signedout", reason: `${path} needs the bridge token as a bearer` });
+      res.writeHead(code, readHead).end(JSON.stringify(body));
+      return;
+    }
   }
   if (path === "/drift") await serveDrift(drift, res);
   else await serveHierarchy(socket, req, res);
