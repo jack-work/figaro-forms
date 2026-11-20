@@ -265,6 +265,45 @@ describe("GET /drift", () => {
     ]);
   });
 
+  it("starts one check for overlapping loads, and they all get its answer", async () => {
+    let runs = 0;
+    let release!: () => void;
+    const gate = new Promise<void>((ok) => (release = ok));
+    const b = await bridge({}, async () => {
+      runs++;
+      await gate;
+      return { code: 1, stdout: checkOut, stderr: driftTally };
+    });
+    const auth = { Authorization: `Bearer ${b.token}` };
+    const loads = Promise.all([get(b, "/drift", auth), get(b, "/drift", auth), get(b, "/drift", auth)]);
+    await new Promise((ok) => setTimeout(ok, 50));
+    expect(runs).toBe(1);
+    release();
+    const answers = await loads;
+    expect(answers.map((a) => a.code)).toEqual([200, 200, 200]);
+    expect(new Set(answers.map((a) => a.body)).size).toBe(1);
+    expect(runs).toBe(1);
+  });
+
+  it("shares a failing run too, and does not keep it", async () => {
+    let runs = 0;
+    let release!: () => void;
+    const gate = new Promise<void>((ok) => (release = ok));
+    const b = await bridge({}, async () => {
+      runs++;
+      await gate;
+      return { code: 2, stdout: "", stderr: "boom" };
+    });
+    const auth = { Authorization: `Bearer ${b.token}` };
+    const loads = Promise.all([get(b, "/drift", auth), get(b, "/drift", auth)]);
+    await new Promise((ok) => setTimeout(ok, 50));
+    release();
+    expect((await loads).map((a) => a.code)).toEqual([502, 502]);
+    expect(runs).toBe(1);
+    expect((await get(b, "/drift", auth)).code).toBe(502);
+    expect(runs).toBe(2);
+  });
+
   it("answers a failed run with 502 and the error, never an empty list", async () => {
     const b = await bridge({}, async () => ({ code: 2, stdout: "", stderr: "figaro: system.fanout is refused inside a figaro" }));
     const r = await get(b, "/drift", { Authorization: `Bearer ${b.token}` });
