@@ -267,3 +267,23 @@ describe("transcript on hand-made frames", () => {
     expect(v2[1]).not.toBe(v1[1]);
   });
 });
+
+describe("what the push stream built, a fresh read of the same turns builds too", () => {
+  for (const name of ["plain-tool", "steer", "error", "midturn"]) {
+    it(`agrees on ${name}`, () => {
+      const live = run(name);
+      const tape = loadTape(name);
+      const last = reads(tape).at(-1) as NonNullable<ReturnType<typeof reads>[number]>;
+      const fresh = new Transcript({ aria: "a1", emit: () => {} });
+      fresh.fold(last, "read");
+      const strip = (turns: readonly import("../../src/aria/events.js").TurnView[]) =>
+        turns.map((t) => ({
+          turn: t.turn,
+          input: t.input?.text,
+          sealed: t.sealed,
+          nodes: t.nodes.map((n) => (n.kind === "tool" ? { ...n, tool: { ...n.tool, openedAt: undefined } } : n)),
+        }));
+      expect(strip(live.t.view())).toEqual(strip(fresh.view()));
+    });
+  }
+});
