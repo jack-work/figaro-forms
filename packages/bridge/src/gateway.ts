@@ -27,7 +27,10 @@ export interface GatewayOptions {
   readonly origins?: readonly string[];
   readonly maxFrameBytes?: number;
   readonly joinTimeoutMs?: number;
+  readonly routes?: GatewayRoute;
 }
+
+export type GatewayRoute = (req: IncomingMessage, res: ServerResponse, path: string, user: string) => boolean;
 
 export interface Gateway {
   readonly server: Server;
@@ -104,6 +107,7 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
       replay(o.speechSocket, decodeURIComponent(path.slice("/audio/key/".length)), req, res);
       return;
     }
+    if (o.routes?.(req, res, path, String(req.headers["remote-user"]))) return;
     res.writeHead(404).end();
   });
 

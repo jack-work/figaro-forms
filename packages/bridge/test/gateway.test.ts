@@ -184,6 +184,41 @@ describe("figchat gateway", () => {
     expect(speech.replays).toHaveLength(1);
   });
 
+  it("hands unknown HTTP routes behind the gate to a seam, for speech in", async () => {
+    const fake = new FakeAria();
+    const speech = await startFakeSpeech();
+    cleanups.push(() => speech.stop());
+    const seen: string[] = [];
+    const gw = await startGateway({
+      listen: { port: 0 },
+      edge: { secret, admin: "gluck", peers: ["127.0.0.1"] },
+      door: () => fake.dial,
+      speech: speechOverSocket(speech.path),
+      store: "gluck",
+      routes: (req, res, path, user) => {
+        if (path !== "/stt" || req.method !== "POST") return false;
+        seen.push(user);
+        res.writeHead(202).end();
+        return true;
+      },
+    });
+    cleanups.push(() => gw.close());
+    const addr = gw.server.address();
+    const port = typeof addr === "object" && addr ? addr.port : 0;
+    const post = (path: string, headers: Record<string, string>): Promise<number> =>
+      new Promise((ok) => {
+        const req = request({ host: "127.0.0.1", port, path, method: "POST", headers }, (res) => {
+          res.resume();
+          ok(res.statusCode ?? 0);
+        });
+        req.end();
+      });
+    expect(await post("/stt", good)).toBe(202);
+    expect(await post("/stt", {})).toBe(403);
+    expect(await post("/other", good)).toBe(404);
+    expect(seen).toEqual(["gluck"]);
+  });
+
   it("listens on a unix socket with the given mode", async () => {
     const path = join(mkdtempSync(join(tmpdir(), "ffg-")), "gateway.sock");
     const fake = new FakeAria();
