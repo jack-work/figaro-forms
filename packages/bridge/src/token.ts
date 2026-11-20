@@ -137,3 +137,21 @@ export function redialAfterRejection(dial: Dial, rejected: (generation: number) 
     }
   };
 }
+
+export interface DoorTokenSource {
+  flag?: string | undefined;
+  credentialsDirectory?: string | undefined;
+  tokenMode: boolean;
+  exists: (path: string) => boolean;
+}
+
+export function doorTokenPath(s: DoorTokenSource): string | undefined {
+  if (s.tokenMode) {
+    if (s.flag) throw new Error("--token-url and --door-token-file are alternatives");
+    return undefined;
+  }
+  if (s.flag) return s.flag;
+  if (!s.credentialsDirectory) return undefined;
+  const path = `${s.credentialsDirectory}/door`;
+  return s.exists(path) ? path : undefined;
+}

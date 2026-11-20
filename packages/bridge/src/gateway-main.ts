@@ -1,12 +1,12 @@
 #!/usr/bin/env node
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 import WebSocket from "ws";
 import { webSocketDial } from "figaro-forms";
 import { bearer, type Credential } from "figaro-forms/auth";
 import { onBehalfOf, redact } from "./door.js";
-import { ClientCredentials, redialAfterRejection } from "./token.js";
+import { ClientCredentials, doorTokenPath, redialAfterRejection } from "./token.js";
 import { startGateway, type GatewayListen } from "./gateway.js";
 import { speechOverSocket } from "./speech.js";
 import { sttRoute } from "./stt.js";
@@ -86,11 +86,16 @@ try {
   if (!url) throw new Error("--door-url is required");
   if (!values["speech-socket"]) throw new Error("--speech-socket is required");
   if (!values.store) throw new Error("--store is required");
-  const token = credential(values["door-token-file"], "door", false);
+  const doorPath = doorTokenPath({
+    flag: values["door-token-file"],
+    credentialsDirectory: process.env.CREDENTIALS_DIRECTORY,
+    tokenMode: Boolean(values["token-url"]),
+    exists: existsSync,
+  });
+  const token = doorPath ? readFileSync(doorPath, "utf8").trim() : undefined;
   const secret = credential(values["edge-secret-file"], "edge", true) as string;
   let minter: ClientCredentials | undefined;
   if (values["token-url"]) {
-    if (token) throw new Error("--token-url and --door-token-file are alternatives");
     if (!values["client-id"]) throw new Error("--token-url needs --client-id");
     const secretPath = values["client-secret-file"] ?? (process.env.CREDENTIALS_DIRECTORY ? join(process.env.CREDENTIALS_DIRECTORY, "client-secret") : undefined);
     if (!secretPath) throw new Error("--token-url needs --client-secret-file or a LoadCredential named client-secret");
