@@ -6,6 +6,7 @@ export default defineConfig({
   plugins: [react()],
   build: {
     outDir: "dist",
+    rollupOptions: { input: { main: "index.html", aria: "aria.html" } },
     assetsInlineLimit: 0,
     modulePreload: { polyfill: false },
   },
