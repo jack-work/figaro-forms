@@ -167,6 +167,28 @@ describe("attach, catch up, follow", () => {
   });
 });
 
+describe("frame versions across a reconnect", () => {
+  it("applies pushes again after a reconnect even if the daemon's versions restart lower", async () => {
+    const { fake, client } = setup();
+    fake.addAria("a1");
+    const s = client.attach("a1");
+    await s.ready();
+    fake.openTurn("a1", 1, "q");
+    fake.update("a1", 1, [prose(0, "a ")]);
+    fake.update("a1", 1, [more(0, 2, "b ")]);
+    fake.update("a1", 1, [more(0, 4, "c ")]);
+    await settle();
+    const t = fake.turns.get("a1")?.[0];
+    if (t?.open) t.open.ver = 1;
+    fake.drop();
+    await tick(60);
+    await settle();
+    fake.update("a1", 1, [more(0, 6, "d")]);
+    await settle();
+    expect(s.snapshot().view.open).toMatchObject({ nodes: [{ markdown: "a b c d" }] });
+  });
+});
+
 describe("a push that overlaps the read that catches up", () => {
   it("is not applied twice: a patch repeated on text that already holds it would corrupt it", async () => {
     const { fake, client } = setup();
@@ -209,6 +231,48 @@ describe("which turn ended, and why", () => {
       { turn: 3, replayed: false, done: { reason: "error: provider down", idle: true } },
     ]);
     expect(s.snapshot().ends).toEqual(ends);
+  });
+
+  it("names the turn when turn.done arrives before the seal, and does not tell it again at the seal", async () => {
+    const { fake, client } = setup();
+    fake.addAria("a1");
+    const s = client.attach("a1");
+    await s.ready();
+    const ends: TurnEnd[] = [];
+    s.onTurnEnd((e) => ends.push(e));
+    fake.openTurn("a1", 1, "q1");
+    fake.update("a1", 1, [prose(0, "x")]);
+    fake.done("a1", "stop", true);
+    await settle();
+    fake.seal("a1", 1);
+    await settle();
+    fake.openTurn("a1", 2, "q2");
+    fake.update("a1", 2, [prose(0, "y")]);
+    fake.seal("a1", 2);
+    fake.done("a1", "stop", true);
+    await settle();
+    expect(ends).toEqual([
+      { turn: 1, replayed: false, done: { reason: "stop", idle: true } },
+      { turn: 2, replayed: false, done: { reason: "stop", idle: true } },
+    ]);
+  });
+
+  it("names the open turn when it ends without a seal", async () => {
+    const { fake, client } = setup();
+    fake.addAria("a1");
+    const s = client.attach("a1");
+    await s.ready();
+    const ends: TurnEnd[] = [];
+    s.onTurnEnd((e) => ends.push(e));
+    fake.openTurn("a1", 1, "q1");
+    fake.update("a1", 1, [prose(0, "x")]);
+    fake.seal("a1", 1);
+    fake.done("a1");
+    fake.openTurn("a1", 2, "q2");
+    fake.update("a1", 2, [prose(0, "y")]);
+    fake.done("a1", "interrupted", true);
+    await settle();
+    expect(ends.map((e) => [e.turn, e.done?.reason])).toEqual([[1, "stop"], [2, "interrupted"]]);
   });
 
   it("names the turn but not the reason for turns it only reads: the daemon does not keep one (figaro#200)", async () => {

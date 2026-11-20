@@ -33,6 +33,23 @@ Fields are named as the daemon writes them: `inquiry_segments`, `sender_name`,
 client-side `Message` and `Transcript` use camelCase, as the Go fields they mirror
 have no wire names.
 
+### Additions to the Go surface
+
+Everything above is one to one with Go. These are the TypeScript library's own
+additions, none on the wire:
+
+- `Transcript`: `touched(page)` and `Changed {turn, id, node, delta?}` (the nodes a
+  page touched), `Applied.sealed`, `node(turn, id)` and `Store.nodeAt`/`openNode`,
+  `oldestHeld()`, and `contiguous` kept as a convenience.
+- `AriaStream`: `onFrame`/`AppliedFrame`, `onTurnEnd`/`TurnEnd`, `onDone`, `frames()`,
+  `snapshot()`, `loadOlder`, `ensure`, the phases, and the version-repeat drop
+  described under "The fold".
+- Wire-side names that are not Go types: `AriaFrame` (a `Page` plus the `figaro_id`
+  the door adds), `TurnDone` (`DoneEntry` plus `figaro_id`), `AriaRow` and
+  `ListResponse` (the subset of the daemon's `figaro.list` rows this client reads).
+- `QuaImage` limits (4 images, 10 MiB each) are the daemon's and are not enforced
+  client-side.
+
 ## Reaching the door
 
 The same door a `FormsClient` dials: JSON-RPC 2.0, one frame per WebSocket text

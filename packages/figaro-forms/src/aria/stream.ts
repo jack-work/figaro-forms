@@ -259,6 +259,7 @@ export class AriaStream {
     this.generation = -1;
     this.buffering = false;
     this.buffer = [];
+    this.versions.clear();
     if (this.retryTimer) clearTimeout(this.retryTimer);
     this.setPhase("offline", undefined, reason);
   }
@@ -301,6 +302,8 @@ export class AriaStream {
 
   private async start(generation: number): Promise<void> {
     if (this.retryTimer) clearTimeout(this.retryTimer);
+    this.versions.clear();
+    this.sealedByPush = undefined;
     this.refusal = undefined;
     this.setPhase("connecting");
     this.buffering = true;
@@ -337,7 +340,7 @@ export class AriaStream {
         if (this.stale(generation)) return;
       } while (this.again);
     } finally {
-      this.catching = false;
+      if (!this.stale(generation)) this.catching = false;
     }
     this.buffering = false;
     const queued = this.buffer;
@@ -440,8 +443,12 @@ export class AriaStream {
       desync: applied.desync,
       metrics: applied.metrics,
     };
-    if (source === "read") for (const turn of applied.sealed) this.recordEnd({ turn, replayed: true });
-    else if (applied.sealed.length > 0) this.sealedByPush = Math.max(...applied.sealed);
+    if (source === "read") {
+      for (const turn of applied.sealed) if (!this.endLog.has(turn)) this.recordEnd({ turn, replayed: true });
+    } else if (applied.sealed.length > 0) {
+      const sealed = Math.max(...applied.sealed);
+      if (!this.endLog.has(sealed)) this.sealedByPush = sealed;
+    }
     this.touch();
     for (const fn of [...this.frameSubs]) this.tell(() => fn(out));
     return out;
@@ -454,7 +461,8 @@ export class AriaStream {
   private applyDone(done: DoneEntry): void {
     const entry: DoneEntry = { reason: done.reason, ...(done.idle !== undefined ? { idle: done.idle } : {}) };
     this.lastDone = entry;
-    const turn = this.sealedByPush ?? this.transcript.cursor();
+    const open = this.transcript.open()?.turn;
+    const turn = open !== undefined && (this.sealedByPush === undefined || open > this.sealedByPush) ? open : (this.sealedByPush ?? this.transcript.cursor());
     this.sealedByPush = undefined;
     this.recordEnd({ turn, replayed: false, done: entry });
     for (const fn of [...this.doneSubs]) this.tell(() => fn(entry));
