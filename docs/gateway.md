@@ -119,6 +119,29 @@ Restart=on-failure
 ```
 
 The door bearer is read from `$CREDENTIALS_DIRECTORY/door`, the edge secret from
-`$CREDENTIALS_DIRECTORY/edge`. The audio follow dials the door as the admin;
+`$CREDENTIALS_DIRECTORY/edge`.
+
+## Minting the door bearer
+
+A static bearer expires with its token. For an OAuth client (Authelia
+`client_credentials`) the gateway mints and refreshes its own:
+
+```
+figaro-gateway ... \
+  --token-url https://auth.kelliher.info/api/oidc/token \
+  --client-id figaro-gateway \
+  --client-secret-file $CREDENTIALS_DIRECTORY/client-secret \
+  --audience https://fig.kelliher.info
+```
+
+It posts `grant_type=client_credentials` and the `audience`, with the client as
+HTTP basic auth (`client_secret_basic`), at start (a failure there stops the
+gateway) and again at 80% of `expires_in`. A failed refresh is logged (status
+only, never the secret) and retried with backoff, 1 s doubling to 60 s, while the
+old token is kept until it expires; a dial after that mints on demand. A door
+that refuses the upgrade with 401 makes the gateway mint a new token and redial
+once. The secret file is read at each mint, so a rotated credential is picked up.
+`--token-url` and `--door-token-file` are alternatives; the static bearer stays.
+ The audio follow dials the door as the admin;
 `/door` clients dial it as their own `Remote-User`, passed to the `door` option
 (where an on-behalf-of rule would attach).

@@ -6,6 +6,7 @@ import WebSocket from "ws";
 import { webSocketDial } from "figaro-forms";
 import { bearer } from "figaro-forms/auth";
 import { redact } from "./door.js";
+import { ClientCredentials, redialAfterRejection } from "./token.js";
 import { startGateway, type GatewayListen } from "./gateway.js";
 import { speechOverSocket } from "./speech.js";
 import { sttRoute } from "./stt.js";
@@ -14,12 +15,19 @@ const usage = `figaro-gateway: the door, passed through, and a speech side chann
 
 Usage: figaro-gateway --door-url URL --speech-socket PATH --admin USER --store NAME
                        (--listen-socket PATH [--mode OCTAL] | --port N --peer ADDR...)
-                       [--edge-secret-file PATH] [--door-token-file PATH] [--origin URL]...
+                       [--edge-secret-file PATH] [--origin URL]...
+                       [--door-token-file PATH | --token-url URL --client-id ID --client-secret-file PATH [--audience URL]]
 
   --door-url URL        the figaro door, e.g. wss://gluck.tailnet.ts.net:7445/door
                         (ws+unix://PATH:/door for a daemon's web socket)
   --door-token-file P   bearer for the door (default $CREDENTIALS_DIRECTORY/door);
                         without a file the door is dialled with no credential
+  --token-url URL       mint the door bearer with an OAuth client_credentials grant at URL
+                        (e.g. https://auth.kelliher.info/api/oidc/token); fetched at start,
+                        refreshed at 80% of expires_in, and again after a 401 on dial
+  --client-id ID        the client (e.g. figaro-gateway)
+  --client-secret-file P  its secret (default $CREDENTIALS_DIRECTORY/client-secret); never logged
+  --audience URL        the audience asked for (e.g. https://fig.kelliher.info)
   --speech-socket PATH  figchat-speech, e.g. /run/figchat/speech.sock
   --store NAME          the store id in audio keys, <store>/<aria>:<turn>/out
   --listen-socket PATH  serve on a unix socket (default /run/figaro-gateway/gateway.sock mode 0660;
@@ -37,6 +45,10 @@ const { values } = parseArgs({
   options: {
     "door-url": { type: "string" },
     "door-token-file": { type: "string" },
+    "token-url": { type: "string" },
+    "client-id": { type: "string" },
+    "client-secret-file": { type: "string" },
+    audience: { type: "string" },
     "speech-socket": { type: "string" },
     store: { type: "string" },
     "listen-socket": { type: "string" },
@@ -72,18 +84,35 @@ try {
   if (!values.store) throw new Error("--store is required");
   const token = credential(values["door-token-file"], "door", false);
   const secret = credential(values["edge-secret-file"], "edge", true) as string;
+  let minter: ClientCredentials | undefined;
+  if (values["token-url"]) {
+    if (token) throw new Error("--token-url and --door-token-file are alternatives");
+    if (!values["client-id"]) throw new Error("--token-url needs --client-id");
+    const secretPath = values["client-secret-file"] ?? (process.env.CREDENTIALS_DIRECTORY ? join(process.env.CREDENTIALS_DIRECTORY, "client-secret") : undefined);
+    if (!secretPath) throw new Error("--token-url needs --client-secret-file or a LoadCredential named client-secret");
+    minter = new ClientCredentials({
+      tokenUrl: values["token-url"],
+      clientId: values["client-id"],
+      secret: () => readFileSync(secretPath, "utf8").trim(),
+      ...(values.audience ? { audience: values.audience } : {}),
+      log: (line) => process.stderr.write(`figaro-gateway: ${line}\n`),
+    });
+    await minter.start();
+  }
   const listen: GatewayListen = values.port
     ? { port: Number(values.port), host: "127.0.0.1" }
     : { path: values["listen-socket"] ?? "/run/figaro-gateway/gateway.sock", mode: values.mode ? parseInt(values.mode, 8) : 0o660 };
   const g = await startGateway({
     listen,
     edge: { secret, admin: values.admin ?? "", ...(values.port ? { peers: values.peer ?? [] } : {}) },
-    door: () =>
-      webSocketDial({
+    door: () => {
+      const dial = webSocketDial({
         url,
-        ...(token ? { credential: bearer(token) } : {}),
+        ...(minter ? { credential: bearer(() => (minter as ClientCredentials).token()) } : token ? { credential: bearer(token) } : {}),
         WebSocket: WebSocket as unknown as NonNullable<Parameters<typeof webSocketDial>[0]["WebSocket"]>,
-      }),
+      });
+      return minter ? redialAfterRejection(dial, () => (minter as ClientCredentials).rejected()) : dial;
+    },
     speech: speechOverSocket(values["speech-socket"]),
     speechSocket: values["speech-socket"],
     store: values.store,
