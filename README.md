@@ -114,6 +114,36 @@ malformed reply leaves `orders` empty, and a reply from an older refresh is
 ignored, so a refused refresh withdraws the whole tree. `withdraw()` clears
 it on logout; `close()` ends the feed.
 
+## Drift
+
+`GET /drift` on the bridge runs `figaro-apply --check -j` (or
+`--drift-command`) as the bridge's user, at most once per 60 s and never
+twice at once, and answers:
+
+```ts
+type Drift = {
+  generated_at: string;                   // ISO 8601
+  source: "figaro-apply --check";
+  roles: {
+    role: string; id: string;             // charter name and live form id; for extra, its role-name
+    status: "ok" | "drift" | "error" | "missing" | "extra";
+    unseated?: true;                      // no holder cast
+    changes: {key: string; live: string | null; want: string | null}[];
+    error?: string;
+  }[];
+};
+```
+
+`live` is the form's current value and `want` the value the role's outfits
+fold to, each as JSON text; `null` is absent (`want` is `null` for a
+removal). `missing` is a charter role with no live form; `extra` is a
+live form with a `role-name` the charter does not declare. A drift that
+cannot be valued is an `error`, never a `drift` without values. A run that
+exits other than 0 or 1, or prints a
+line that is not a row, is a 502 `{error}`, never an empty list. Exit 1
+counts only when stderr tallies exactly the rows that failed, or, with
+none failed, exactly the rows that drift.
+
 ## Reaching a daemon
 
 - Behind the edge (fig.kelliher.info): same-origin `/door`, `edgeSession()`.

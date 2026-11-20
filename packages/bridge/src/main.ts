@@ -11,8 +11,10 @@ Usage: figaro-forms-bridge [--socket PATH] [--port N] [--static DIR [--frame-src
   --port N       loopback port (default: any free port)
   --host ADDR    listen address; anything but loopback needs --hierarchy-only
   --hierarchy-only
-                 serve GET /hierarchy and nothing else: no door, no pages. For an
+                 serve GET /hierarchy and GET /drift and nothing else: no door, no pages. For an
                  edge proxy that injects the bearer. Needs FIGARO_FORMS_BRIDGE_TOKEN
+  --drift-command PATH
+                 what GET /drift runs with --check -j (default figaro-apply)
   --static DIR   serve DIR at / so the page shares the bridge's origin, files only,
                  under a CSP with no inline script or style and no eval
   --frame-src ORIGIN
@@ -39,6 +41,7 @@ const { values } = parseArgs({
     port: { type: "string" },
     host: { type: "string" },
     "hierarchy-only": { type: "boolean" },
+    "drift-command": { type: "string" },
     static: { type: "string" },
     origin: { type: "string", multiple: true },
     "frame-src": { type: "string", multiple: true },
@@ -67,6 +70,7 @@ try {
     ...(values.host ? { host: values.host } : {}),
     ...(given ? { token: given } : {}),
     hierarchyOnly: values["hierarchy-only"] === true,
+    ...(values["drift-command"] ? { driftCommand: values["drift-command"] } : {}),
     ...(values.port ? { port: Number(values.port) } : {}),
     ...(values.static ? { staticDir: values.static } : {}),
     ...(values.origin ? { origins: values.origin } : {}),

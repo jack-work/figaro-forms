@@ -8,6 +8,7 @@ import { WebSocketServer, type WebSocket } from "ws";
 import { RpcError, touchedKeys, type Patch } from "figaro-forms";
 import { hierarchyHttp, readHierarchy, type HierarchyReply } from "figaro-forms/hierarchy";
 import { wellKnownKeys } from "figaro-forms/semantics";
+import { cachedDrift, DriftCheckFailed, mapDrift, parseCheck, runCheck, type CheckRun, type DriftDaemon, type DriftReport, type DriftSource, type LiveForm } from "./drift.js";
 
 export const readMethods = ["angelus.hello", "figaro.follow", "figaro.form"] as const;
 export const writeMethods = ["figaro.set", "form.create"] as const;
@@ -24,6 +25,8 @@ export interface BridgeOptions {
   readonly token?: string;
   readonly maxFrameBytes?: number;
   readonly hierarchyOnly?: boolean;
+  readonly driftCommand?: string;
+  readonly checkRun?: () => Promise<CheckRun>;
 }
 
 export interface Bridge {
@@ -194,7 +197,7 @@ export async function startBridge(o: BridgeOptions): Promise<Bridge> {
   const host = o.host ?? "127.0.0.1";
   if (o.hierarchyOnly) {
     if (o.write || o.writeSystem || o.staticDir || o.origins?.length || o.frameOrigins?.length) {
-      throw new Error("--hierarchy-only serves GET /hierarchy alone: drop --write, --static, --origin and --frame-src");
+      throw new Error("--hierarchy-only serves GET /hierarchy and GET /drift alone: drop --write, --static, --origin and --frame-src");
     }
     if (!o.token) throw new Error("--hierarchy-only needs a token from FIGARO_FORMS_BRIDGE_TOKEN, never a random one");
   } else if (host !== "127.0.0.1" && host !== "::1" && host !== "localhost") {
@@ -216,13 +219,15 @@ export async function startBridge(o: BridgeOptions): Promise<Bridge> {
     const h = req.headers.host ?? "";
     return [...own].some((o) => o.endsWith(`//${h}`));
   };
+  const drift = cachedDrift(async () => mapDrift(parseCheck(await (o.checkRun ?? (() => runCheck(o.driftCommand ?? "figaro-apply")))()), socketDaemon(o.socket)));
   const server = createServer((req, res) => {
     if (!loopbackHost(req)) {
       res.writeHead(421).end();
       return;
     }
-    if (new URL(req.url ?? "/", "http://bridge").pathname === "/hierarchy") {
-      void serveHierarchy(o.socket, token, req, res);
+    const path = new URL(req.url ?? "/", "http://bridge").pathname;
+    if (path === "/hierarchy" || path === "/drift") {
+      void serveRead(path, o.socket, token, drift, req, res);
       return;
     }
     if (o.hierarchyOnly) {
@@ -335,22 +340,40 @@ function relay(ws: WebSocket, path: string, allowed: ReadonlySet<string>, write:
   });
 }
 
-async function serveHierarchy(socket: string, token: string, req: IncomingMessage, res: ServerResponse): Promise<void> {
-  const head = { "Content-Type": "application/json", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer" };
-  const send = (reply: HierarchyReply): void => {
-    const { code, body } = hierarchyHttp(reply);
-    res.writeHead(code, head).end(JSON.stringify(body));
-  };
+const readHead = { "Content-Type": "application/json", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer" };
+
+async function serveRead(path: string, socket: string, token: string, drift: DriftSource, req: IncomingMessage, res: ServerResponse): Promise<void> {
   if (req.method !== "GET") {
-    res.writeHead(405, { ...head, Allow: "GET" }).end();
+    res.writeHead(405, { ...readHead, Allow: "GET" }).end();
     return;
   }
   const auth = req.headers.authorization ?? "";
-  const given = auth.startsWith("Bearer ") ? auth.slice(7) : "";
-  if (!sameToken(given, token)) {
-    send({ status: "signedout", reason: "the hierarchy needs the bridge token as a bearer" });
+  if (!sameToken(auth.startsWith("Bearer ") ? auth.slice(7) : "", token)) {
+    const { code, body } = hierarchyHttp({ status: "signedout", reason: `${path} needs the bridge token as a bearer` });
+    res.writeHead(code, readHead).end(JSON.stringify(body));
     return;
   }
+  if (path === "/drift") await serveDrift(drift, res);
+  else await serveHierarchy(socket, req, res);
+}
+
+async function serveDrift(drift: DriftSource, res: ServerResponse): Promise<void> {
+  let report: DriftReport;
+  try {
+    report = await drift.get();
+  } catch (e) {
+    const error = e instanceof Error ? e.message : String(e);
+    res.writeHead(502, readHead).end(JSON.stringify({ error: e instanceof DriftCheckFailed ? error : `drift check: ${error}` }));
+    return;
+  }
+  res.writeHead(200, readHead).end(JSON.stringify(report));
+}
+
+async function serveHierarchy(socket: string, req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const send = (reply: HierarchyReply): void => {
+    const { code, body } = hierarchyHttp(reply);
+    res.writeHead(code, readHead).end(JSON.stringify(body));
+  };
   const root = new URL(req.url ?? "/", "http://bridge").searchParams.get("root");
   const up = await socketCaller(socket).catch((e: unknown) => e as Error);
   if (up instanceof Error) {
@@ -365,6 +388,45 @@ async function serveHierarchy(socket: string, token: string, req: IncomingMessag
   } finally {
     up.close();
   }
+}
+
+function socketDaemon(socket: string): DriftDaemon {
+  const once = async <T>(use: (call: SocketCaller["call"]) => Promise<T>): Promise<T> => {
+    const up = await socketCaller(socket);
+    try {
+      await up.call("angelus.hello", { version: 1 });
+      return await use(up.call);
+    } finally {
+      up.close();
+    }
+  };
+  const snapshot = async (call: SocketCaller["call"], id: string): Promise<Record<string, unknown>> => {
+    const r = (await call("figaro.form", { figaro_id: id })) as { snapshot?: unknown } | null;
+    return isRecord(r?.snapshot) ? r.snapshot : {};
+  };
+  return {
+    forms: () =>
+      once(async (call) => {
+        const listed = (await call("figaro.list", { global: true })) as { figaros?: unknown } | null;
+        if (!listed || !Array.isArray(listed.figaros)) throw new Error("figaro.list: no rows in the reply");
+        const rows = (listed.figaros as Record<string, unknown>[]).filter(
+          (r) => isRecord(r) && typeof r.id === "string" && !r.reaped_at && !r.retired_at && (r.kind === "form" || (r.kind === undefined && r.state === "form")),
+        );
+        return Promise.all(
+          rows.map(async (r): Promise<LiveForm> => {
+            const name = (await snapshot(call, r.id as string))["role-name"];
+            return typeof name === "string" ? { id: r.id as string, roleName: name } : { id: r.id as string };
+          }),
+        );
+      }),
+    read: (id) => once((call) => snapshot(call, id)),
+    fold: (outfits) =>
+      once(async (call) => {
+        const r = (await call("angelus.outfits", { spec: outfits.join(","), fold: true })) as { form?: unknown } | null;
+        if (!isRecord(r?.form)) throw new Error(`angelus.outfits folded ${outfits.join(",")} to no form`);
+        return r.form;
+      }),
+  };
 }
 
 interface SocketCaller {

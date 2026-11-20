@@ -1,4 +1,4 @@
-import { equal, type Json, type JsonObject } from "../src/json.js";
+import { equal, isObject, type Json, type JsonObject } from "../src/json.js";
 import { applyRoot, type Patch } from "../src/patch.js";
 import type { Dial, Socket, SocketEvents } from "../src/rpc.js";
 import type { FormAccess, FormView } from "../src/wire.js";
@@ -40,6 +40,7 @@ export class FakeDoor {
   rows: { id: string; [k: string]: Json }[] = [];
   sees: (id: string) => boolean = () => true;
   listDenied: string | undefined;
+  outfits = new Map<string, JsonObject>();
 
   add(id: string, value: JsonObject, extra: Partial<FakeForm> = {}): void {
     this.forms.set(id, { value, version: 1, incarnation: 1, lastSeq: new Map(), ...extra });
@@ -207,6 +208,14 @@ export class FakeDoor {
         this.reply(c, f.id, { result: { ok: true, outcome: version === before ? "unchanged" : "applied", version } });
         return;
       }
+      case "angelus.outfits": {
+        const names = String(f.params.spec ?? "").split(",").filter(Boolean);
+        const lost = names.find((n) => !this.outfits.has(n));
+        if (lost) return err(`outfit ${lost} not found`);
+        const form = names.reduce<JsonObject>((acc, n) => fold(acc, this.outfits.get(n)!), {});
+        this.reply(c, f.id, { result: { names, ...(f.params.fold === true ? { form } : {}) } });
+        return;
+      }
       case "form.create": {
         const formId = `@${(++this.minted).toString(16).padStart(8, "0")}`;
         this.add(formId, applyRoot((f.params.patch as Patch) ?? {}, {}));
@@ -216,6 +225,15 @@ export class FakeDoor {
     }
     err(`method not found: ${f.method}`, -32601);
   }
+}
+
+function fold(base: JsonObject, over: JsonObject): JsonObject {
+  const out: Record<string, Json> = { ...base };
+  for (const [k, v] of Object.entries(over)) {
+    const b = out[k];
+    out[k] = isObject(b) && isObject(v) ? fold(b, v) : v;
+  }
+  return out;
 }
 
 export const tick = (ms = 0): Promise<void> => new Promise((r) => setTimeout(r, ms));
