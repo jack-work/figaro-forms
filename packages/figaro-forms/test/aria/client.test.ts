@@ -489,7 +489,7 @@ describe("calls", () => {
 
   it("passes a daemon error through as an RpcError", async () => {
     const { client } = setup();
-    const err = await client.qua("a1", "x").catch((e: unknown) => e);
+    const err = await client.interrupt("a1").catch((e: unknown) => e);
     expect(err).toMatchObject({ code: -32601 });
   });
 });

@@ -1,4 +1,4 @@
-export { AriaClient, type AriaClientOptions, type AriaList, type ForkOptions, type InterruptOptions, type ListOptions, type QuaOptions } from "./client.js";
+export { AriaClient, type AriaClientOptions, type AriaList, type ForkOptions, type ForkedAt, ForkedButUnsent, type InterruptOptions, type ListOptions, type QuaOptions } from "./client.js";
 export { AriaStream, type AppliedFrame, type AriaSnapshot, type AttachOptions, type Phase, type TurnEnd } from "./stream.js";
 export { Transcript, foldDelta, type Applied, type Changed, type Fold, type Hooks, type Inquiry, type View } from "./fold.js";
 export {

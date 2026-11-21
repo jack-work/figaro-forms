@@ -55,6 +55,24 @@ export interface AriaList {
   readonly refusedWhy?: string;
 }
 
+export interface ForkedAt {
+  readonly fork: ForkResponse;
+  readonly id: string;
+  readonly qua?: QuaResponse;
+}
+
+export class ForkedButUnsent extends Error {
+  readonly fork: ForkResponse;
+  readonly id: string;
+
+  constructor(fork: ForkResponse, cause: unknown) {
+    super(`forked ${fork.alternative} but the text was not sent: ${cause instanceof Error ? cause.message : String(cause)}`, { cause });
+    this.name = "ForkedButUnsent";
+    this.fork = fork;
+    this.id = fork.alternative;
+  }
+}
+
 interface Shared {
   readonly stream: AriaStream;
   refs: number;
@@ -187,6 +205,20 @@ export class AriaClient {
       ...(o.outfits ? { outfits: o.outfits } : {}),
     };
     return this.connection.call<ForkResponse>(ariaMethod.fork, req as unknown as Json);
+  }
+
+  tailFork(aria: string): Promise<ForkResponse> {
+    return this.fork(aria);
+  }
+
+  async forkAt(aria: string, turn: number, text?: string): Promise<ForkedAt> {
+    const fork = await this.fork(aria, { atTurn: turn });
+    if (text === undefined || text === "") return { fork, id: fork.alternative };
+    try {
+      return { fork, id: fork.alternative, qua: await this.qua(fork.alternative, text) };
+    } catch (cause) {
+      throw new ForkedButUnsent(fork, cause);
+    }
   }
 
   async list(o: ListOptions = {}): Promise<AriaList> {
