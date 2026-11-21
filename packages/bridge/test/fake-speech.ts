@@ -17,6 +17,7 @@ export interface FakeSpeech {
   pcmPerText: number;
   audioId: string;
   rejectVoice: boolean;
+  holdUrl: string | undefined;
   readonly replays: { url: string; range: string | undefined }[];
   readonly clips: { url: string; contentType: string | undefined; body: Buffer }[];
   sttStatus: number;
@@ -32,7 +33,7 @@ export async function startFakeSpeech(): Promise<FakeSpeech> {
   const calls: SpeechCall[] = [];
   const server = createServer();
   const ws = new WebSocketServer({ noServer: true });
-  const fake: FakeSpeech = { path, calls, pcmPerText: 480, audioId: "a-1", rejectVoice: false, replays: [], clips: [], sttStatus: 200, keyed: {}, sttReply: { text: "hello figaro", duration_ms: 1200, audio_id: "clip-1" }, stop: () => new Promise((ok) => { for (const c of calls) c.socket.terminate(); server.close(() => ok()); server.closeAllConnections(); }) };
+  const fake: FakeSpeech = { path, calls, pcmPerText: 480, audioId: "a-1", rejectVoice: false, holdUrl: undefined, replays: [], clips: [], sttStatus: 200, keyed: {}, sttReply: { text: "hello figaro", duration_ms: 1200, audio_id: "clip-1" }, stop: () => new Promise((ok) => { for (const c of calls) c.socket.terminate(); server.close(() => ok()); server.closeAllConnections(); }) };
   server.on("request", (req, res) => {
     if (req.method === "POST" && req.url === "/audio/keys") {
       const parts: Buffer[] = [];
@@ -71,7 +72,7 @@ export async function startFakeSpeech(): Promise<FakeSpeech> {
         const f = JSON.parse(data.toString()) as Record<string, unknown>;
         call.frames.push(f);
         if (typeof f.text === "string" && fake.pcmPerText > 0) socket.send(fakePcm(fake.pcmPerText));
-        if (f.end === true) {
+        if (f.end === true && !(fake.holdUrl && url.includes(fake.holdUrl))) {
           socket.send(JSON.stringify({ audio_id: fake.audioId }));
           socket.close();
         }

@@ -92,6 +92,11 @@ function callSpeech(o: SttOptions, path: string, body: Buffer, contentType: stri
 
 type Outcome = { status: number; body: Record<string, unknown> };
 
+export async function keyStored(o: SttOptions, key: string): Promise<boolean> {
+  const found = await callSpeech(o, "/audio/keys", Buffer.from(JSON.stringify({ keys: [key] })), "application/json");
+  return speechFailure(found) === undefined && typeof found.json![key] === "string";
+}
+
 function speechFailure(a: SpeechAnswer): Outcome | undefined {
   if (a.error !== undefined) return { status: 502, body: { error: a.error } };
   if (a.json === undefined) return { status: 502, body: { error: "speech answered with something other than JSON" } };

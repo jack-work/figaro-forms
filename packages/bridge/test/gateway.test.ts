@@ -389,4 +389,24 @@ describe("figaro gateway", () => {
     await until("hello", () => got.length === 1);
     expect(JSON.stringify(got[0])).toContain("principal");
   });
+
+  it("says a finished turn over /audio to the asker only, and answers a stored key with audio.stored", async () => {
+    const { fake, speech, port } = await rig();
+    fake.finishedTurn(id, 1, "q", [{ type: "prose", role: "output", markdown: "Replay me." } as never]);
+    fake.finishedTurn(id, 2, "q", [{ type: "prose", role: "output", markdown: "Kept." } as never]);
+    const asker = await open(`ws://127.0.0.1:${port}/audio/${id}`);
+    const bystander = await open(`ws://127.0.0.1:${port}/audio/${id}`);
+    asker.send(JSON.stringify({ type: "say", turn: 1 }));
+    await until("end", () => ofType(collect(asker), "audio.end").length === 1);
+    expect(ofType(collect(asker), "audio.start")[0]).toMatchObject({ turn: 1, key: `gluck/${id}:1/out`, say: true });
+    expect(collect(asker).some((f) => Buffer.isBuffer(f))).toBe(true);
+    expect(collect(bystander).map((f) => (Buffer.isBuffer(f) ? "pcm" : f.type))).toEqual(["ready"]);
+    speech.keyed[`gluck/${id}:2/out`] = "000001-0123456789abcdef";
+    const calls = speech.calls.length;
+    asker.send(JSON.stringify({ type: "say", turn: 2 }));
+    await until("stored", () => ofType(collect(asker), "audio.stored").length === 1);
+    expect(ofType(collect(asker), "audio.stored")[0]).toEqual({ type: "audio.stored", turn: 2, key: `gluck/${id}:2/out` });
+    expect(speech.calls.length).toBe(calls);
+  });
+
 });

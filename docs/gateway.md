@@ -104,7 +104,25 @@ Server to client, text (JSON):
   or on attach `aria_gone`, `denied`, `unavailable`, or `store` for a store this
   gateway does not serve, after which the socket closes.
 
-Client to server: `{type:"cancel"}` stops the aria's pending speech for everyone.
+Client to server:
+
+- `{type:"cancel"}` stops the aria's pending speech for everyone, and this socket's
+  running say.
+- `{type:"say", turn:N}` (N a positive integer) speaks a finished turn again, to
+  this socket only. The gateway reads the turn from the door, speaks the same prose
+  nodes the live path does (same voice, filtering and chunking) and stores it under
+  the live key `<store>/<aria>:<N>/out`, so `/audio/key/<key>` replays it afterwards.
+  The asker gets `audio.start` (with `say:true`), `audio.chunk` and binary PCM, then
+  `audio.end`; other sockets on the aria hear nothing. If speech already holds
+  audio under the key the gateway does not synthesize and answers
+  `{type:"audio.stored", turn, key}`: fetch `/audio/key/<key>`. One say at a time
+  per socket. A live turn starting does not cancel a say; `cancel` or closing the
+  socket does (`{type:"audio.cancel", turn, key, why:"client", ...}` goes to the
+  asker on `cancel`). Refusals are `{type:"error", turn, code, text}` with `turn`
+  echoing the request: `bad-turn` (not a positive integer, or no such turn),
+  `open` (still running: live audio covers it), `silent` (no output prose), `busy`
+  (a say is already running on this socket), `speech` (synthesis failed), `door`
+  (the turn could not be read).
 
 Prose is fed to speech from the first sentence (a terminator followed by space, a
 newline, or 160 characters), not when a node closes. Thinking, tools, steering
@@ -118,7 +136,8 @@ Each `/audio` connection writes to stderr (the journal), never a token or query
 string: `audio: connect aria= user=` (and `store=` when the client named one),
 `audio: dialing the door`, `audio: follow ready` or `audio: follow failed code=
 text=` with the refusal verbatim, `turn seen`, `tts open`, `tts done` / `tts error`
-/ `turn cancelled` with chunk and byte counts, and `audio: closed code= reason=
+/ `turn cancelled` with chunk and byte counts (a say logs `say seen`, `say aria= turn=
+chunks= bytes=`, `say stored`, `say refused ... code=`, `say failed code=speech`), and `audio: closed code= reason=
 json= binary=` with the frame counts sent.
 
 ## Sample unit

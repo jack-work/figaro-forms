@@ -224,3 +224,139 @@ describe("audio hub", () => {
     expect(tap.of("audio.end")).toEqual([]);
   });
 });
+
+describe("say: replaying a finished turn to one listener", () => {
+  const finished = (fake: FakeAria, turn: number, ...texts: string[]): void => {
+    fake.finishedTurn(id, turn, "q", texts.map((markdown) => ({ type: "prose", role: "output", markdown }) as never));
+  };
+  const withKeyCheck = async (keyed: (key: string) => boolean = () => false): Promise<{ fake: FakeAria; speech: FakeSpeech; hub: AudioHub; tap: Tap; other: Tap }> => {
+    const fake = new FakeAria();
+    fake.addAria(id);
+    const speech = await startFakeSpeech();
+    cleanups.push(() => speech.stop());
+    const hub = new AudioHub({
+      connect: () => new AriaClient({ dial: fake.dial, retryMinMs: 5, releaseGraceMs: 0 }),
+      speech: speechOverSocket(speech.path),
+      store: "gluck",
+      stored: async (key) => keyed(key),
+    });
+    cleanups.push(() => hub.close());
+    const tap = new Tap();
+    const other = new Tap();
+    await hub.join(id, tap);
+    await hub.join(id, other);
+    return { fake, speech, hub, tap, other };
+  };
+
+  it("streams start, chunks and end to the asker only, under the live key", async () => {
+    const { fake, speech, hub, tap, other } = await withKeyCheck();
+    finished(fake, 3, "Hello there. How are you?", "Second node.");
+    await hub.say(id, tap, 3);
+    await until("end", () => tap.of("audio.end").length > 0);
+    expect(tap.of("audio.start")[0]).toMatchObject({ turn: 3, key: audioKey("gluck", id, 3), say: true, format: "pcm" });
+    expect(tap.of("audio.chunk").length).toBeGreaterThan(0);
+    expect(tap.of("audio.end")[0]).toEqual({ type: "audio.end", turn: 3, key: audioKey("gluck", id, 3), audio_id: "a-1" });
+    expect(other.frames).toEqual([]);
+    expect(speech.calls[0]?.url).toContain("key=gluck%2F0123456789abcdef0123456789abcdef%3A3%2Fout");
+    expect(speech.calls[0]?.frames).toEqual([{ text: "Hello there. " }, { text: "How are you?" }, { text: "\n\n" }, { text: "Second node." }, { end: true }]);
+  });
+
+  it("answers audio.stored without synthesis when speech holds the key", async () => {
+    const key = audioKey("gluck", id, 2);
+    const { fake, speech, hub, tap } = await withKeyCheck((k) => k === key);
+    finished(fake, 2, "Already spoken.");
+    await hub.say(id, tap, 2);
+    expect(tap.frames).toEqual([{ type: "audio.stored", turn: 2, key }]);
+    expect(speech.calls).toEqual([]);
+  });
+
+  it("refuses bad turns, open turns and silent turns", async () => {
+    const { fake, speech, hub, tap } = await withKeyCheck();
+    fake.openTurn(id, 1, "running");
+    fake.update(id, 1, [prose(0, "Still talking.")]);
+    fake.finishedTurn(id, 2, "q", [{ type: "thinking", markdown: "hmm" } as never]);
+    const asked: unknown[] = [0, -1, 1.5, "1", null, 99, 1, 2];
+    for (const t of asked) await hub.say(id, tap, t);
+    expect(tap.frames.map((f) => (Buffer.isBuffer(f) ? "pcm" : `${String(f.code)}:${String(f.turn)}`))).toEqual(["bad-turn:0", "bad-turn:-1", "bad-turn:1.5", "bad-turn:1", "bad-turn:null", "bad-turn:99", "open:1", "silent:2"]);
+    expect(speech.calls).toEqual([]);
+  });
+
+  it("refuses a second say on the same listener while one runs, but not on another", async () => {
+    const { fake, speech, hub, tap, other } = await withKeyCheck();
+    speech.holdUrl = "%3A4%2F";
+    finished(fake, 4, "Held open.");
+    finished(fake, 5, "Free.");
+    await hub.say(id, tap, 4);
+    await until("speech opened", () => speech.calls.length === 1);
+    await hub.say(id, tap, 5);
+    expect(tap.of("error")).toEqual([{ type: "error", turn: 5, code: "busy", text: expect.any(String) }]);
+    await hub.say(id, other, 5);
+    await until("other end", () => other.of("audio.end").length > 0);
+    expect(tap.of("audio.end")).toEqual([]);
+  });
+
+  it("reports a synthesis failure as speech to the asker", async () => {
+    const { fake, speech, hub, tap, other } = await withKeyCheck();
+    finished(fake, 1, "Doomed.");
+    await speech.stop();
+    await hub.say(id, tap, 1);
+    await until("error", () => tap.of("error").length > 0);
+    expect(tap.of("error")[0]).toMatchObject({ turn: 1, code: "speech" });
+    expect(other.frames).toEqual([]);
+    await hub.say(id, tap, 1);
+    await until("second error", () => tap.of("error").length > 1);
+  });
+
+  it("stops speech on cancel, and when the hub closes", async () => {
+    const { fake, speech, hub, tap } = await withKeyCheck();
+    speech.holdUrl = "gluck";
+    finished(fake, 1, "One.");
+    finished(fake, 2, "Two.");
+    await hub.say(id, tap, 1);
+    await until("opened", () => speech.calls.length === 1);
+    hub.cancel(id, "client", tap);
+    await until("closed", () => speech.calls[0]?.closed === true);
+    expect(tap.of("audio.end")).toEqual([]);
+    await hub.say(id, tap, 2);
+    await until("second opened", () => speech.calls.length === 2);
+    hub.close();
+    await until("hub closed", () => speech.calls[1]?.closed === true);
+  });
+
+  it("stops speech when the asking listener leaves", async () => {
+    const fake = new FakeAria();
+    fake.addAria(id);
+    const speech = await startFakeSpeech();
+    cleanups.push(() => speech.stop());
+    speech.holdUrl = "gluck";
+    const hub = new AudioHub({ connect: () => new AriaClient({ dial: fake.dial, retryMinMs: 5, releaseGraceMs: 0 }), speech: speechOverSocket(speech.path), store: "gluck" });
+    cleanups.push(() => hub.close());
+    const stay = new Tap();
+    const asker = new Tap();
+    await hub.join(id, stay);
+    const leave = await hub.join(id, asker);
+    fake.finishedTurn(id, 1, "q", [{ type: "prose", role: "output", markdown: "Words." } as never]);
+    await hub.say(id, asker, 1);
+    await until("opened", () => speech.calls.length === 1);
+    leave();
+    await until("closed", () => speech.calls[0]?.closed === true);
+    expect(stay.frames).toEqual([]);
+  });
+
+  it("keeps live audio flowing for a new turn while a say runs", async () => {
+    const { fake, speech, hub, tap, other } = await withKeyCheck();
+    speech.holdUrl = "%3A1%2F";
+    finished(fake, 1, "Old words.");
+    await hub.say(id, tap, 1);
+    await until("say opened", () => speech.calls.length === 1);
+    fake.openTurn(id, 2, "next");
+    fake.update(id, 2, [prose(0, "Live words. More")]);
+    fake.seal(id, 2);
+    fake.done(id);
+    await until("live end", () => other.of("audio.end").length > 0);
+    expect(other.of("audio.start")[0]).toMatchObject({ turn: 2 });
+    expect(other.of("audio.start")[0]).not.toHaveProperty("say");
+    expect(speech.calls[0]?.closed).toBe(false);
+    expect(tap.of("audio.start").map((f) => [f.turn, f.say === true])).toEqual([[1, true], [2, false]]);
+  });
+});

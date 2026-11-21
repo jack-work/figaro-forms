@@ -1,4 +1,4 @@
-import type { AppliedFrame, AriaClient, AriaStream, Node, TurnEnd } from "figaro-forms/aria";
+import type { Anchor, AppliedFrame, AriaClient, AriaStream, Node, TurnEnd } from "figaro-forms/aria";
 import { pcmFormat, type SpeechDial, type SpeechSession } from "./speech.js";
 import { takeSentences } from "./sentences.js";
 import { redact } from "./door.js";
@@ -13,10 +13,11 @@ export interface AudioHubOptions {
   readonly speech: SpeechDial;
   readonly store: string;
   readonly voiceOf?: (aria: string) => Promise<string | undefined>;
+  readonly stored?: (key: string) => Promise<boolean>;
   readonly log?: (line: string) => void;
 }
 
-export type CancelReason = "interrupt" | "new-turn" | "client" | "reaped";
+export type CancelReason = "interrupt" | "new-turn" | "client" | "reaped" | "left";
 
 export const ariaIdPattern = /^[0-9a-f]{32}$/;
 
@@ -25,6 +26,7 @@ export function audioKey(store: string, aria: string, turn: number): string {
 }
 
 interface Active {
+  readonly only: AudioListener | undefined;
   readonly turn: number;
   readonly key: string;
   readonly texts: Map<number, number>;
@@ -47,6 +49,16 @@ interface Active {
 
 const interruptedReason = /^(interrupt|cancel|abort)/i;
 
+interface Say {
+  cancelled: boolean;
+  active: Active | undefined;
+}
+
+interface Replayed {
+  readonly sealed: boolean;
+  readonly nodes: Map<number, Node>;
+}
+
 const spoken = (n: Node): boolean => n.type === "prose" && n.role === "output";
 
 class Follower {
@@ -55,6 +67,7 @@ class Follower {
   private stream: AriaStream | undefined;
   private offs: (() => void)[] = [];
   private finished = 0;
+  private readonly says = new Map<AudioListener, Say>();
 
   constructor(
     readonly aria: string,
@@ -76,6 +89,7 @@ class Follower {
   detach(client: AriaClient): void {
     for (const off of this.offs.splice(0)) off();
     this.cancel("reaped", false);
+    for (const l of [...this.says.keys()]) this.cancelSay(l, "reaped", false);
     client.release(this.aria);
   }
 
@@ -84,10 +98,100 @@ class Follower {
     if (!a) return;
     this.active = undefined;
     this.finished = Math.max(this.finished, a.turn);
+    this.halt(a, why, tell);
+  }
+
+  private halt(a: Active, why: CancelReason, tell: boolean): void {
     a.dead = true;
     a.speech?.cancel();
-    this.log(`turn cancelled aria=${this.aria} turn=${a.turn} why=${why} chunks=${a.chunks} bytes=${a.offset}`);
-    if (tell && (a.started || a.written.length > 0 || a.buf !== "")) this.send({ type: "audio.cancel", turn: a.turn, key: a.key, why });
+    this.log(`${a.only ? "say" : "turn"} cancelled aria=${this.aria} turn=${a.turn} why=${why} chunks=${a.chunks} bytes=${a.offset}`);
+    if (tell && (a.started || a.written.length > 0 || a.buf !== "")) this.tell(a, { type: "audio.cancel", turn: a.turn, key: a.key, why });
+  }
+
+  cancelSay(listener: AudioListener, why: CancelReason, tell = true): void {
+    const s = this.says.get(listener);
+    if (!s) return;
+    this.says.delete(listener);
+    s.cancelled = true;
+    if (s.active) this.halt(s.active, why, tell);
+  }
+
+  async say(client: AriaClient, listener: AudioListener, turn: unknown): Promise<void> {
+    const refuse = (code: string, text: string, why?: string): void => {
+      this.log(`say refused aria=${this.aria} turn=${String(turn)} code=${code}${why ? " " + redact(why) : ""}`);
+      listener.json({ type: "error", turn, code, text });
+    };
+    if (typeof turn !== "number" || !Number.isSafeInteger(turn) || turn < 1) return refuse("bad-turn", "turn must be a positive integer");
+    if (this.says.has(listener)) return refuse("busy", "a say is already running on this socket");
+    const s: Say = { cancelled: false, active: undefined };
+    this.says.set(listener, s);
+    const drop = (): void => {
+      if (this.says.get(listener) === s) this.says.delete(listener);
+    };
+    let replayed: Replayed | undefined;
+    try {
+      replayed = await this.replay(client, turn);
+    } catch (e) {
+      drop();
+      if (!s.cancelled) refuse("door", "could not read the turn", e instanceof Error ? e.message : String(e));
+      return;
+    }
+    if (s.cancelled) return;
+    if (!replayed) {
+      drop();
+      return refuse("bad-turn", `no turn ${turn}`);
+    }
+    if (!replayed.sealed) {
+      drop();
+      return refuse("open", `turn ${turn} is still running`);
+    }
+    const key = audioKey(this.hub.options.store, this.aria, turn);
+    const have = await (this.hub.options.stored?.(key) ?? Promise.resolve(false)).catch(() => false);
+    if (s.cancelled) return;
+    if (have) {
+      drop();
+      this.log(`say stored aria=${this.aria} turn=${turn}`);
+      listener.json({ type: "audio.stored", turn, key });
+      return;
+    }
+    const a = this.begin(turn, listener);
+    s.active = a;
+    for (const [id, n] of replayed.nodes) if (spoken(n)) this.prose(a, id, n.markdown ?? "");
+    this.finish(a);
+    if (a.written.length === 0) {
+      drop();
+      return refuse("silent", `turn ${turn} has no output prose`);
+    }
+  }
+
+  private async replay(client: AriaClient, turn: number): Promise<Replayed | undefined> {
+    const nodes = new Map<number, Node>();
+    let found = false;
+    let sealed = true;
+    let at: Anchor = { turn, node: 0 };
+    for (;;) {
+      const page = await client.read(this.aria, { at });
+      for (const part of page.parts) {
+        if (part.turn !== turn) continue;
+        found = true;
+        sealed = sealed && part.sealed;
+        (part.nodes ?? []).forEach((n, i) => nodes.set(part.from + i, n));
+      }
+      if (!page.next || page.next.turn !== turn) break;
+      at = page.next;
+    }
+    return found ? { sealed, nodes } : undefined;
+  }
+
+  private tell(a: Active, frame: Record<string, unknown>): void {
+    if (a.only) a.only.json(frame);
+    else this.send(frame);
+  }
+
+  private settle(a: Active): void {
+    if (a.only) {
+      if (this.says.get(a.only)?.active === a) this.says.delete(a.only);
+    } else if (this.active === a) this.active = undefined;
   }
 
   private log(line: string): void {
@@ -156,9 +260,10 @@ class Follower {
     if (frame.sealed.includes(a.turn)) this.finish(a);
   }
 
-  private begin(turn: number): Active {
+  private begin(turn: number, only?: AudioListener): Active {
     const voice = (this.hub.options.voiceOf?.(this.aria) ?? Promise.resolve(undefined)).catch(() => undefined);
     const a: Active = {
+      only,
       turn,
       key: audioKey(this.hub.options.store, this.aria, turn),
       texts: new Map(),
@@ -178,8 +283,8 @@ class Follower {
       carry: Buffer.alloc(0),
       dead: false,
     };
-    this.active = a;
-    this.log(`turn seen aria=${this.aria} turn=${turn}`);
+    if (!only) this.active = a;
+    this.log(`${only ? "say" : "turn"} seen aria=${this.aria} turn=${turn}`);
     return a;
   }
 
@@ -209,11 +314,9 @@ class Follower {
     if (a.buf !== "") this.feed(a, a.buf, a.node, a.texts.get(a.node) ?? 0);
     a.buf = "";
     a.ended = true;
-    this.finished = Math.max(this.finished, a.turn);
+    if (!a.only) this.finished = Math.max(this.finished, a.turn);
     if (a.speech) a.speech.end();
-    else if (!a.starting) {
-      if (this.active === a) this.active = undefined;
-    }
+    else if (!a.starting) this.settle(a);
   }
 
   private feed(a: Active, text: string, node: number, chars: number): void {
@@ -235,10 +338,10 @@ class Follower {
   }
 
   private speechFailed(a: Active, text: string): void {
-    if (this.active === a) this.active = undefined;
+    this.settle(a);
     a.dead = true;
-    this.log(`tts error aria=${this.aria} turn=${a.turn} chunks=${a.chunks} text=${redact(text)}`);
-    this.send({ type: "error", turn: a.turn, code: "speech", text });
+    this.log(`${a.only ? "say failed code=speech" : "tts error"} aria=${this.aria} turn=${a.turn} chunks=${a.chunks} text=${redact(text)}`);
+    this.tell(a, { type: "error", turn: a.turn, code: "speech", text });
   }
 
   private openSpeech(a: Active, voice: string | undefined): void {
@@ -267,9 +370,9 @@ class Follower {
         },
         done: (audioId) => {
           if (a.dead) return;
-          if (this.active === a) this.active = undefined;
-          this.log(`tts done aria=${this.aria} turn=${a.turn} chunks=${a.chunks} bytes=${a.offset}${audioId !== undefined ? " audio_id=" + audioId : ""}`);
-          this.send({ type: "audio.end", turn: a.turn, key: a.key, ...(audioId !== undefined ? { audio_id: audioId } : {}) });
+          this.settle(a);
+          this.log(`${a.only ? "say" : "tts done"} aria=${this.aria} turn=${a.turn} chunks=${a.chunks} bytes=${a.offset}${audioId !== undefined ? " audio_id=" + audioId : ""}`);
+          this.tell(a, { type: "audio.end", turn: a.turn, key: a.key, ...(audioId !== undefined ? { audio_id: audioId } : {}) });
         },
         error: (text) => {
           if (a.dead) return;
@@ -293,12 +396,12 @@ class Follower {
     const out = pcm.subarray(0, even);
     if (!a.started) {
       a.started = true;
-      this.send({ type: "audio.start", turn: a.turn, key: a.key, ...pcmFormat, node: a.fedNode, chars: a.fedChars, cursor: this.cursor() });
+      this.tell(a, { type: "audio.start", turn: a.turn, key: a.key, ...(a.only ? { say: true } : {}), ...pcmFormat, node: a.fedNode, chars: a.fedChars, cursor: this.cursor() });
     }
     const header = { type: "audio.chunk", turn: a.turn, node: a.fedNode, chars: a.fedChars, cursor: this.cursor(), offset: a.offset, bytes: out.length };
     a.offset += out.length;
     a.chunks += 1;
-    for (const l of this.listeners) {
+    for (const l of a.only ? [a.only] : this.listeners) {
       l.json(header);
       l.binary(out);
     }
@@ -334,6 +437,7 @@ export class AudioHub {
       throw e;
     }
     return () => {
+      follower.cancelSay(listener, "left", false);
       follower.listeners.delete(listener);
       if (follower.listeners.size > 0 || this.followers.get(aria) !== follower) return;
       this.followers.delete(aria);
@@ -343,8 +447,16 @@ export class AudioHub {
     };
   }
 
-  cancel(aria: string, why: CancelReason): void {
-    this.followers.get(aria)?.cancel(why);
+  cancel(aria: string, why: CancelReason, listener?: AudioListener): void {
+    const f = this.followers.get(aria);
+    f?.cancel(why);
+    if (listener) f?.cancelSay(listener, why);
+  }
+
+  async say(aria: string, listener: AudioListener, turn: unknown): Promise<void> {
+    const f = this.followers.get(aria);
+    if (!f || !this.client) return;
+    await f.say(this.client, listener, turn);
   }
 
   close(): void {

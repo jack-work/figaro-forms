@@ -8,6 +8,7 @@ import { AudioHub, ariaIdPattern, type AudioListener } from "./audio.js";
 import { proxyDoor, redact } from "./door.js";
 import { edgeHeader } from "./bridge.js";
 import type { SpeechDial } from "./speech.js";
+import { keyStored } from "./stt.js";
 
 export interface GatewayEdge {
   readonly secret: string;
@@ -103,6 +104,7 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
     },
     speech: o.speech,
     store: o.store,
+    stored: async (key) => (o.speechSocket ? keyStored({ socket: o.speechSocket, store: o.store, timeoutMs: 5_000 }, key) : false),
     voiceOf: async (aria) => {
       const r = (await shared?.connection.call("figaro.form", { figaro_id: aria })) as { snapshot?: { system?: { voice?: unknown } } } | null | undefined;
       const v = r?.snapshot?.system?.voice;
@@ -223,14 +225,19 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
       ws.close(1008, "unknown store");
       return;
     }
+    let ready: (ok: boolean) => void = () => {};
+    const joined = new Promise<boolean>((ok) => (ready = ok));
     ws.on("message", (data, binary) => {
       if (binary) {
         ws.close(1003, "text frames only");
         return;
       }
       try {
-        const f = JSON.parse(data.toString()) as { type?: unknown };
-        if (f.type === "cancel") hub.cancel(aria, "client");
+        const f = JSON.parse(data.toString()) as { type?: unknown; turn?: unknown };
+        if (f.type === "cancel") hub.cancel(aria, "client", listener);
+        else if (f.type === "say") void joined.then(async (ok) => {
+          if (ok && !closed) await hub.say(aria, listener, f.turn);
+        });
       } catch {
         ws.close(1007, "not JSON");
       }
@@ -243,11 +250,13 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
         return;
       }
       leave = left;
+      ready(true);
       log(`audio: follow ready aria=${aria}`);
       listener.json({ type: "ready", aria, store: o.store });
     } catch (err) {
       const text = err instanceof Error ? err.message : String(err);
       log(`audio: follow failed aria=${aria} code=${refusalCode(err)} text=${redact(text)}`);
+      ready(false);
       listener.json({ type: "error", code: refusalCode(err), text });
       ws.close(1011, "cannot attend");
     }
