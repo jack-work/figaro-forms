@@ -183,6 +183,36 @@ method= aria= session=`, with no params; the door's pushes (`figaro.aria`,
 `form.delta`, `turn.done`) are not logged. Each HTTP request behind the gate logs
 `http <method> <path> <status> <ms> ms session=`.
 
+## Faults (test mode)
+
+`--fault-socket PATH` turns on test mode: the gateway takes fault ops as one JSON
+object per line on PATH (mode 0600) and answers each with one line. It refuses to
+start unless it listens on loopback `--port` with loopback peers only, so the
+production shape (a unix socket behind the edge) cannot be put in test mode, and
+it logs `faults armed on PATH: this gateway is in test mode`. Without the flag
+nothing is wrapped.
+
+- `{"op":"door.lapse","notice":true}`: end the live door legs now (with `door.lapsed`
+  first when `notice`), as gluck's door does at bearer expiry; `leg`, `ms` (after).
+- `{"op":"door.bearer","ms":3000}`: every new door leg lapses ms after it opens and
+  the gateway is told so, so handovers come every ms; `"ms":null` ends it.
+- `{"op":"door.drop"|"door.delay", ...}` and `{"op":"page.drop"|"page.delay", ...}`:
+  frames from the door, or to the page, matching `method` (or audio `type`),
+  `reply` ("page", "gateway" or an id), `leg` ("first"/"later"), `notify`; delay
+  takes `ms`.
+- `{"op":"door.stall","ms":M}`: the next door dials wait M ms.
+- `{"op":"page.close","code":1011}`: close page sockets (1006 terminates).
+- `{"op":"speech.stall","ms":M}`, `{"op":"speech.fail"}`: hold or fail the next
+  speech calls (TTS, dictation, streaming dictation).
+- `{"op":"clear"}`, `{"op":"state"}`.
+
+Every op takes `session` (a figchat session id) or `audio` (true for the audio
+follow) to scope it, and `count` to end it after that many hits (default: until
+`clear`).
+
+`npm run test:load` in packages/bridge runs a load test through `/door` against a
+fake door (LOAD_FIGAROS, LOAD_TURNS, LOAD_DELTAS, LOAD_PAGES).
+
 ## Door handover
 
 gluck's door closes a connection when the bearer it was admitted with expires

@@ -12,6 +12,7 @@ import { keyStored } from "./stt.js";
 import { noTracer, parseTraceparent, type Tracer } from "./trace.js";
 import { attachRoute, type AttachStore } from "./attach.js";
 import { handoverDial } from "./handover.js";
+import type { Faults, Who } from "./faults.js";
 
 export interface GatewayEdge {
   readonly secret: string;
@@ -38,6 +39,7 @@ export interface GatewayOptions {
   readonly compress?: boolean;
   readonly renew?: (until: number) => Promise<number | undefined>;
   readonly sockets?: GatewaySocket;
+  readonly faults?: Faults;
 }
 
 export type GatewayRoute = (req: IncomingMessage, res: ServerResponse, path: string, user: string) => boolean;
@@ -105,7 +107,12 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
   const maxPayload = o.maxFrameBytes ?? 1 << 20;
 
   const log = o.log ?? ((line: string) => process.stderr.write(`figaro-gateway: ${line}\n`));
-  const lasting = (dial: Dial, who: string): Dial => (o.renew ? handoverDial(dial, { renew: o.renew, log: (l) => log(`${l} ${who}`) }) : dial);
+  const renew = o.faults ? o.faults.renew(o.renew) : o.renew;
+  const doorFor = (user: string, session: string, who: Who): Dial => {
+    const dial = o.faults ? o.faults.door(o.door(user, session), who) : o.door(user, session);
+    const tag = who.audio ? "for=audio" : `session=${session}`;
+    return renew ? handoverDial(dial, { renew, log: (l) => log(`${l} ${tag}`) }) : dial;
+  };
   let shared: AriaClient | undefined;
   const tracer = o.tracer ?? noTracer;
   const hub = new AudioHub({
@@ -113,9 +120,9 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
     tracer,
     connect: () => {
       log("audio: dialing the door");
-      return (shared = new AriaClient({ dial: lasting(o.door(e.admin, noSession), "for=audio") }));
+      return (shared = new AriaClient({ dial: doorFor(e.admin, noSession, { session: noSession, audio: true }) }));
     },
-    speech: o.speech,
+    speech: o.faults ? o.faults.speech(o.speech) : o.speech,
     store: o.store,
     stored: async (key, session) => (o.speechSocket ? keyStored({ socket: o.speechSocket, store: o.store, timeoutMs: 5_000 }, key, session) : false),
     voiceOf: async (aria) => {
@@ -217,11 +224,13 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
       wss.handleUpgrade(req, sock, head, (ws) => {
         track(ws);
         meterDoor(ws, req.socket, session);
-        proxyDoor(ws, lasting(o.door(String(req.headers["remote-user"]), session), `session=${session}`), hub, log, session, tracer, o.attachments);
+        o.faults?.page(ws, { session, audio: false });
+        proxyDoor(ws, doorFor(String(req.headers["remote-user"]), session, { session, audio: false }), hub, log, session, tracer, o.attachments);
       });
     } else if (audio !== undefined && ariaIdPattern.test(audio)) {
       wss.handleUpgrade(req, sock, head, (ws) => {
         track(ws);
+        o.faults?.page(ws, { session, audio: true });
         void attend(ws, audio, asked, String(req.headers["remote-user"]), session);
       });
     } else if ((take = o.sockets?.(path))) {

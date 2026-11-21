@@ -17,11 +17,26 @@ const maxHeldBytes = 64000;
 type Code = "bad-request" | "busy" | "idle" | "too-long" | "speech" | "unreachable";
 
 export function attendSttStream(
-  o: SttStreamLimits & { readonly socket: string; readonly store: string; readonly log?: (line: string) => void },
+  o: SttStreamLimits & { readonly socket: string; readonly store: string; readonly log?: (line: string) => void; readonly gate?: () => Promise<string | undefined> },
   ws: WebSocket,
   req: IncomingMessage,
   admit: () => (() => void) | undefined,
 ): void {
+  if (o.gate) {
+    const gate = o.gate;
+    ws.pause();
+    void gate().then((why) => {
+      ws.resume();
+      if (why !== undefined) {
+        ws.send(JSON.stringify({ type: "error", code: "speech", text: why }));
+        ws.close(1011);
+        return;
+      }
+      const { gate: _spent, ...rest } = o;
+      attendSttStream(rest, ws, req, admit);
+    });
+    return;
+  }
   const session = sessionOf(req, true);
   const log = (line: string): void => o.log?.(`${line} session=${session}`);
   const q = new URL(req.url ?? "/", "http://gateway").searchParams;

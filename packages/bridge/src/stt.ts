@@ -13,6 +13,7 @@ export interface SttOptions extends SttStreamLimits {
   readonly timeoutMs?: number;
   readonly maxConcurrent?: number;
   readonly log?: (line: string) => void;
+  readonly gate?: () => Promise<string | undefined>;
 }
 
 const clipTypes = new Set(["audio/webm", "audio/mp4"]);
@@ -64,7 +65,9 @@ interface SpeechAnswer {
   readonly error?: string;
 }
 
-function callSpeech(o: SttOptions, path: string, body: Buffer, contentType: string, session: string = noSession, traceparent?: string): Promise<SpeechAnswer> {
+async function callSpeech(o: SttOptions, path: string, body: Buffer, contentType: string, session: string = noSession, traceparent?: string): Promise<SpeechAnswer> {
+  const refused = o.gate ? await o.gate() : undefined;
+  if (refused !== undefined) return { status: 0, json: undefined, error: refused };
   return new Promise((ok) => {
     const up = request(
       {

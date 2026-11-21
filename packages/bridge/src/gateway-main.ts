@@ -8,6 +8,7 @@ import { bearer, type Credential } from "figaro-forms/auth";
 import { onBehalfOf, redact, withSession } from "./door.js";
 import { otlpExporter } from "./trace.js";
 import { AttachStore, systemTools } from "./attach.js";
+import { Faults, faultSocket, faultsRefusal } from "./faults.js";
 import { ClientCredentials, doorTokenPath, redialAfterRejection } from "./token.js";
 import { startGateway, type GatewayListen } from "./gateway.js";
 import { speechOverSocket } from "./speech.js";
@@ -19,7 +20,7 @@ Usage: figaro-gateway --door-url URL --speech-socket PATH --admin USER --store N
                        (--listen-socket PATH [--mode OCTAL] | --port N --peer ADDR...)
                        [--edge-secret-file PATH] [--origin URL]...
                        [--door-token-file PATH | --token-url URL --client-id ID --client-secret-file PATH [--audience URL]]
-                       [--otlp-endpoint URL] [--no-attach] [--no-deflate]
+                       [--otlp-endpoint URL] [--no-attach] [--no-deflate] [--fault-socket PATH]
 
   --door-url URL        the figaro door, e.g. wss://gluck.tailnet.ts.net:7445/door
                         (ws+unix://PATH:/door for a daemon's web socket)
@@ -42,6 +43,8 @@ Usage: figaro-gateway --door-url URL --speech-socket PATH --admin USER --store N
   --admin USER          the one Remote-User served
   --edge-secret-file P  shared secret, 32 bytes or more (default $CREDENTIALS_DIRECTORY/edge)
   --origin URL          also admit pages from URL (same-origin pages always pass)
+  --fault-socket PATH   test mode: take fault ops (drop, delay, lapse, stall) as JSON lines on
+                        PATH (0600); only with a loopback --port gateway and loopback peers
   --no-deflate          do not offer permessage-deflate on /door and /audio (default: offer it)
   --no-attach           refuse POST /attach and qua attachments (default: take them; needs
                         magick, pdfinfo, pdftotext and pdftoppm on PATH)
@@ -65,6 +68,7 @@ const { values } = parseArgs({
     "otlp-endpoint": { type: "string" },
     "no-attach": { type: "boolean" },
     "no-deflate": { type: "boolean" },
+    "fault-socket": { type: "string" },
     "speech-socket": { type: "string" },
     store: { type: "string" },
     "listen-socket": { type: "string" },
@@ -123,9 +127,17 @@ try {
   const listen: GatewayListen = values.port
     ? { port: Number(values.port), host: "127.0.0.1" }
     : { path: values["listen-socket"] ?? "/run/figaro-gateway/gateway.sock", mode: values.mode ? parseInt(values.mode, 8) : 0o660 };
+  const say = (line: string): void => void process.stderr.write(`figaro-gateway: ${line}\n`);
+  let faults: Faults | undefined;
+  if (values["fault-socket"]) {
+    const refusal = faultsRefusal(listen, values.port ? (values.peer ?? []) : undefined);
+    if (refusal) throw new Error(refusal);
+    faults = new Faults(say);
+  }
   const exporter = values["otlp-endpoint"] ? otlpExporter({ endpoint: values["otlp-endpoint"], service: "figaro-gateway", log: (line) => process.stderr.write(`figaro-gateway: ${line}\n`) }) : undefined;
   const attachments = values["no-attach"] ? undefined : new AttachStore({ tools: systemTools() });
   const g = await startGateway({
+    ...(faults ? { faults } : {}),
     ...(minter ? { renew: (until: number) => (minter as ClientCredentials).lasting(until) } : {}),
     ...(attachments ? { attachments } : {}),
     ...(values["no-deflate"] ? { compress: false } : {}),
@@ -145,10 +157,11 @@ try {
     speech: speechOverSocket(values["speech-socket"]),
     speechSocket: values["speech-socket"],
     store: values.store,
-    ...stt({ socket: values["speech-socket"], store: values.store, log: (line) => process.stderr.write(`figaro-gateway: ${line}\n`) }),
+    ...stt({ socket: values["speech-socket"], store: values.store, log: (line) => process.stderr.write(`figaro-gateway: ${line}\n`), ...(faults ? { gate: () => (faults as Faults).speechGate() } : {}) }),
     ...(values.origin ? { origins: values.origin } : {}),
   });
   process.stderr.write(`figaro-gateway: listening on ${g.address}, door ${redact(url)}\n`);
+  if (faults) await faultSocket(values["fault-socket"] as string, faults, say);
   const stop = (): void => void g.close().then(() => exporter?.close()).then(() => process.exit(0));
   process.on("SIGINT", stop);
   process.on("SIGTERM", stop);

@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
-import type { Dial, Socket, SocketEvents } from "figaro-forms";
+import type { Dial, SocketEvents } from "figaro-forms";
 import { FakeAria, tick } from "../../figaro-forms/test/aria/fake-aria.js";
 import WebSocket from "ws";
 import { handoverDial, leadFor } from "../src/handover.js";
+import { Faults } from "../src/faults.js";
 import { startGateway } from "../src/gateway.js";
 import { speechOverSocket } from "../src/speech.js";
 import { startFakeSpeech } from "./fake-speech.js";
@@ -17,96 +18,46 @@ afterEach(() => {
 interface Door {
   readonly dial: Dial;
   readonly renew: (until: number) => Promise<number | undefined>;
-  legs: number;
-  lapses: number;
+  readonly faults: Faults;
+  readonly legs: number;
+  readonly lapses: number;
 }
 
-function lapsingDoor(fake: FakeAria, ttlMs: number, notice = true, o: { followAckMs?: number; claimedSkewMs?: number; holdReply?: { id: number; ms: number }; lagNewMs?: number; killLeg?: { leg: number; afterMs: number }; dialDelayMs?: number; onDial?: (leg: number) => void } = {}): Door {
-  let tokenExp = 0;
-  const door: Door = {
-    legs: 0,
-    lapses: 0,
-    renew: async (until) => {
-      if (tokenExp + (o.claimedSkewMs ?? 0) < until) tokenExp = Date.now() + ttlMs;
-      return tokenExp + (o.claimedSkewMs ?? 0);
+interface DoorFaults {
+  followAckMs?: number;
+  holdReply?: { id: number; ms: number };
+  lagNewMs?: number;
+  killLeg?: { leg: number; afterMs: number };
+  dialDelayMs?: number;
+  onDial?: (leg: number) => void;
+}
+
+function faultyDoor(fake: FakeAria, ttlMs: number, notice = true, o: DoorFaults = {}): Door {
+  const faults: Faults = new Faults(
+    () => {},
+    (n) => {
+      o.onDial?.(n);
+      if (n === 1 && o.dialDelayMs) faults.apply({ op: "door.stall", ms: o.dialDelayMs });
+      if (o.killLeg && n === o.killLeg.leg) faults.apply({ op: "door.lapse", leg: n, notice: false, ms: o.killLeg.afterMs });
     },
-    dial: async (outer: SocketEvents) => {
-      const exp = tokenExp;
-      door.legs++;
-      const legNo = door.legs;
-      o.onDial?.(legNo);
-      if (o.dialDelayMs && legNo > 1) await tick(o.dialDelayMs);
-      let dead = false;
-      const inner = await fake.dial({
-        message: (f) => {
-          if (dead) return;
-          if (o.holdReply && JSON.parse(f).id === o.holdReply.id && !JSON.parse(f).method) {
-            setTimeout(() => !dead && outer.message(f), o.holdReply.ms);
-            return;
-          }
-          if (o.followAckMs && (JSON.parse(f) as { id?: unknown }).id !== undefined && ((JSON.parse(f) as { id: number }).id < 0)) {
-            setTimeout(() => !dead && outer.message(f), o.followAckMs);
-            return;
-          }
-          if (o.lagNewMs && legNo > 1 && JSON.parse(f).method) {
-            setTimeout(() => !dead && outer.message(f), o.lagNewMs);
-            return;
-          }
-          outer.message(f);
-        },
-        closed: (r) => {
-          if (!dead) {
-            dead = true;
-            outer.closed(r);
-          }
-        },
-      });
-      const lapse = setTimeout(() => {
-        if (dead) return;
-        door.lapses++;
-        if (notice) outer.message(JSON.stringify({ jsonrpc: "2.0", method: "door.lapsed", params: { reason: lapseReason, after_ms: ttlMs } }));
-        setTimeout(() => {
-          if (dead) return;
-          dead = true;
-          inner.close();
-          outer.closed(lapseReason);
-        }, 50);
-      }, Math.max(0, exp - Date.now()));
-      cleanups.push(() => clearTimeout(lapse));
-      if (o.killLeg && o.killLeg.leg === legNo) {
-        const k = setTimeout(() => {
-          if (dead) return;
-          dead = true;
-          clearTimeout(lapse);
-          inner.close();
-          outer.closed("killed");
-        }, o.killLeg.afterMs);
-        cleanups.push(() => clearTimeout(k));
-      }
-      const socket: Socket = {
-        send: (f) => {
-          if (dead) throw new Error("socket closed");
-          const sent = JSON.parse(f) as { id?: unknown };
-          if (sent.id !== undefined && !Number.isSafeInteger(sent.id)) {
-            dead = true;
-            clearTimeout(lapse);
-            inner.close();
-            queueMicrotask(() => outer.closed("recv: json: cannot unmarshal string into Go struct field Message.id of type int64"));
-            return;
-          }
-          inner.send(f);
-        },
-        close: () => {
-          if (dead) return;
-          dead = true;
-          clearTimeout(lapse);
-          inner.close();
-        },
-      };
-      return socket;
+  );
+  faults.apply({ op: "door.bearer", ms: ttlMs, notice });
+  if (o.followAckMs) faults.apply({ op: "door.delay", reply: "gateway", ms: o.followAckMs });
+  if (o.holdReply) faults.apply({ op: "door.delay", reply: o.holdReply.id, ms: o.holdReply.ms, count: 1 });
+  if (o.lagNewMs) faults.apply({ op: "door.delay", leg: "later", notify: true, ms: o.lagNewMs });
+  const dial = faults.door(fake.dial, { session: "-", audio: false });
+  cleanups.push(() => void faults.apply({ op: "clear" }));
+  return {
+    dial,
+    renew: faults.renew(undefined),
+    faults,
+    get legs() {
+      return faults.legsOpened;
+    },
+    get lapses() {
+      return faults.legsCut;
     },
   };
-  return door;
 }
 
 function page(): { events: SocketEvents; frames: string[]; replies: Record<string, unknown>[]; closed: string[] } {
@@ -154,7 +105,7 @@ describe("door handover", () => {
   it("carries a reply streaming across several lapses byte for byte, and the page never sees a close or a lapse", async () => {
     const fake = new FakeAria();
     fake.addAria(id);
-    const door = lapsingDoor(fake, 3_000, true, { followAckMs: 120 });
+    const door = faultyDoor(fake, 3_000, true, { followAckMs: 120 });
     const ref = await reference(fake);
     const p = page();
     const lines: string[] = [];
@@ -184,7 +135,7 @@ describe("door handover", () => {
   it("moves between turns when the stream is quiet, before the deadline", async () => {
     const fake = new FakeAria();
     fake.addAria(id);
-    const door = lapsingDoor(fake, 3_000);
+    const door = faultyDoor(fake, 3_000);
     const ref = await reference(fake);
     const p = page();
     const lines: string[] = [];
@@ -213,7 +164,7 @@ describe("door handover", () => {
     const fake = new FakeAria();
     fake.addAria(id);
     fake.finishedTurn(id, 1, "old", [{ type: "prose", role: "output", markdown: "Ciao." } as never]);
-    const door = lapsingDoor(fake, 3_000);
+    const door = faultyDoor(fake, 3_000);
     const p = page();
     const sock = await handoverDial(door.dial, { renew: door.renew, quietMs: 50 })(p.events);
     cleanups.push(() => sock.close());
@@ -234,10 +185,11 @@ describe("door handover", () => {
   it("passes a close through when no handover can help: no renewable bearer", async () => {
     const fake = new FakeAria();
     fake.addAria(id);
-    const door = lapsingDoor(fake, 1_500);
+    const door = faultyDoor(fake, 1_500);
     const p = page();
     const lines: string[] = [];
-    const sock = await handoverDial(door.dial, { renew: async () => door.renew(0), log: (l) => lines.push(l) })(p.events);
+    const stale = Date.now() + 1_500;
+    const sock = await handoverDial(door.dial, { renew: async () => stale, log: (l) => lines.push(l) })(p.events);
     cleanups.push(() => sock.close());
     await until("the close", () => p.closed.length === 1, 4_000);
     expect(p.closed).toEqual([lapseReason]);
@@ -247,7 +199,7 @@ describe("door handover", () => {
   it("keeps an aria a qua followed when it moves, as the daemon follows on qua", async () => {
     const fake = new FakeAria();
     fake.addAria(id);
-    const door = lapsingDoor(fake, 3_000);
+    const door = faultyDoor(fake, 3_000);
     const p = page();
     const sock = await handoverDial(door.dial, { renew: door.renew, quietMs: 50 })(p.events);
     cleanups.push(() => sock.close());
@@ -265,7 +217,7 @@ describe("door handover", () => {
   it("loses nothing when the old leg lapses while the new leg's follows are still unanswered", async () => {
     const fake = new FakeAria();
     fake.addAria(id);
-    const door = lapsingDoor(fake, 3_000, false, { followAckMs: 1_600 });
+    const door = faultyDoor(fake, 3_000, false, { followAckMs: 1_600 });
     const ref = await reference(fake);
     const p = page();
     const sock = await handoverDial(door.dial, { renew: door.renew, quietMs: 50 })(p.events);
@@ -291,7 +243,7 @@ describe("door handover", () => {
     const fake = new FakeAria();
     fake.addAria(id);
     fake.addForm("@recent", {});
-    const door = lapsingDoor(fake, 3_000, true, { holdReply: { id: 5, ms: 2_400 } });
+    const door = faultyDoor(fake, 3_000, true, { holdReply: { id: 5, ms: 2_400 } });
     const p = page();
     const sock = await handoverDial(door.dial, { renew: door.renew, quietMs: 50 })(p.events);
     cleanups.push(() => sock.close());
@@ -315,7 +267,7 @@ describe("door handover", () => {
     const fake = new FakeAria();
     fake.addAria(id);
     fake.addForm("@recent", {});
-    const door = lapsingDoor(fake, 3_000, true, { followAckMs: 600 });
+    const door = faultyDoor(fake, 3_000, true, { followAckMs: 600 });
     const p = page();
     const sock = await handoverDial(door.dial, { renew: door.renew, quietMs: 50 })(p.events);
     cleanups.push(() => sock.close());
@@ -335,7 +287,7 @@ describe("door handover", () => {
   it("doubles nothing when the new leg's copies arrive after the switch, with repeated identical frames in the stream", async () => {
     const fake = new FakeAria();
     fake.addAria(id);
-    const door = lapsingDoor(fake, 3_000, true, { lagNewMs: 80 });
+    const door = faultyDoor(fake, 3_000, true, { lagNewMs: 80 });
     const ref = await reference(fake);
     const p = page();
     const lines: string[] = [];
@@ -369,7 +321,7 @@ describe("door handover", () => {
     const fake = new FakeAria();
     fake.addAria(id);
     let moving = false;
-    const door = lapsingDoor(fake, 3_000, true, { dialDelayMs: 150, onDial: (n) => (moving = n === 2) });
+    const door = faultyDoor(fake, 3_000, true, { dialDelayMs: 150, onDial: (n) => (moving = n === 2) });
     const ref = await reference(fake);
     const p = page();
     const sock = await handoverDial(door.dial, { renew: door.renew, quietMs: 50 })(p.events);
@@ -391,7 +343,7 @@ describe("door handover", () => {
   it("answers the page with an error for a request the retired leg took to its close, and refuses a reserved id", async () => {
     const fake = new FakeAria();
     fake.addAria(id);
-    const door = lapsingDoor(fake, 3_000);
+    const door = faultyDoor(fake, 3_000);
     const p = page();
     const sock = await handoverDial(door.dial, { renew: door.renew, quietMs: 50 })(p.events);
     cleanups.push(() => sock.close());
@@ -410,7 +362,7 @@ describe("door handover", () => {
   it("gives up a move at once when the new leg dies before its follows are answered", async () => {
     const fake = new FakeAria();
     fake.addAria(id);
-    const door = lapsingDoor(fake, 3_000, true, { followAckMs: 5_000, killLeg: { leg: 2, afterMs: 100 } });
+    const door = faultyDoor(fake, 3_000, true, { followAckMs: 5_000, killLeg: { leg: 2, afterMs: 100 } });
     const p = page();
     const lines: string[] = [];
     const sock = await handoverDial(door.dial, { renew: door.renew, log: (l) => lines.push(`${Date.now()} ${l}`), quietMs: 50 })(p.events);
@@ -425,12 +377,14 @@ describe("door handover", () => {
   it("moves at once on a lapse notice it did not expect, and never passes the notice on", async () => {
     const fake = new FakeAria();
     fake.addAria(id);
-    const door = lapsingDoor(fake, 1_500, true, { claimedSkewMs: 60_000 });
+    const door = faultyDoor(fake, 60_000);
     const p = page();
     const lines: string[] = [];
     const sock = await handoverDial(door.dial, { renew: door.renew, log: (l) => lines.push(l), quietMs: 50 })(p.events);
     cleanups.push(() => sock.close());
     sock.send(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "figaro.follow", params: { figaro_id: id } }));
+    await until("follow answer", () => p.replies.some((r) => r.id === 1));
+    door.faults.apply({ op: "door.lapse", notice: true });
     await until("a lapse", () => door.lapses >= 1, 4_000);
     await until("a second leg", () => door.legs === 2);
     await tick(200);
@@ -442,7 +396,7 @@ describe("door handover", () => {
   it("moves before a lapse the door gives no notice of", async () => {
     const fake = new FakeAria();
     fake.addAria(id);
-    const door = lapsingDoor(fake, 3_000, false);
+    const door = faultyDoor(fake, 3_000, false);
     const p = page();
     const sock = await handoverDial(door.dial, { renew: door.renew, quietMs: 50 })(p.events);
     cleanups.push(() => sock.close());
@@ -456,7 +410,7 @@ describe("door handover", () => {
   it("keeps a page's /door socket and an /audio listener open through the gateway across lapses", async () => {
     const fake = new FakeAria();
     fake.addAria(id);
-    const door = lapsingDoor(fake, 3_000);
+    const door = faultyDoor(fake, 3_000);
     const speech = await startFakeSpeech();
     const secret = "s".repeat(40);
     const lines: string[] = [];

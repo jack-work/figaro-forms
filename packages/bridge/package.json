@@ -25,7 +25,8 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "test:daemon": "vitest run -c vitest.daemon.config.ts"
+    "test:daemon": "vitest run -c vitest.daemon.config.ts",
+    "test:load": "vitest run -c vitest.load.config.ts"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",

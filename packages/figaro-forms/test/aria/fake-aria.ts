@@ -112,6 +112,11 @@ export class FakeAria {
       send: (frame) => {
         if (!conn.open) throw new Error("socket closed");
         const f = JSON.parse(frame) as Frame;
+        if (f.id !== undefined && !Number.isSafeInteger(f.id)) {
+          conn.open = false;
+          queueMicrotask(() => events.closed("recv: json: cannot unmarshal string into Go struct field Message.id of type int64"));
+          return;
+        }
         conn.received.push(f);
         queueMicrotask(() => this.handle(conn, f));
       },
