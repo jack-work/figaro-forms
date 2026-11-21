@@ -7,8 +7,28 @@ export const wellKnownKeys: readonly KeyDoc[] = [
     "mode": "user"
   },
   {
+    "key": "target-aria",
+    "short": "The figaro a role form points at: its holder. Protected: only the owner or an ancestor figaro writes it, and cast checks its target",
+    "mode": "user"
+  },
+  {
+    "key": "lifecycle.status",
+    "short": "Owner-held; a role's lifecycle. routing-alias makes the role route to its holder without binding the holder's fan-out limits or quota",
+    "mode": "user"
+  },
+  {
+    "key": "succession-policy",
+    "short": "Owner-held; how a role's holder hands it over: the outfit the daemon dresses a successor in as the owner, thresholds, variants, the handoff key",
+    "mode": "user"
+  },
+  {
     "key": "system.credo",
     "short": "Credo source (string or {content,filePath,frontmatter}); providers read this as the system prompt. Fixed at birth: set by the outfit or birth patch, refused once the figaro has spoken (fork -S or succeed for another)",
+    "mode": "user"
+  },
+  {
+    "key": "system.kind",
+    "short": "\"log\" makes the aria an aria log: no provider, and a send appends one entry instead of starting a turn. Fixed at birth: set in the birth patch of new --log, bind or fork, refused on set or send after",
     "mode": "user"
   },
   {
@@ -178,12 +198,17 @@ export const wellKnownKeys: readonly KeyDoc[] = [
   },
   {
     "key": "system.scopes",
-    "short": "Protected; the aria's scopes as a JSON array of verb:object strings, narrowing its parent's and enforced on calls that name it. Providers read the effective set from figaro.scopes, not this key. Same writers as system.sandbox; a figaro gives only what it holds. system.grants is its old name: still read, no longer written",
+    "short": "Protected; the aria's scopes as a JSON array of verb:object strings, narrowing its parent's and enforced on calls that name it. Providers read the effective set from figaro.scopes, not this key. Same writers as system.sandbox; a figaro gives only what it holds",
     "mode": "user"
   },
   {
     "key": "system.grants",
-    "short": "Retired name of system.scopes: still read, never written; a write is refused with the new name",
+    "short": "Owner-held; what the owner grants a figaro beyond its scopes, one key per kind of grant. It was once the name of system.scopes: a list here is no longer read, and the figaro's scopes fail closed until the owner moves it",
+    "mode": "user"
+  },
+  {
+    "key": "system.grants.outfits",
+    "short": "Owner-held; the outfits the figaro may name beyond default (each -O layer, at fork, new, bind, set, send and cast), as names or globs (\"opus5\", \"model-*\", \"*\"). A role form's list grants its holder too. Managed apply may set it",
     "mode": "user"
   },
   {
@@ -192,8 +217,18 @@ export const wellKnownKeys: readonly KeyDoc[] = [
     "mode": "user"
   },
   {
+    "key": "system.child_policy",
+    "short": "Protected; a template applied in the birth patch of every fork of this figaro: an object of key paths to values, applied key by key (a nested object names the key paths below it; scopes, fanout, incantations; owner-held keys such as system.model only when the owner writes them). Applied at birth, never kept linked. Unset, a fork made by a figaro gets system.scopes = [\"send:parent\", \"read:aria:self\", \"write:aria:self#@self\", \"delete:aria:self#@self\"]; a fork made by the owner inherits as before. Same writers as system.scopes",
+    "mode": "user"
+  },
+  {
+    "key": "system.fanout.quota",
+    "short": "Protected; the most live figaros the subtree may hold, the figaro itself not counted (non-negative integer). A live child charges 1 plus its own quota, or 1 plus what its subtree uses when it has none; a parent grants only from its free budget. Same writers as system.scopes",
+    "mode": "user"
+  },
+  {
     "key": "system.fanout.mint",
-    "short": "Protected; true lets the figaro mint a new one with figaro new. Same writers as system.scopes",
+    "short": "Protected; true lets the figaro mint a new one with figaro new while [authz] enforce_key_grants is off. With it on the key is retired, a write is refused, and mint:* in system.scopes licenses instead. Same writers as system.scopes",
     "mode": "user"
   },
   {
@@ -230,6 +265,11 @@ export const wellKnownKeys: readonly KeyDoc[] = [
     "key": "system.retention.writers",
     "short": "Figaro ids or principals the owner lets set system.retention.* besides itself; only the owner sets this",
     "mode": "user"
+  },
+  {
+    "key": "runtime.owner_made",
+    "short": "Set at birth on a fork the owner made: it was admitted past every fan-out cap, still counts against them, and a capped figaro may retire it to make room",
+    "mode": "system"
   },
   {
     "key": "runtime.forked_from",
@@ -305,6 +345,11 @@ export const wellKnownKeys: readonly KeyDoc[] = [
     "key": "system.retired",
     "short": "Owner-held; the request to retire a figaro, with the reason (e.g. \"manual\"); a box may set it on the figaros inside it. The daemon records it at runtime.retired and never keeps it here; removing it unretires",
     "mode": "user"
+  },
+  {
+    "key": "runtime.route",
+    "short": "The route the figaro talks over, as the ordered path through the model catalog: [provider, upstream..., model], e.g. [\"rou2\",\"explabs\",\"glm-5.3\"] or [\"anthropic\",\"claude-opus-5\"]. The daemon derives it from system.provider and system.model on every write that touches them",
+    "mode": "system"
   },
   {
     "key": "runtime.retired",
