@@ -16,7 +16,8 @@ every request needs the edge secret in `X-Figaro-Edge` and the admin in
   `figaro.form`, `figaro.read`, `figaro.qua`, `figaro.interrupt`, `figaro.fork`,
   `figaro.list`, `figaro.create`, `figaro.set`.
   Everything else (form.create, kill) is refused. `figaro.qua` may carry only
-  `figaro_id`, `text`, `images` and `traceparent` (W3C only, else refused), `figaro.fork` only `figaro_id`, `at_turn` and
+  `figaro_id`, `text`, `images`, `traceparent` (W3C only, else refused), `attachments` and
+  `dictation` (an `audio_id`, else refused; the gateway keeps it), `figaro.fork` only `figaro_id`, `at_turn` and
   `at_lt`, `figaro.create` only `outfits` (no patch, no cwd), `angelus.outfits` only
   `spec`, and `figaro.set` only `figaro_id`, `patch`, `client` and `seq`: any other
   field (`form` with its patch, context or outfits on a qua; a fork's
@@ -43,9 +44,12 @@ every request needs the edge secret in `X-Figaro-Edge` and the admin in
   keys of the gateway's own store (404 otherwise); an unparsable target or escape
   answers 400. A streamed dictation (`/stt/stream`) is stored before its turn exists,
   so the gateway keys it: after the stream's `done` it remembers the clip for that
-  session and aria (10 minutes), and when the same session's next `figaro.qua` on the
-  aria opens a turn, it keys the clip `<store>/<aria>:<turn>/in` (speech's
-  `POST /audio/<id>/key`), logging `dictation keyed audio_id= key= session=`.
+  session and aria (10 minutes). A `figaro.qua` from the same session that sends the
+  dictated text names the clip with `dictation: <audio_id>`; when a turn opens whose
+  inquiry (or one sender's segment of it) is that text, with any folded PDF text after
+  it, the gateway keys the clip `<store>/<aria>:<turn>/in` (speech's
+  `POST /audio/<id>/key`), logging `dictation keyed audio_id= key= session=`. A typed
+  qua, or one sent as steering, keys nothing.
 - `POST /stt?aria=<store>/<aria>`: dictation. See below.
 - `POST /stt/key/<store>/<aria>:<turn>/in`: re-transcribe a stored clip. See below.
 - `/stt/stream?aria=<store>/<aria>&lang=<bcp47>` (WebSocket): live dictation. See below.

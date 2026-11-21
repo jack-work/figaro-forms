@@ -4,6 +4,7 @@ import type { WebSocket } from "ws";
 import type { AudioHub } from "./audio.js";
 import { noTracer, parseTraceparent, type Span, type Tracer } from "./trace.js";
 import { fold, type AttachStore } from "./attach.js";
+import { audioIdPattern } from "./dictation.js";
 
 export const gatewayMethods = [
   "angelus.hello",
@@ -23,7 +24,7 @@ export const gatewayMethods = [
 const allowed: ReadonlySet<string> = new Set(gatewayMethods);
 
 const permitted: Readonly<Record<string, ReadonlySet<string>>> = {
-  "figaro.qua": new Set(["figaro_id", "text", "images", "traceparent", "attachments"]),
+  "figaro.qua": new Set(["figaro_id", "text", "images", "traceparent", "attachments", "dictation"]),
   "figaro.fork": new Set(["figaro_id", "at_turn", "at_lt"]),
   "figaro.create": new Set(["outfits"]),
   "angelus.outfits": new Set(["spec"]),
@@ -208,6 +209,14 @@ export function proxyDoor(ws: WebSocket, dial: Dial, hub: AudioHub | undefined, 
     if (frame.method === "figaro.interrupt" && !queueDispositions.has(params?.queue)) {
       refuse(ws, frame.id ?? null, `gateway: figaro.interrupt queue must be "keep" or "clear"`);
       return;
+    }
+    if (params && "dictation" in params) {
+      const d = (params as { dictation?: unknown }).dictation;
+      if (typeof d !== "string" || !audioIdPattern.test(d)) {
+        refuse(ws, frame.id ?? null, "gateway: dictation is the audio_id a /stt/stream done gave");
+        return;
+      }
+      delete (params as { dictation?: unknown }).dictation;
     }
     const asked = params?.traceparent;
     if (asked !== undefined && (typeof asked !== "string" || !parseTraceparent(asked))) {
