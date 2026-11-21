@@ -177,6 +177,30 @@ describe("figaro gateway", () => {
     expect(reached.filter((m) => m === "figaro.set")).toHaveLength(1);
   });
 
+  it("passes an interrupt that keeps or clears the queue as asked, and nothing else", async () => {
+    const { fake, port } = await rig();
+    fake.answers.set("figaro.interrupt", { ok: true, queue: [] });
+    const ws = await open(`ws://127.0.0.1:${port}/door`);
+    const got = collect(ws);
+    const calls: [Record<string, unknown>, string | undefined][] = [
+      [{ figaro_id: id }, undefined],
+      [{ figaro_id: id, queue: "keep" }, undefined],
+      [{ figaro_id: id, queue: "clear" }, undefined],
+      [{ figaro_id: id, queue: "purge" }, "queue must be"],
+      [{ figaro_id: id, queue: true }, "queue must be"],
+      [{ figaro_id: id, drop: true }, "may not carry drop"],
+    ];
+    calls.forEach(([params], i) => ws.send(JSON.stringify({ jsonrpc: "2.0", id: 300 + i, method: "figaro.interrupt", params })));
+    await until("every answer", () => got.length === calls.length);
+    calls.forEach(([params, refusal], i) => {
+      const reply = got.find((g) => (g as { id: number }).id === 300 + i) as { error?: { message: string } };
+      if (refusal === undefined) expect(reply.error?.message ?? "", JSON.stringify(params)).not.toContain("gateway:");
+      else expect(reply.error?.message, JSON.stringify(params)).toContain(refusal);
+    });
+    const passed = fake.calls.filter((c) => c.method === "figaro.interrupt").map((c) => (c.params as { queue?: string }).queue);
+    expect(passed).toEqual([undefined, "keep", "clear"]);
+  });
+
   it("still passes a plain qua with images and a fork at a turn", async () => {
     const { fake, port } = await rig();
     fake.answers.set("figaro.qua", { ok: true, cursor: 1 });

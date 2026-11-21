@@ -1,4 +1,5 @@
 import type { CommandName } from "./commands.gen.js";
+import type { QueueDisposition } from "./aria/wire.js";
 
 export type DoorMethod =
   | "angelus.outfits"
@@ -35,8 +36,8 @@ export const webCommands: { readonly [name in CommandName]: WebRoute } = {
   listen: door(["figaro.follow"]),
   attend: door(["figaro.follow"], { limits: "shows the aria; binds no shell, so :<turn> fork points are not kept" }),
   fork: door(["figaro.fork", "figaro.follow", "figaro.qua"], { limits: "at a turn or node only; -O, -S and -D are refused (the gateway passes no patch or outfit), --stay means do not follow, and a prompt goes as a following figaro.qua" }),
-  hup: door(["figaro.interrupt"], { limits: "queued messages stay; -d is refused" }),
-  cut: nowhere(`${gatewayLacks("drops queued messages")}; :hup interrupts and keeps them`),
+  hup: door(["figaro.interrupt"], { limits: "queue: keep; -d sends queue: clear, as :cut (see hangupQueue)" }),
+  cut: door(["figaro.interrupt"], { limits: "queue: clear (see hangupQueue)" }),
   queue: nowhere(gatewayLacks("reads or edits the queue")),
   list: door(["figaro.form"], { form: "@troupe" }),
   lsh: door(["figaro.form"], { form: "@troupe" }),
@@ -95,3 +96,14 @@ export const webCommands: { readonly [name in CommandName]: WebRoute } = {
   box: nowhere(hostOnly("it serves a sandbox")),
   valet: nowhere(hostOnly("it runs tools as the owner")),
 };
+
+const dropsQueue = (arg: string): boolean => arg === "--drop-queued-messages" || /^-[a-z]*d[a-z]*$/.test(arg);
+
+export function hangupQueue(command: "hup" | "cut", args: readonly string[]): QueueDisposition {
+  if (command === "cut") return "clear";
+  for (const a of args) {
+    if (a === "--") break;
+    if (dropsQueue(a)) return "clear";
+  }
+  return "keep";
+}

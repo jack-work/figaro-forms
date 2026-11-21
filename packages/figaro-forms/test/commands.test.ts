@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { commandBounds, commandDocs, pagerCommand, readsKeyboard, shellCommand, webCommands } from "../src/commands.js";
+import { commandBounds, commandDocs, hangupQueue, pagerCommand, readsKeyboard, shellCommand, webCommands } from "../src/commands.js";
 
 describe("commands", () => {
   it("carries the verbs the web composer runs", () => {
@@ -65,5 +65,16 @@ describe("webCommands", () => {
       const r = webCommands[c.name];
       if (c.pager === "view" && r.on === "door" && c.name !== "state") expect(r.form, c.name).toMatch(/^@/);
     }
+  });
+
+  it("clears the queue only when the command asks: cut, or hup -d", () => {
+    expect(webCommands.cut).toMatchObject({ on: "door", methods: ["figaro.interrupt"] });
+    expect(hangupQueue("hup", [])).toBe("keep");
+    expect(hangupQueue("hup", ["@aria", "-j"])).toBe("keep");
+    expect(hangupQueue("hup", ["--", "-d"])).toBe("keep");
+    expect(hangupQueue("hup", ["-d"])).toBe("clear");
+    expect(hangupQueue("hup", ["-jd", "@aria"])).toBe("clear");
+    expect(hangupQueue("hup", ["@aria", "--drop-queued-messages"])).toBe("clear");
+    expect(hangupQueue("cut", [])).toBe("clear");
   });
 });
