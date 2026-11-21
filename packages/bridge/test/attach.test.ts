@@ -1,4 +1,7 @@
 import { execFileSync } from "node:child_process";
+import { mkdtempSync, readdirSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { request } from "node:http";
 import WebSocket from "ws";
 import { afterEach, describe, expect, it } from "vitest";
@@ -212,11 +215,11 @@ const has = (bin: string): boolean => {
 };
 const real = has("magick") && has("pdftotext") && has("pdfinfo") && has("pdftoppm");
 
-function textPdf(line: string): Buffer {
+function textPdf(line: string, box = "0 0 300 144"): Buffer {
   const objs = [
     "<< /Type /Catalog /Pages 2 0 R >>",
     "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 144] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+    `<< /Type /Page /Parent 2 0 R /MediaBox [${box}] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>`,
     `<< /Length ${`BT /F1 18 Tf 20 70 Td (${line}) Tj ET`.length} >>\nstream\nBT /F1 18 Tf 20 70 Td (${line}) Tj ET\nendstream`,
     "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
   ];
@@ -247,6 +250,23 @@ describe.skipIf(!real)("attachments with the real tools", () => {
     const pages = await tools.pdfPages(scanned, 1);
     expect(pages).toHaveLength(1);
     expect(sniff(pages[0]!)).toBe("jpeg");
+  }, 30_000);
+
+  it("writes the magick policy fresh for each run, leaves nothing behind, and refuses to run without it", async () => {
+    const tmp = mkdtempSync(join(tmpdir(), "attach-test-"));
+    const p = await systemTools({ tmp }).picture(execFileSync("magick", ["-size", "64x64", "xc:red", "png:-"]), "png");
+    expect(p.mime).toBe("image/png");
+    expect(readdirSync(tmp)).toEqual([]);
+    await expect(systemTools({ tmp: join(tmp, "gone") }).picture(execFileSync("magick", ["-size", "64x64", "xc:red", "png:-"]), "png")).rejects.toThrow();
+  }, 30_000);
+
+  it("draws a scan with a huge page at no more than the long edge", async () => {
+    const huge = textPdf("", "0 0 14400 14400");
+    const started = Date.now();
+    const pages = await systemTools().pdfPages(huge, 1);
+    expect(Date.now() - started).toBeLessThan(10_000);
+    const dims = execFileSync("magick", ["identify", "-format", "%w %h", "jpeg:-"], { input: pages[0] }).toString();
+    expect(dims).toBe(`${maxImageEdge} ${maxImageEdge}`);
   }, 30_000);
 
   it("runs magick under its own policy: a png wider than 16K pixels is refused", async () => {

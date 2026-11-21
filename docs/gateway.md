@@ -190,13 +190,15 @@ characters) names it for the reply. At most 10 MiB; two uploads are worked at on
 (`503` beyond). The type is read from the bytes:
 
 - png, jpeg, gif, webp, heic: decoded by ImageMagick from the sniffed format only, under
-  its own policy (only those coders; no delegates, filters or @-paths; 16K pixels a
+  its own policy, written fresh for each run and refused if it cannot be (only those
+  coders; no delegates, filters or @-paths; 16K pixels a
   side, 128 MP, 256 MiB, 15 s),
   turned upright, scaled to a long edge of 1568 px, stripped of metadata (EXIF,
   GPS), and kept as png (png in) or jpeg; over 5 MB after that is scaled again or
   refused.
 - pdf: `pdftotext -layout`. A pdf with no text layer (a scan) has its first 4 pages
-  drawn as jpeg images instead; it never goes out as empty text.
+  drawn as jpeg images (`pdftoppm -scale-to 1568`, so a huge page stays small) instead;
+  it never goes out as empty text.
 
 Answers `200 {id, kind, name, bytes, images, pages?, text?}`, or `400` (empty),
 `405`, `413` (over 10 MiB, declared or read), `415` (not one of those types), `422`

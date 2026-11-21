@@ -65,13 +65,17 @@ export const magickPolicy = `<policymap>
 </policymap>
 `;
 
-let policyDir: Promise<string> | undefined;
-const magickConfig = (): Promise<string> =>
-  (policyDir ??= (async () => {
-    const dir = await mkdtemp(join(tmpdir(), "attach-magick-"));
-    await writeFile(join(dir, "policy.xml"), magickPolicy, { mode: 0o444 });
-    return dir;
-  })());
+async function withMagickPolicy<T>(tmp: string, f: (env: Record<string, string>) => Promise<T>): Promise<T> {
+  const dir = await mkdtemp(join(tmp, "attach-magick-"));
+  try {
+    const path = join(dir, "policy.xml");
+    await writeFile(path, magickPolicy, { mode: 0o400, flag: "wx" });
+    if ((await readFile(path, "utf8")) !== magickPolicy) throw new Error("the magick policy did not write");
+    return await f({ MAGICK_CONFIGURE_PATH: dir, HOME: "/nonexistent" });
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
 
 function run(file: string, args: readonly string[], input: Buffer, timeoutMs: number, maxBuffer: number, cwd?: string, env: Record<string, string> = {}): Promise<Buffer> {
   return new Promise((ok, fail) => {
@@ -90,13 +94,14 @@ export interface ToolPaths {
   readonly pdftotext?: string;
   readonly pdfinfo?: string;
   readonly pdftoppm?: string;
+  readonly tmp?: string;
 }
 
 export function systemTools(p: ToolPaths = {}): Tools {
   const magick = p.magick ?? "magick";
-  const picture = async (data: Buffer, from: ImageFormat): Promise<Picture> => {
+  const tmp = p.tmp ?? tmpdir();
+  const picture = (data: Buffer, from: ImageFormat): Promise<Picture> => withMagickPolicy(tmp, async (env) => {
     const keepPng = from === "png";
-    const env = { MAGICK_CONFIGURE_PATH: await magickConfig(), HOME: "/nonexistent" };
     const out = await run(
       magick,
       ["-limit", "memory", "256MiB", "-limit", "area", "128MP", "-limit", "time", "15", `${from}:-[0]`, "-auto-orient", "-resize", `${maxImageEdge}x${maxImageEdge}>`, "-strip", ...(keepPng ? [] : ["-quality", "85"]), keepPng ? "png:-" : "jpeg:-"],
@@ -112,7 +117,7 @@ export function systemTools(p: ToolPaths = {}): Tools {
       return { mime: "image/jpeg", data: smaller };
     }
     return { mime: keepPng ? "image/png" : "image/jpeg", data: out };
-  };
+  });
   return {
     picture,
     pdfText: async (data) => {
@@ -122,9 +127,9 @@ export function systemTools(p: ToolPaths = {}): Tools {
       return { text: text.length > maxPdfText ? text.slice(0, maxPdfText) : text, pages };
     },
     pdfPages: async (data, pages) => {
-      const dir = await mkdtemp(join(tmpdir(), "attach-"));
+      const dir = await mkdtemp(join(tmp, "attach-"));
       try {
-        await run(p.pdftoppm ?? "pdftoppm", ["-r", "110", "-f", "1", "-l", String(pages), "-jpeg", "-", join(dir, "p")], data, 20_000, 1024 * 1024);
+        await run(p.pdftoppm ?? "pdftoppm", ["-scale-to", String(maxImageEdge), "-f", "1", "-l", String(pages), "-jpeg", "-", join(dir, "p")], data, 20_000, 1024 * 1024);
         const files = (await readdir(dir)).filter((f) => f.endsWith(".jpg")).sort();
         return await Promise.all(files.map(async (f) => (await picture(await readFile(join(dir, f)), "jpeg")).data));
       } finally {
