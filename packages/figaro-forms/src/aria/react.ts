@@ -1,6 +1,7 @@
 import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import type { ConnectionState } from "../rpc.js";
 import type { AriaClient, AriaList, ListOptions } from "./client.js";
+import { boundFormFeedOf, recentFeedOf, treeFeedOf, type BoundFormState, type Feed, type RecentState, type TreeState } from "./surface.js";
 import type { AppliedFrame, AriaSnapshot, AriaStream, Phase } from "./stream.js";
 
 const Context = createContext<AriaClient | null>(null);
@@ -86,4 +87,20 @@ export function useAriaList(o: ListOptions = {}): AriaListState {
   }, [client, key, rev, connection === "open"]);
   const refresh = useCallback(() => setRev((n) => n + 1), []);
   return { ...state, refresh };
+}
+
+function useFeed<T>(feed: Feed<T>): T {
+  return useSyncExternalStore(feed.subscribe, feed.get, feed.get);
+}
+
+export function useTree(): TreeState {
+  return useFeed(treeFeedOf(useAriaClient()));
+}
+
+export function useRecent(): RecentState {
+  return useFeed(recentFeedOf(useAriaClient()));
+}
+
+export function useBoundForm(aria: string): BoundFormState {
+  return useFeed(boundFormFeedOf(useAriaClient(), aria));
 }

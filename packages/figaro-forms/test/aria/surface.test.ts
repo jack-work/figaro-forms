@@ -1,0 +1,293 @@
+import { createStore } from "jotai/vanilla";
+import { describe, expect, it } from "vitest";
+import { AriaClient } from "../../src/aria/client.js";
+import { boundFormAtom, recentAtom, treeAtom } from "../../src/aria/jotai.js";
+import { boundFormWriter, foldRecent, parseRoleAddresses } from "../../src/aria/surface.js";
+import { FakeAria, settle, tick } from "./fake-aria.js";
+
+function world() {
+  const fake = new FakeAria();
+  fake.addForm("@troupe", { n1: { self: true, form: "@arias" } });
+  fake.addForm("@arias", {
+    arias: {
+      root: { id: "r1", state: "idle", mantra: "the trunk", active_at: 30, role: '@boss "two words"' },
+      lone: { id: "l1", state: "dormant", active_at: 10 },
+    },
+  });
+  fake.addForm("@recent", {
+    old: { id: "o1", title: "old one", state: "idle", active_at: 10 },
+    mid: { id: "m1", title: "mid one", state: "idle", active_at: 20 },
+    top: { id: "t1", title: "top one", state: "active", active_at: 30 },
+  });
+  fake.addAria("r1");
+  const client = new AriaClient({ dial: fake.dial, releaseGraceMs: 5, retryMinMs: 5, retryMaxMs: 10 });
+  return { fake, client, store: createStore() };
+}
+
+describe("treeAtom", () => {
+  it("folds @troupe and @arias into nodes, roots and roles", async () => {
+    const { fake, client, store } = world();
+    const tree = treeAtom(client);
+    expect(treeAtom(client)).toBe(tree);
+    const off = store.sub(tree, () => {});
+    await settle();
+    const t = store.get(tree);
+    expect(t.ready).toBe(true);
+    expect(t.roots).toEqual(["r1", "l1"]);
+    expect(t.nodes.get("r1")).toMatchObject({ mantra: "the trunk", state: "idle", status: "live", daemon: "n1", roles: ["@boss", "two words"], handle: "root", children: [] });
+    expect(t.daemons).toMatchObject([{ id: "n1", self: true, form: "@arias", phase: "ready" }]);
+    off();
+    await tick(40);
+    expect(fake.calls.filter((c) => c.method === "figaro.unfollow").map((c) => c.params.figaro_id).sort()).toEqual(["@arias", "@troupe"]);
+    client.close();
+  });
+
+  it("shows a fork under its parent as it happens", async () => {
+    const { fake, client, store } = world();
+    const tree = treeAtom(client);
+    const off = store.sub(tree, () => {});
+    await settle();
+    fake.formSet("@arias", ["arias", "root", "forks", "kid"], { id: "k1", state: "idle", parent: "r1", active_at: 40 });
+    await settle();
+    const t = store.get(tree);
+    expect(t.nodes.get("r1")?.children).toEqual(["k1"]);
+    expect(t.nodes.get("k1")).toMatchObject({ parent: "r1", handle: "kid" });
+    expect(t.roots).toEqual(["r1", "l1"]);
+    off();
+    client.close();
+  });
+
+  it("trusts nesting for the parent when the row carries no parent key", async () => {
+    const { fake, client, store } = world();
+    const tree = treeAtom(client);
+    const off = store.sub(tree, () => {});
+    await settle();
+    fake.formSet("@arias", ["arias", "root", "forks", "kid"], { id: "k1", state: "idle" });
+    await settle();
+    expect(store.get(tree).nodes.get("k1")?.parent).toBe("r1");
+    off();
+    client.close();
+  });
+
+  it("puts the daemon you are talking to first", async () => {
+    const { fake, client, store } = world();
+    fake.addForm("@troupe", { n1: { self: false, form: "n1/@arias" }, n9: { self: true, form: "@arias" } });
+    fake.addForm("n1/@arias", { arias: { far: { id: "f1", state: "idle", active_at: 99 } } });
+    const tree = treeAtom(client);
+    const off = store.sub(tree, () => {});
+    await settle();
+    const t = store.get(tree);
+    expect(t.daemons.map((d) => d.id)).toEqual(["n9", "n1"]);
+    expect(t.roots).toEqual(["r1", "l1", "f1"]);
+    off();
+    client.close();
+  });
+
+  it("drops a daemon that leaves the troupe without calling its arias reaped", async () => {
+    const { fake, client, store } = world();
+    fake.addForm("n2/@arias", { arias: { far: { id: "f1", state: "idle", active_at: 1 } } });
+    fake.formSet("@troupe", ["n2"], { self: false, form: "n2/@arias" });
+    const tree = treeAtom(client);
+    const off = store.sub(tree, () => {});
+    await settle();
+    expect(store.get(tree).nodes.has("f1")).toBe(true);
+    fake.formDelete("@troupe", ["n2"]);
+    await settle();
+    await tick(40);
+    const t = store.get(tree);
+    expect(t.nodes.has("f1")).toBe(false);
+    expect(t.reaped.size).toBe(0);
+    expect(t.daemons.map((d) => d.id)).toEqual(["n1"]);
+    expect(fake.calls.some((c) => c.method === "figaro.unfollow" && c.params.figaro_id === "n2/@arias")).toBe(true);
+    off();
+    client.close();
+  });
+
+  it("orders siblings by last activity, newest first", async () => {
+    const { fake, client, store } = world();
+    const tree = treeAtom(client);
+    const off = store.sub(tree, () => {});
+    await settle();
+    fake.formSet("@arias", ["arias", "root", "forks", "a"], { id: "ka", state: "idle", active_at: 5 });
+    fake.formSet("@arias", ["arias", "root", "forks", "b"], { id: "kb", state: "idle", active_at: 50 });
+    await settle();
+    expect(store.get(tree).nodes.get("r1")?.children).toEqual(["kb", "ka"]);
+    fake.formSet("@arias", ["arias", "root", "forks", "a", "active_at"], 99);
+    await settle();
+    expect(store.get(tree).nodes.get("r1")?.children).toEqual(["ka", "kb"]);
+    off();
+    client.close();
+  });
+
+  it("marks a retire and then a reap as they land", async () => {
+    const { fake, client, store } = world();
+    const tree = treeAtom(client);
+    const off = store.sub(tree, () => {});
+    await settle();
+    fake.formSet("@arias", ["arias", "lone", "retired_at"], 123);
+    await settle();
+    expect(store.get(tree).nodes.get("l1")?.status).toBe("retired");
+    fake.formDelete("@arias", ["arias", "lone"]);
+    await settle();
+    const t = store.get(tree);
+    expect(t.nodes.has("l1")).toBe(false);
+    expect(t.roots).toEqual(["r1"]);
+    expect(t.reaped.get("l1")).toMatchObject({ status: "reaped", id: "l1" });
+    off();
+    client.close();
+  });
+
+  it("follows a second daemon that joins the troupe", async () => {
+    const { fake, client, store } = world();
+    fake.addForm("n2/@arias", { arias: { far: { id: "f1", state: "idle", active_at: 1 } } });
+    const tree = treeAtom(client);
+    const off = store.sub(tree, () => {});
+    await settle();
+    expect(store.get(tree).nodes.has("f1")).toBe(false);
+    fake.formSet("@troupe", ["n2"], { self: false, form: "n2/@arias" });
+    await settle();
+    const t = store.get(tree);
+    expect(t.nodes.get("f1")?.daemon).toBe("n2");
+    expect(t.daemons.map((d) => d.id)).toEqual(["n1", "n2"]);
+    expect(t.roots).toEqual(["r1", "l1", "f1"]);
+    off();
+    client.close();
+  });
+
+  it("refetches on reconnect and forgets what it saw reaped", async () => {
+    const { fake, client, store } = world();
+    const tree = treeAtom(client);
+    const off = store.sub(tree, () => {});
+    await settle();
+    fake.formDelete("@arias", ["arias", "lone"]);
+    await settle();
+    expect(store.get(tree).reaped.size).toBe(1);
+    const before = fake.formCalls("@troupe") + fake.formCalls("@arias");
+    fake.formSet("@arias", ["arias", "root", "mantra"], "changed while away");
+    fake.drop();
+    await settle(40);
+    await tick(40);
+    expect(fake.formCalls("@troupe") + fake.formCalls("@arias")).toBeGreaterThan(before);
+    const t = store.get(tree);
+    expect(t.freshness).toBe("current");
+    expect(t.nodes.get("r1")?.mantra).toBe("changed while away");
+    expect(t.reaped.size).toBe(0);
+    off();
+    client.close();
+  });
+
+  it("surfaces a refused @troupe as an error", async () => {
+    const { fake, client, store } = world();
+    fake.refuseForm.set("@troupe", { code: -32020, message: "figaro.form: @troupe is not yours to read" });
+    const tree = treeAtom(client);
+    const off = store.sub(tree, () => {});
+    await settle();
+    const t = store.get(tree);
+    expect(t.ready).toBe(false);
+    expect(t.error).toContain("not yours to read");
+    expect(t.roots).toEqual([]);
+    off();
+    client.close();
+  });
+
+  it("surfaces a refused @arias under a good @troupe", async () => {
+    const { fake, client, store } = world();
+    fake.refuseForm.set("@arias", { code: -32020, message: "figaro.form: @arias denied" });
+    const tree = treeAtom(client);
+    const off = store.sub(tree, () => {});
+    await settle();
+    const t = store.get(tree);
+    expect(t.error).toContain("denied");
+    expect(t.daemons[0]).toMatchObject({ phase: "failed" });
+    off();
+    client.close();
+  });
+});
+
+describe("recentAtom", () => {
+  it("lists newest first and reorders when a row is used", async () => {
+    const { fake, client, store } = world();
+    const recent = recentAtom(client);
+    const off = store.sub(recent, () => {});
+    await settle();
+    expect(store.get(recent).rows.map((r) => r.id)).toEqual(["t1", "m1", "o1"]);
+    expect(store.get(recent).rows[0]).toMatchObject({ title: "top one", state: "active", name: "top" });
+    fake.formSet("@recent", ["old", "active_at"], 99);
+    await settle();
+    expect(store.get(recent).rows.map((r) => r.id)).toEqual(["o1", "t1", "m1"]);
+    off();
+    client.close();
+  });
+
+  it("breaks ties by id", () => {
+    const rows = foldRecent({ b: { id: "b", title: "b", active_at: 5 }, a: { id: "a", title: "a", active_at: 5 }, z: { id: "z", title: "z" } });
+    expect(rows.map((r) => r.id)).toEqual(["a", "b", "z"]);
+  });
+
+  it("surfaces a refusal and refetches on reconnect", async () => {
+    const { fake, client, store } = world();
+    const recent = recentAtom(client);
+    const off = store.sub(recent, () => {});
+    await settle();
+    const before = fake.formCalls("@recent");
+    fake.formSet("@recent", ["mid", "active_at"], 70);
+    fake.drop();
+    await settle(40);
+    await tick(40);
+    expect(fake.formCalls("@recent")).toBeGreaterThan(before);
+    expect(store.get(recent).rows[0]?.id).toBe("m1");
+    off();
+    client.close();
+    const denied = world();
+    denied.fake.refuseForm.set("@recent", { code: -32020, message: "recent denied" });
+    const r2 = recentAtom(denied.client);
+    const off2 = denied.store.sub(r2, () => {});
+    await settle();
+    expect(denied.store.get(r2).error).toContain("recent denied");
+    off2();
+    denied.client.close();
+  });
+});
+
+describe("boundFormAtom", () => {
+  it("loads the form and folds deltas", async () => {
+    const { fake, client, store } = world();
+    fake.addForm("r1", { mantra: "first", system: { thinking_effort: "high" } });
+    const bound = boundFormAtom(client, "r1");
+    expect(boundFormAtom(client, "r1")).toBe(bound);
+    const off = store.sub(bound, () => {});
+    await settle();
+    expect(store.get(bound)).toMatchObject({ ready: true, aria: "r1", root: { mantra: "first", system: { thinking_effort: "high" } } });
+    fake.formSet("r1", ["mantra"], "second");
+    fake.formDelete("r1", ["system", "thinking_effort"]);
+    await settle();
+    const s = store.get(bound);
+    expect(s.root.mantra).toBe("second");
+    expect(s.root.system).toEqual({});
+    expect(s.version).toBe(3);
+    off();
+    client.close();
+  });
+
+  it("reports a refused form, and refuses writes until the gateway carries them", async () => {
+    const { fake, client, store } = world();
+    fake.addForm("r1", {});
+    fake.refuseForm.set("r1", { code: -32020, message: "r1 is not yours" });
+    const bound = boundFormAtom(client, "r1");
+    const off = store.sub(bound, () => {});
+    await settle();
+    expect(store.get(bound).error).toContain("not yours");
+    off();
+    client.close();
+    const r = await boundFormWriter("r1").set("mantra", "x");
+    expect(r).toMatchObject({ ok: false, refusal: { kind: "unavailable" } });
+  });
+});
+
+describe("parseRoleAddresses", () => {
+  it("reads bare and quoted addresses", () => {
+    expect(parseRoleAddresses(undefined)).toEqual([]);
+    expect(parseRoleAddresses("@a @b/c")).toEqual(["@a", "@b/c"]);
+    expect(parseRoleAddresses('@a "x y" "q\\"z"')).toEqual(["@a", "x y", 'q"z']);
+  });
+});

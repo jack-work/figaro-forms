@@ -2,6 +2,7 @@ import { atom, type Atom, type WritableAtom } from "jotai/vanilla";
 import type { ConnectionState } from "../rpc.js";
 import type { AriaClient, AriaList, ListOptions } from "./client.js";
 import type { AriaRow } from "./wire.js";
+import { boundFormFeedOf, recentFeedOf, treeFeedOf, type BoundFormState, type Feed, type RecentState, type TreeState } from "./surface.js";
 import type { AppliedFrame, AriaSnapshot, AriaStream, Phase } from "./stream.js";
 
 const families = new WeakMap<AriaClient, Map<string, unknown>>();
@@ -153,4 +154,26 @@ export function ariaRosterAtom(client: AriaClient, o: Omit<ListOptions, "before"
       (_get, set, action: RosterAction) => load((fn) => set(state, fn), action),
     );
   });
+}
+
+function feedAtom<T>(feed: Feed<T>): Atom<T> {
+  const state = atom(feed.get());
+  state.onMount = (set) => {
+    const off = feed.subscribe(() => set(feed.get()));
+    set(feed.get());
+    return off;
+  };
+  return atom((get) => get(state));
+}
+
+export function treeAtom(client: AriaClient): Atom<TreeState> {
+  return memo(client, "tree", () => feedAtom(treeFeedOf(client)));
+}
+
+export function recentAtom(client: AriaClient): Atom<RecentState> {
+  return memo(client, "recent", () => feedAtom(recentFeedOf(client)));
+}
+
+export function boundFormAtom(client: AriaClient, aria: string): Atom<BoundFormState> {
+  return memo(client, `bound\0${aria}`, () => feedAtom(boundFormFeedOf(client, aria)));
 }

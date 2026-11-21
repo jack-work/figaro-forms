@@ -1,4 +1,5 @@
-import type { Json } from "../../src/json.js";
+import type { Json, JsonObject } from "../../src/json.js";
+import { setAt, deleteAt, applyRoot } from "../../src/patch.js";
 import type { Dial, Socket, SocketEvents } from "../../src/rpc.js";
 import type { Anchor, NodeDelta, Page, TurnPart, Node } from "../../src/aria/wire.js";
 
@@ -47,6 +48,11 @@ export class FakeAria {
   listRefused = 0;
   answers = new Map<string, Json>();
   holdReads = false;
+  readonly forms = new Map<string, { value: JsonObject; version: number }>();
+  refuseForm = new Map<string, { code: number; message: string }>();
+  refuseFork = new Map<string, { code: number; message: string }>();
+  refuseQua = new Map<string, { code: number; message: string }>();
+  forkCount = 0;
   private held: (() => void)[] = [];
 
   release(): void {
@@ -56,6 +62,37 @@ export class FakeAria {
 
   addAria(id: string): void {
     this.turns.set(id, []);
+  }
+
+  addForm(id: string, value: JsonObject = {}): void {
+    this.forms.set(id, { value, version: 1 });
+  }
+
+  formSet(id: string, path: readonly string[], value: Json): void {
+    const f = this.mustForm(id);
+    this.formWrite(id, setAt(f.value, path, value));
+  }
+
+  formDelete(id: string, path: readonly string[]): void {
+    const f = this.mustForm(id);
+    this.formWrite(id, deleteAt(f.value, path));
+  }
+
+  formCalls(id: string): number {
+    return this.calls.filter((c) => c.method === "figaro.form" && c.params.figaro_id === id).length;
+  }
+
+  private formWrite(id: string, patch: ReturnType<typeof setAt>): void {
+    const f = this.mustForm(id);
+    f.value = applyRoot(patch, f.value);
+    f.version++;
+    this.pushRaw(id, "form.delta", { schema: 2, aria_id: id, version: f.version, incarnation: 1, patch: patch as unknown as Json, at: Date.now() }, true);
+  }
+
+  private mustForm(id: string): { value: JsonObject; version: number } {
+    const f = this.forms.get(id);
+    if (!f) throw new Error(`no form ${id}`);
+    return f;
   }
 
   dial: Dial = async (events) => {
@@ -200,8 +237,8 @@ export class FakeAria {
     this.pushRaw(id, "figaro.aria", page as unknown as Record<string, Json>);
   }
 
-  private pushRaw(id: string, method: string, params: Record<string, unknown>): void {
-    for (const c of this.conns) if (c.open && c.follows.has(id)) c.events.message(JSON.stringify({ jsonrpc: "2.0", method, params: { figaro_id: id, ...params } }));
+  private pushRaw(id: string, method: string, params: Record<string, unknown>, bare = false): void {
+    for (const c of this.conns) if (c.open && c.follows.has(id)) c.events.message(JSON.stringify({ jsonrpc: "2.0", method, params: bare ? params : { figaro_id: id, ...params } }));
   }
 
   private reply(c: Conn, id: number, body: { result?: unknown; error?: { code: number; message: string } }): void {
@@ -220,7 +257,7 @@ export class FakeAria {
       case "figaro.follow": {
         const refused = this.refuseFollow.get(id);
         if (refused) return err(refused.message, refused.code);
-        if (!this.turns.has(id)) return err(`figaro.follow: aria ${id} not found`);
+        if (!this.turns.has(id) && !this.forms.has(id)) return err(`figaro.follow: aria ${id} not found`);
         c.follows.add(id);
         c.channels.set(id, f.params.channels);
         this.reply(c, f.id, { result: { ok: true, figaro_id: id } });
@@ -237,6 +274,32 @@ export class FakeAria {
         const read = (): Page => this.page(id, f.params.at as Anchor | undefined, f.params.backward === true);
         if (this.holdReads) this.held.push(() => this.reply(c, f.id, { result: read() }));
         else this.reply(c, f.id, { result: read() });
+        return;
+      }
+      case "figaro.form": {
+        const refused = this.refuseForm.get(id);
+        if (refused) return err(refused.message, refused.code);
+        const form = this.forms.get(id);
+        if (!form) return err(`figaro.form: ${id} not found`);
+        this.reply(c, f.id, { result: { snapshot: form.value, version: form.version, incarnation: 1 } });
+        return;
+      }
+      case "figaro.fork": {
+        if (this.answers.has(f.method)) return this.reply(c, f.id, { result: this.answers.get(f.method) });
+        const refused = this.refuseFork.get(id);
+        if (refused) return err(refused.message, refused.code);
+        if (!this.turns.has(id)) return err(`figaro.fork: aria ${id} not found`);
+        const alternative = `${id}-f${++this.forkCount}`;
+        this.turns.set(alternative, []);
+        this.reply(c, f.id, { result: { parent: id, continuation: `${id}-c${this.forkCount}`, alternative } });
+        return;
+      }
+      case "figaro.qua": {
+        if (this.answers.has(f.method)) return this.reply(c, f.id, { result: this.answers.get(f.method) });
+        const refused = this.refuseQua.get(id);
+        if (refused) return err(refused.message, refused.code);
+        if (!this.turns.has(id)) return err(`figaro.qua: aria ${id} not found`);
+        this.reply(c, f.id, { result: { ok: true, cursor: 1 } });
         return;
       }
       case "figaro.list": {

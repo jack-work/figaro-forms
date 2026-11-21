@@ -1,4 +1,5 @@
 import { Connection, type ConnectionState, type Dial } from "../rpc.js";
+import { FormsClient } from "../client.js";
 import { method, protocolVersion, type Capability, type HelloResponse } from "../wire.js";
 import type { Json } from "../json.js";
 import { AriaStream, type AttachOptions } from "./stream.js";
@@ -55,6 +56,24 @@ export interface AriaList {
   readonly refusedWhy?: string;
 }
 
+export interface ForkedAt {
+  readonly fork: ForkResponse;
+  readonly id: string;
+  readonly qua?: QuaResponse;
+}
+
+export class ForkedButUnsent extends Error {
+  readonly fork: ForkResponse;
+  readonly id: string;
+
+  constructor(fork: ForkResponse, cause: unknown) {
+    super(`forked ${fork.alternative} but the text was not sent: ${cause instanceof Error ? cause.message : String(cause)}`, { cause });
+    this.name = "ForkedButUnsent";
+    this.fork = fork;
+    this.id = fork.alternative;
+  }
+}
+
 interface Shared {
   readonly stream: AriaStream;
   refs: number;
@@ -67,6 +86,7 @@ export class AriaClient {
   private readonly streams = new Map<string, Set<AriaStream>>();
   private readonly shared = new Map<string, Shared>();
   private readonly opts: AriaClientOptions;
+  private formsClient: FormsClient | undefined;
 
   constructor(opts: AriaClientOptions) {
     this.opts = opts;
@@ -99,6 +119,17 @@ export class AriaClient {
 
   get state(): ConnectionState {
     return this.connection.state;
+  }
+
+  get forms(): FormsClient {
+    this.formsClient ??= new FormsClient({
+      dial: this.opts.dial,
+      ...(this.opts.callTimeoutMs !== undefined ? { callTimeoutMs: this.opts.callTimeoutMs } : {}),
+      ...(this.opts.retryMinMs !== undefined ? { retryMinMs: this.opts.retryMinMs } : {}),
+      ...(this.opts.retryMaxMs !== undefined ? { retryMaxMs: this.opts.retryMaxMs } : {}),
+      ...(this.opts.releaseGraceMs !== undefined ? { releaseGraceMs: this.opts.releaseGraceMs } : {}),
+    });
+    return this.formsClient;
   }
 
   attach(aria: string, o: AttachOptions = {}): AriaStream {
@@ -189,6 +220,20 @@ export class AriaClient {
     return this.connection.call<ForkResponse>(ariaMethod.fork, req as unknown as Json);
   }
 
+  tailFork(aria: string): Promise<ForkResponse> {
+    return this.fork(aria);
+  }
+
+  async forkAt(aria: string, turn: number, text?: string): Promise<ForkedAt> {
+    const fork = await this.fork(aria, { atTurn: turn });
+    if (text === undefined || text === "") return { fork, id: fork.alternative };
+    try {
+      return { fork, id: fork.alternative, qua: await this.qua(fork.alternative, text) };
+    } catch (cause) {
+      throw new ForkedButUnsent(fork, cause);
+    }
+  }
+
   async list(o: ListOptions = {}): Promise<AriaList> {
     const req: ListRequest = {
       ...(o.global ? { global: true } : {}),
@@ -205,6 +250,8 @@ export class AriaClient {
   }
 
   close(): void {
+    this.formsClient?.close();
+    this.formsClient = undefined;
     for (const e of this.shared.values()) if (e.reap) clearTimeout(e.reap);
     this.shared.clear();
     for (const set of [...this.streams.values()]) for (const s of [...set]) s.close();
