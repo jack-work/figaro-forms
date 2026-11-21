@@ -13,6 +13,7 @@
     "check:text-only": "! grep -rnE \"dangerouslySetInnerHTML|innerHTML|outerHTML|insertAdjacentHTML|document\\.write|new Function|eval\\(\" packages/*/src apps/*/src",
     "test": "npm test --workspaces --if-present",
     "vectors": "cd conformance && go run .",
+    "glyphs:check": "cd conformance && go run . -check",
     "aria-fixtures": "cd conformance/aria && go run . -tapes ../../packages/figaro-forms/test/aria/tapes -out ../../packages/figaro-forms/test/aria/fixtures"
   }
 }

@@ -7,9 +7,12 @@ import (
 	"math/rand/v2"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/jack-work/figaro/api/form"
+	"github.com/jack-work/figaro/api/glyph"
 )
 
 type applyCase struct {
@@ -285,7 +288,7 @@ func docs(in []form.KeyDoc) []keyDoc {
 	return out
 }
 
-func writeKeys(path string) {
+func keysSource() string {
 	intrinsics := map[string][]keyDoc{}
 	for _, name := range form.IntrinsicNames() {
 		intrinsics[name] = docs(form.IntrinsicKeys(name))
@@ -298,12 +301,48 @@ func writeKeys(path string) {
 	if err != nil {
 		panic(err)
 	}
-	src := "import type { KeyDoc } from \"./keys.js\";\n\n" +
+	return "import type { KeyDoc } from \"./keys.js\";\n\n" +
 		"export const wellKnownKeys: readonly KeyDoc[] = " + string(known) + ";\n\n" +
 		"export const intrinsicKeys: { readonly [name: string]: readonly KeyDoc[] } = " + string(intr) + ";\n"
+}
+
+func glyphsSource() string {
+	all := glyph.All()
+	var names, docs strings.Builder
+	for _, g := range all {
+		sym, err := json.Marshal(g.Symbol)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Fprintf(&names, "  %q: %s,\n", g.Name, sym)
+	}
+	doc, err := json.MarshalIndent(all, "", "  ")
+	if err != nil {
+		panic(err)
+	}
+	docs.Write(doc)
+	return "export interface GlyphDoc {\n  readonly name: string;\n  readonly symbol: string;\n  readonly marks: string;\n}\n\n" +
+		"export const glyphs = {\n" + names.String() + "} as const;\n\n" +
+		"export type GlyphName = keyof typeof glyphs;\n\n" +
+		"export const glyphDocs: readonly GlyphDoc[] = " + docs.String() + ";\n"
+}
+
+func writeFile(path, src string) {
 	if err := os.WriteFile(path, []byte(src), 0o644); err != nil {
 		panic(err)
 	}
+}
+
+func drifted(files map[string]string) []string {
+	var out []string
+	for path, want := range files {
+		got, err := os.ReadFile(path)
+		if err != nil || string(got) != want {
+			out = append(out, path)
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 func write(dir, name string, v any) {
@@ -321,7 +360,20 @@ func main() {
 	seed := flag.Uint64("seed", 20261108, "generator seed")
 	n := flag.Int("n", 400, "cases per file")
 	keysOut := flag.String("keys", "../packages/figaro-forms/src/semantics/known-keys.gen.ts", "generated key catalog")
+	glyphsOut := flag.String("glyphs", "../packages/figaro-forms/src/glyphs.gen.ts", "generated glyph table")
+	check := flag.Bool("check", false, "write nothing; exit 1 when the glyph table differs from what the figaro in the build would produce")
 	flag.Parse()
+	generated := map[string]string{*keysOut: keysSource(), *glyphsOut: glyphsSource()}
+	if *check {
+		stale := drifted(map[string]string{*glyphsOut: generated[*glyphsOut]})
+		for _, path := range stale {
+			fmt.Fprintf(os.Stderr, "stale: %s\n", path)
+		}
+		if len(stale) > 0 {
+			os.Exit(1)
+		}
+		return
+	}
 	if err := os.MkdirAll(*dir, 0o755); err != nil {
 		panic(err)
 	}
@@ -331,6 +383,8 @@ func main() {
 	write(*dir, "inverse.json", inverses(g, *n))
 	write(*dir, "trymerge.json", merges(g, *n))
 	write(*dir, "identity.json", identities(g, *n))
-	writeKeys(*keysOut)
+	for path, src := range generated {
+		writeFile(path, src)
+	}
 	fmt.Fprintf(os.Stderr, "wrote %d cases per file to %s\n", *n, *dir)
 }

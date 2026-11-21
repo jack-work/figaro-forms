@@ -17,6 +17,10 @@
       "types": "./dist/auth/index.d.ts",
       "default": "./dist/auth/index.js"
     },
+    "./glyphs": {
+      "types": "./dist/glyphs.d.ts",
+      "default": "./dist/glyphs.js"
+    },
     "./semantics": {
       "types": "./dist/semantics/index.d.ts",
       "default": "./dist/semantics/index.js"
