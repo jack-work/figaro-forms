@@ -2,7 +2,7 @@ import { request } from "node:http";
 import { afterEach, describe, expect, it } from "vitest";
 import { startGateway, type Gateway } from "../src/gateway.js";
 import { speechOverSocket } from "../src/speech.js";
-import { sttRoute } from "../src/stt.js";
+import { stt } from "../src/stt.js";
 import { FakeAria } from "../../figaro-forms/test/aria/fake-aria.js";
 import { startFakeSpeech, type FakeSpeech } from "./fake-speech.js";
 
@@ -24,7 +24,7 @@ async function rig(maxBytes?: number, maxConcurrent?: number): Promise<{ speech:
     speech: speechOverSocket(speech.path),
     speechSocket: speech.path,
     store: "gluck",
-    routes: sttRoute({ socket: speech.path, store: "gluck", ...(maxBytes ? { maxBytes } : {}), ...(maxConcurrent !== undefined ? { maxConcurrent } : {}) }),
+    ...stt({ socket: speech.path, store: "gluck", ...(maxBytes ? { maxBytes } : {}), ...(maxConcurrent !== undefined ? { maxConcurrent } : {}) }),
   });
   cleanups.push(() => gw.close());
   const addr = gw.server.address();

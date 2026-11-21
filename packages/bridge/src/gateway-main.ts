@@ -9,7 +9,7 @@ import { onBehalfOf, redact } from "./door.js";
 import { ClientCredentials, doorTokenPath, redialAfterRejection } from "./token.js";
 import { startGateway, type GatewayListen } from "./gateway.js";
 import { speechOverSocket } from "./speech.js";
-import { sttRoute } from "./stt.js";
+import { stt } from "./stt.js";
 
 const usage = `figaro-gateway: the door, passed through, and a speech side channel for the figaro web client.
 
@@ -127,7 +127,7 @@ try {
     speech: speechOverSocket(values["speech-socket"]),
     speechSocket: values["speech-socket"],
     store: values.store,
-    routes: sttRoute({ socket: values["speech-socket"], store: values.store }),
+    ...stt({ socket: values["speech-socket"], store: values.store, log: (line) => process.stderr.write(`figaro-gateway: ${line}\n`) }),
     ...(values.origin ? { origins: values.origin } : {}),
   });
   process.stderr.write(`figaro-gateway: listening on ${g.address}, door ${redact(url)}\n`);

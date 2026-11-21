@@ -35,8 +35,9 @@ every request needs the edge secret in `X-Figaro-Edge` and the admin in
   target or escape answers 400.
 - `POST /stt?aria=<store>/<aria>`: dictation. See below.
 - `POST /stt/key/<store>/<aria>:<turn>/in`: re-transcribe a stored clip. See below.
-- Anything else goes to `GatewayOptions.routes`, else 404. `figaro-gateway` mounts
-  `sttRoute({socket, store})` there.
+- `/stt/stream?aria=<store>/<aria>&lang=<bcp47>` (WebSocket): live dictation. See below.
+- Anything else goes to `GatewayOptions.routes` (HTTP) or `GatewayOptions.sockets`
+  (upgrades), else 404. `figaro-gateway` mounts `stt({socket, store})` on both.
 
 ## POST /stt
 
@@ -73,6 +74,39 @@ Re-runs speech-to-text on a clip figchat-speech already holds, named by its turn
 - `409 {"error"}`: speech holds a reply under it, not a clip.
 - `503 {"error"}`: too many clips in flight (shared with `/stt`).
 - `502 {"error"}`: speech unreachable or answering anything else.
+
+## /stt/stream
+
+Live dictation: words reach the composer while Gluck speaks. The gateway checks
+`aria` as `POST /stt` does (not forwarded) and `lang` (default `en-US`, pattern
+`^[a-z]{2,3}(-[A-Z]{2})?$`), takes one of the clips-in-flight slots shared with
+`POST /stt`, and opens figchat-speech's WS `/stt/stream?lang=` on the speech socket.
+Speech's frames pass through verbatim; the gateway adds only its own errors.
+
+Client to server: binary frames of PCM s16le, 16 kHz, mono (an AudioWorklet; not
+MediaRecorder), each 2 to 6400 bytes and even. Text frames are JSON:
+`{"type":"end"}` (no more audio: finish, store, answer `done`) or
+`{"type":"cancel"}` (abort, nothing stored, close 1000 without `done`).
+
+Server to client, text (JSON):
+
+- `{type:"ready"}`: recognition is open. Audio sent before it is held, at most 2 s
+  (64000 bytes); past that, `unreachable`.
+- `{type:"partial", text, offset_ms}`: the current phrase so far; replaces the last
+  partial with the same `offset_ms`.
+- `{type:"final", text, offset_ms, duration_ms}`: a settled phrase; append it, drop
+  the partial. Finals come in offset order; a partial never follows its final.
+- `{type:"done", audio_id, duration_ms, text}`: after `end`; `text` is the finals
+  joined by single spaces; `audio_id` names the stored clip (WAV), which
+  `POST /stt/key` re-transcribes once keyed (`POST /audio/<id>/key` on speech).
+  Then close 1000.
+- `{type:"error", code, text}`, then close 1011 (1008 for `bad-request`). Codes:
+  `bad-request` (aria, lang, or a frame of the wrong shape; query faults are refused
+  before speech is dialed), `busy` (no slot), `idle` (no audio for 10 s),
+  `too-long` (over 5 minutes or 9.6 MB), `speech` (recognition failed, or speech
+  closed early), `unreachable` (speech socket down, or not ready within 2 s of audio).
+
+A client that drops mid-stream cancels recognition upstream.
 
 ## /audio frames
 

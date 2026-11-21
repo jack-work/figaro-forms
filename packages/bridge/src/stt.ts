@@ -1,18 +1,19 @@
 import { request, type IncomingMessage, type ServerResponse } from "node:http";
-import type { GatewayRoute } from "./gateway.js";
+import type { GatewayRoute, GatewaySocket } from "./gateway.js";
+import { ariaParam, attendSttStream, type SttStreamLimits } from "./stt-stream.js";
 
 export const maxClipBytes = 10 * 1024 * 1024;
 
-export interface SttOptions {
+export interface SttOptions extends SttStreamLimits {
   readonly socket: string;
   readonly store: string;
   readonly maxBytes?: number;
   readonly timeoutMs?: number;
   readonly maxConcurrent?: number;
+  readonly log?: (line: string) => void;
 }
 
 const clipTypes = new Set(["audio/webm", "audio/mp4"]);
-const ariaParam = /^([a-z0-9-]{1,63})\/[0-9a-f]{32}$/;
 
 const looksLike = (type: string, clip: Buffer): boolean =>
   type === "audio/webm" ? clip.length >= 4 && clip.readUInt32BE(0) === 0x1a45dfa3 : clip.length >= 8 && clip.toString("latin1", 4, 8) === "ftyp";
@@ -158,7 +159,7 @@ function keyRoute(o: SttOptions, req: IncomingMessage, res: ServerResponse, raw:
     .finally(done);
 }
 
-export function sttRoute(o: SttOptions): GatewayRoute {
+export function stt(o: SttOptions): { routes: GatewayRoute; sockets: GatewaySocket } {
   const limit = o.maxBytes ?? maxClipBytes;
   let running = 0;
   const max = o.maxConcurrent ?? 4;
@@ -167,7 +168,8 @@ export function sttRoute(o: SttOptions): GatewayRoute {
     running++;
     return () => void running--;
   };
-  return (req, res, path) => {
+  const sockets: GatewaySocket = (path) => (path === "/stt/stream" ? (ws, req) => attendSttStream(o, ws, req, admit) : undefined);
+  const routes: GatewayRoute = (req, res, path) => {
     if (path.startsWith("/stt/key/")) {
       keyRoute(o, req, res, path.slice("/stt/key/".length), admit);
       return true;
@@ -221,4 +223,5 @@ export function sttRoute(o: SttOptions): GatewayRoute {
     })().finally(done);
     return true;
   };
+  return { routes, sockets };
 }

@@ -119,6 +119,20 @@ describe("WS /stt/stream", () => {
     await until("both frames at speech", () => speech.streams[0]?.audio.length === 2);
   });
 
+  it("caps audio held before speech is ready at 2 s of PCM: past it, unreachable and 1011, speech dropped", async () => {
+    const { speech, port } = await rig();
+    speech.streamReady = false;
+    const c = await dial(port);
+    for (let i = 0; i < 10; i++) c.ws.send(frame(), { binary: true });
+    await until("speech dialed", () => speech.streams.length === 1);
+    await tick(50);
+    expect(c.got).toEqual([]);
+    c.ws.send(frame(), { binary: true });
+    expect(await errorOf(c)).toEqual({ code: "unreachable", close: 1011 });
+    await until("speech dropped", () => speech.streams[0]?.closed === true);
+    expect(speech.streams[0]?.audio).toEqual([]);
+  });
+
   it("on cancel sends no done, tells speech to cancel, and closes 1000", async () => {
     const { speech, port } = await rig();
     const c = await dial(port);

@@ -30,9 +30,12 @@ export interface GatewayOptions {
   readonly log?: (line: string) => void;
   readonly joinTimeoutMs?: number;
   readonly routes?: GatewayRoute;
+  readonly sockets?: GatewaySocket;
 }
 
 export type GatewayRoute = (req: IncomingMessage, res: ServerResponse, path: string, user: string) => boolean;
+
+export type GatewaySocket = (path: string) => ((ws: WebSocket, req: IncomingMessage) => void) | undefined;
 
 export interface Gateway {
   readonly server: Server;
@@ -169,6 +172,7 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
     const target = /^\/audio\/(?:([^/]+)\/)?([^/]+)$/.exec(path);
     const audio = target?.[2];
     const asked = target?.[1];
+    let take: ReturnType<GatewaySocket>;
     if (path === "/door") {
       wss.handleUpgrade(req, sock, head, (ws) => {
         track(ws);
@@ -178,6 +182,12 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
       wss.handleUpgrade(req, sock, head, (ws) => {
         track(ws);
         void attend(ws, audio, asked, String(req.headers["remote-user"]));
+      });
+    } else if ((take = o.sockets?.(path))) {
+      const attend = take;
+      wss.handleUpgrade(req, sock, head, (ws) => {
+        track(ws);
+        attend(ws, req);
       });
     } else {
       refuseUpgrade(sock, "404 Not Found");
