@@ -34,6 +34,7 @@ export interface GatewayOptions {
   readonly routes?: GatewayRoute;
   readonly tracer?: Tracer;
   readonly attachments?: AttachStore;
+  readonly compress?: boolean;
   readonly sockets?: GatewaySocket;
 }
 
@@ -169,7 +170,14 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
     res.writeHead(404).end();
   });
 
-  const wss = new WebSocketServer({ noServer: true, maxPayload });
+  const wss = new WebSocketServer({
+    noServer: true,
+    maxPayload,
+    perMessageDeflate:
+      o.compress === false
+        ? false
+        : { zlibDeflateOptions: { level: 6, memLevel: 8 }, zlibInflateOptions: { chunkSize: 16 * 1024 }, threshold: 128, concurrencyLimit: 8 },
+  });
   const pings = new Set<WebSocket & { alive?: boolean }>();
   const beat = setInterval(() => {
     for (const ws of pings) {
@@ -205,6 +213,7 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
     if (path === "/door") {
       wss.handleUpgrade(req, sock, head, (ws) => {
         track(ws);
+        meterDoor(ws, req.socket, session);
         proxyDoor(ws, o.door(String(req.headers["remote-user"]), session), hub, log, session, tracer, o.attachments);
       });
     } else if (audio !== undefined && ariaIdPattern.test(audio)) {
@@ -222,6 +231,35 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
       refuseUpgrade(sock, "404 Not Found");
     }
   });
+
+  function meterDoor(ws: WebSocket, sock: import("node:net").Socket, session: string): void {
+    const sp = tracer.recording ? tracer.start("door session", undefined, { "figchat.session": session }) : undefined;
+    const wire0 = { out: sock.bytesWritten, in: sock.bytesRead };
+    let out = 0;
+    let outFrames = 0;
+    let inBytes = 0;
+    let inFrames = 0;
+    const send = ws.send.bind(ws) as (data: unknown, ...rest: unknown[]) => void;
+    (ws as unknown as { send: (data: unknown, ...rest: unknown[]) => void }).send = (data, ...rest) => {
+      out += typeof data === "string" ? Buffer.byteLength(data) : Buffer.isBuffer(data) ? data.length : 0;
+      outFrames++;
+      send(data, ...rest);
+    };
+    ws.on("message", (d: Buffer | ArrayBuffer | Buffer[]) => {
+      inBytes += Buffer.isBuffer(d) ? d.length : Array.isArray(d) ? d.reduce((n, b) => n + b.length, 0) : d.byteLength;
+      inFrames++;
+    });
+    ws.once("close", () => {
+      const wireOut = sock.bytesWritten - wire0.out;
+      const wireIn = sock.bytesRead - wire0.in;
+      const deflate = ws.extensions.includes("permessage-deflate");
+      log(`door: session closed frames_out=${outFrames} bytes_out=${out} wire_out=${wireOut} frames_in=${inFrames} bytes_in=${inBytes} wire_in=${wireIn} deflate=${deflate} session=${session}`);
+      if (sp) {
+        for (const [k, v] of Object.entries({ "door.frames_out": outFrames, "door.bytes_out": out, "door.wire_out": wireOut, "door.frames_in": inFrames, "door.bytes_in": inBytes, "door.wire_in": wireIn, "door.deflate": deflate })) sp.set(k, v);
+        sp.end();
+      }
+    });
+  }
 
   function track(ws: WebSocket & { alive?: boolean }): void {
     ws.alive = true;
@@ -248,7 +286,7 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
           return;
         }
         binarySent += 1;
-        ws.send(b, { binary: true });
+        ws.send(b, { binary: true, compress: false });
       },
     };
     let leave: (() => void) | undefined;

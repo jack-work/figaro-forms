@@ -183,6 +183,19 @@ method= aria= session=`, with no params; the door's pushes (`figaro.aria`,
 `form.delta`, `turn.done`) are not logged. Each HTTP request behind the gate logs
 `http <method> <path> <status> <ms> ms session=`.
 
+## Compression and the door meter
+
+`/door` and `/audio` offer permessage-deflate (level 6, context takeover, messages
+under 128 bytes sent plain); audio PCM goes out uncompressed. A client that does not
+offer it is served plain; `--no-deflate` stops offering it. Measured on Spain, a
+turn stream deflates about 12x with context takeover (form.delta repeats itself),
+a first paint 4 to 5x.
+
+Each `/door` socket logs on close `door: session closed frames_out= bytes_out=
+wire_out= frames_in= bytes_in= wire_in= deflate= session=` (bytes are JSON payload,
+wire is what the socket carried) and, when tracing, ends a `door session` span with
+the same numbers as `door.*` attributes, so figscope holds the baseline.
+
 ## Origin on writes
 
 Any request behind the gate other than GET or HEAD (`POST /attach`, `POST /stt`,
