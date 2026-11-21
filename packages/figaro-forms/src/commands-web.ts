@@ -53,7 +53,7 @@ export const webCommands: { readonly [name in CommandName]: WebRoute } = {
   pwd: door(["figaro.form"]),
   status: door(["figaro.list"]),
   name: door(["figaro.list"]),
-  comment: door(["figaro.form", "figaro.set"], { limits: "writes comment_* and thread_* keys, plain keys as :set" }),
+  comment: door(["figaro.form", "figaro.set"], { limits: "writes comments.<id> and its thread, plain keys as :set" }),
   notifications: page("shows what the page itself was told and what failed"),
   back: nowhere(noShell),
   forward: nowhere(noShell),
