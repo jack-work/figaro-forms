@@ -285,9 +285,9 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
     let inFrames = 0;
     const opened = Date.now();
     const asked = new Map<string, number>();
-    const awaitingTurn = new Map<string, number>();
+    const awaitingTurn = new Map<string, { aria: string; text: string }>();
     const openedTurn = (data: string): void => {
-      let f: { params?: { figaro_id?: unknown; parts?: { turn?: unknown; inquiry?: unknown; sealed?: unknown }[] } };
+      let f: { params?: { figaro_id?: unknown; parts?: { turn?: unknown; inquiry?: unknown; inquiry_segments?: { text?: unknown }[]; sealed?: unknown }[] } };
       try {
         f = JSON.parse(data) as typeof f;
       } catch {
@@ -295,16 +295,17 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
       }
       const aria = f.params?.figaro_id;
       if (typeof aria !== "string") return;
-      const since = awaitingTurn.get(aria);
-      if (since === undefined) return;
-      if (Date.now() - since > 60_000) {
-        awaitingTurn.delete(aria);
-        return;
+      for (const [audioId, w] of awaitingTurn) {
+        if (w.aria !== aria) continue;
+        if (!o.dictations?.holds(session, aria, audioId)) {
+          awaitingTurn.delete(audioId);
+          continue;
+        }
+        const part = (f.params?.parts ?? []).find((p) => p.sealed === false && typeof p.turn === "number" && carriesInquiry(p, w.text));
+        if (!part) continue;
+        awaitingTurn.delete(audioId);
+        void o.dictations.turnOpened(session, aria, part.turn as number, audioId);
       }
-      const part = (f.params?.parts ?? []).find((p) => typeof p.inquiry === "string" && p.sealed === false && typeof p.turn === "number");
-      if (!part) return;
-      awaitingTurn.delete(aria);
-      void o.dictations?.turnOpened(session, aria, part.turn as number);
     };
     reconnect("door", session);
     const send = ws.send.bind(ws) as (data: unknown, ...rest: unknown[]) => void;
@@ -331,7 +332,16 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
       if (!Buffer.isBuffer(d) || !d.includes('"figaro.qua"')) return;
       const aria = /"figaro_id"\s*:\s*"([^"]+)"/.exec(d.toString())?.[1];
       if (aria !== undefined) asked.set(aria, Date.now());
-      if (aria !== undefined && o.dictations?.waiting(session, aria)) awaitingTurn.set(aria, Date.now());
+      if (aria === undefined || !d.includes('"dictation"') || !o.dictations) return;
+      let q: { params?: { text?: unknown; dictation?: unknown } };
+      try {
+        q = JSON.parse(d.toString()) as typeof q;
+      } catch {
+        return;
+      }
+      const audioId = q.params?.dictation;
+      const text = typeof q.params?.text === "string" ? q.params.text.trim() : "";
+      if (typeof audioId === "string" && text !== "" && o.dictations.holds(session, aria, audioId)) awaitingTurn.set(audioId, { aria, text });
     });
     ws.once("close", (code: number) => {
       if (code === 1011) metrics.count("figchat.gateway.errors", { "figchat.session": session, kind: "door_closed" });
@@ -450,6 +460,11 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
         server.closeAllConnections();
       }),
   };
+}
+
+function carriesInquiry(part: { inquiry?: unknown; inquiry_segments?: { text?: unknown }[] }, text: string): boolean {
+  const said = (s: unknown): boolean => typeof s === "string" && (s.trim() === text || s.trim().startsWith(`${text}\n\n`));
+  return said(part.inquiry) || (Array.isArray(part.inquiry_segments) && part.inquiry_segments.some((g) => said(g?.text)));
 }
 
 function routeOf(path: string): string {

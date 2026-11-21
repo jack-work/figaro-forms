@@ -71,11 +71,12 @@ async function dictate(port: number, session: string): Promise<void> {
   await until("done", () => s.got.some((f) => f.type === "done"));
 }
 
-async function send(port: number, session: string): Promise<void> {
+async function send(port: number, session: string, text: string, dictation?: string): Promise<Record<string, unknown>> {
   const p = await open(`ws://127.0.0.1:${port}/door?session=${session}`);
   p.ws.send(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "figaro.follow", params: { figaro_id: id } }));
-  p.ws.send(JSON.stringify({ jsonrpc: "2.0", id: 2, method: "figaro.qua", params: { figaro_id: id, text: "what I said" } }));
+  p.ws.send(JSON.stringify({ jsonrpc: "2.0", id: 2, method: "figaro.qua", params: { figaro_id: id, text, ...(dictation ? { dictation } : {}) } }));
   await until("qua answer", () => p.got.some((f) => f.id === 2));
+  return p.got.find((f) => f.id === 2)!;
 }
 
 function get(port: number, path: string): Promise<number> {
@@ -90,10 +91,11 @@ function get(port: number, path: string): Promise<number> {
 }
 
 describe("dictation audio", () => {
-  it("keys a streamed dictation's clip to the turn its page's next qua opens, so /in plays", async () => {
+  it("keys the dictation a qua names to the turn that qua opens, so /in plays, and passes no dictation to figaro", async () => {
     const { fake, speech, port, lines } = await rig();
     await dictate(port, sa);
-    await send(port, sa);
+    await send(port, sa, "what I said", clip);
+    expect(fake.calls.filter((c) => c.method === "figaro.qua").map((c) => c.params)).toEqual([{ figaro_id: id, text: "what I said" }]);
     fake.openTurn(id, 5, "what I said");
     await until("the clip keyed", () => speech.attached.length === 1);
     expect(speech.attached).toEqual([{ audioId: clip, key: `gluck/${id}:5/in` }]);
@@ -102,19 +104,51 @@ describe("dictation audio", () => {
     expect(speech.replays.at(-1)).toMatchObject({ url: `/audio/key/gluck/${id}:5/in`, range: "bytes=0-1" });
   });
 
-  it("keys nothing for another page's qua, a qua with no dictation, or a dictation past its time", async () => {
+  it("keys nothing for a typed qua, another page's claim, a turn someone else opens, or a dictation past its time", async () => {
     let now = 1_000_000;
     const { fake, speech, port } = await rig(() => now);
-    await send(port, sa);
-    fake.openTurn(id, 1, "typed");
     await dictate(port, sa);
-    await send(port, sb);
-    fake.openTurn(id, 2, "someone else");
+    await send(port, sa, "typed instead");
+    fake.openTurn(id, 1, "typed instead");
+    await send(port, sb, "not mine", clip);
+    fake.openTurn(id, 2, "not mine");
+    await send(port, sa, "steering while a turn runs", clip);
+    fake.openTurn(id, 3, "another sender's turn");
+    await tick(50);
+    expect(speech.attached).toEqual([]);
     now += 11 * 60_000;
-    await send(port, sa);
-    fake.openTurn(id, 3, "late");
+    await send(port, sa, "late", clip);
+    fake.openTurn(id, 4, "late");
     await tick(100);
     expect(speech.attached).toEqual([]);
+  });
+
+  it("keys a turn that opens minutes later, one whose text a PDF was folded under, and one shared with another sender", async () => {
+    let now = 1_000_000;
+    const { fake, speech, port } = await rig(() => now);
+    const clips = ["202611-00000000000000a1", "202611-00000000000000a2", "202611-00000000000000a3"];
+    const say = async (c: string, text: string): Promise<void> => {
+      speech.streamAudioId = c;
+      await dictate(port, sa);
+      await send(port, sa, text, c);
+    };
+    await say(clips[0]!, "queued behind a long turn");
+    now += 5 * 60_000;
+    fake.openTurn(id, 1, "queued behind a long turn");
+    await until("late turn keyed", () => speech.attached.length === 1);
+    await say(clips[1]!, "read this");
+    fake.openTurn(id, 2, 'read this\n\nAttached PDF "a.pdf", 1 page, its text:\n```\nhi\n```');
+    await until("folded turn keyed", () => speech.attached.length === 2);
+    await say(clips[2]!, "and mine");
+    fake.openTurn(id, 3, "theirs\n\nand mine", [{ sender: "other", text: "theirs" }, { sender: "gluck", text: "and mine" }]);
+    await until("shared turn keyed", () => speech.attached.length === 3);
+    expect(speech.attached).toEqual(clips.map((c, i) => ({ audioId: c, key: `gluck/${id}:${i + 1}/in` })));
+  });
+
+  it("refuses a dictation that is not an audio id", async () => {
+    const { port } = await rig();
+    const r = await send(port, sa, "x", "../../etc");
+    expect(JSON.stringify(r)).toContain("dictation is the audio_id");
   });
 
   it("serves /in and /out keys and still refuses anything else", async () => {

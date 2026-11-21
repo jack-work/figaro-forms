@@ -2,7 +2,7 @@ import { request, type IncomingMessage, type ServerResponse } from "node:http";
 import type { GatewayRoute, GatewaySocket } from "./gateway.js";
 import { noSession, sessionHeader, sessionOf } from "./door.js";
 import { parseTraceparent } from "./trace.js";
-import type { Dictations } from "./dictation.js";
+import { audioIdPattern, type Dictations } from "./dictation.js";
 import { ariaParam, attendSttStream, type SttStreamLimits } from "./stt-stream.js";
 
 export const maxClipBytes = 10 * 1024 * 1024;
@@ -130,14 +130,13 @@ async function transcribe(o: SttOptions, clip: Buffer, contentType: string, sess
 }
 
 const clipKey = /^([a-z0-9-]{1,63})\/[0-9a-f]{32}:\d{1,20}\/in$/;
-const audioId = /^[0-9]{6}-[0-9a-f]{16}$/;
 
 async function retranscribe(o: SttOptions, key: string, session: string, traceparent: string | undefined): Promise<Outcome> {
   const found = await callSpeech(o, "/audio/keys", Buffer.from(JSON.stringify({ keys: [key] })), "application/json", session, traceparent);
   const lookupFailed = speechFailure(found);
   if (lookupFailed) return lookupFailed;
   const id = found.json![key];
-  if (typeof id !== "string" || !audioId.test(id)) return { status: 404, body: { error: "no clip under that key" } };
+  if (typeof id !== "string" || !audioIdPattern.test(id)) return { status: 404, body: { error: "no clip under that key" } };
   const a = await callSpeech(o, `/stt/${encodeURIComponent(id)}`, Buffer.alloc(0), "application/octet-stream", session, traceparent);
   if (a.error === undefined && a.status === 404) return { status: 404, body: { error: "no clip under that key" } };
   if (a.error === undefined && a.status === 409) return { status: 409, body: { error: "the key names a reply, not a clip" } };
