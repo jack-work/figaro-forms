@@ -29,6 +29,7 @@ const noShell = "it moves a shell's attendance, and the web attends no shell";
 export const webCommands: { readonly [name in CommandName]: WebRoute } = {
   help: page("lists commandDocs"),
   show: door(["figaro.read"]),
+  read: door(["figaro.read"]),
   send: door(["figaro.qua"], { limits: "text only: the gateway strips a form patch, outfit or context (-O, -S, -D refused)" }),
   new: door(["figaro.create", "figaro.follow"], { limits: "-O names declared outfits only; -S, -D and a working directory are refused" }),
   listen: door(["figaro.follow"]),

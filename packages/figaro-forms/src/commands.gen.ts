@@ -1,4 +1,4 @@
-export type CommandName = "help" | "show" | "send" | "new" | "listen" | "replay" | "hup" | "cut" | "queue" | "list" | "lsh" | "recent" | "back" | "forward" | "attend" | "outfit" | "study" | "drop" | "cast" | "bind" | "fork" | "normalize" | "export" | "import" | "promote" | "adopt" | "demote" | "place" | "kill" | "succeed" | "retire" | "reaped" | "move" | "state" | "set" | "setup" | "reroute" | "get" | "pwd" | "toggle" | "cd" | "unset" | "outfits" | "gc" | "status" | "scopes" | "name" | "provider" | "troupe" | "box" | "valet" | "models" | "serve" | "stop" | "upgrade" | "version" | "keys" | "doctor" | "vault" | "update" | "completion" | "decide" | "notifications" | "history" | "login" | "comment";
+export type CommandName = "help" | "show" | "send" | "read" | "new" | "listen" | "replay" | "hup" | "cut" | "queue" | "list" | "lsh" | "recent" | "back" | "forward" | "attend" | "outfit" | "study" | "drop" | "cast" | "bind" | "fork" | "normalize" | "export" | "import" | "promote" | "adopt" | "demote" | "place" | "kill" | "succeed" | "retire" | "reaped" | "move" | "state" | "set" | "setup" | "reroute" | "get" | "pwd" | "toggle" | "cd" | "unset" | "outfits" | "gc" | "status" | "scopes" | "name" | "provider" | "troupe" | "box" | "valet" | "models" | "serve" | "stop" | "upgrade" | "version" | "keys" | "doctor" | "vault" | "update" | "completion" | "decide" | "notifications" | "history" | "login" | "comment";
 
 export type CommandKind = "aria" | "form" | "outfit" | "patch" | "key" | "value" | "text" | "count" | "duration" | "path" | "word" | "verb";
 
@@ -249,7 +249,7 @@ export const commandDocs: readonly CommandDoc[] = [
       },
       {
         "long": "stdin",
-        "help": "Read the prompt from stdin, never from argv"
+        "help": "Read the prompt from stdin, never from argv; to an aria log the entry lands byte for byte, empty included"
       },
       {
         "long": "image",
@@ -262,10 +262,42 @@ export const commandDocs: readonly CommandDoc[] = [
     "pager": "hosted"
   },
   {
+    "name": "read",
+    "group": "Prompt",
+    "help": "Print an aria log's entries exactly as they were sent",
+    "usage": "read [\u003cid\u003e] [--from N] [--until M] [-j]",
+    "args": [
+      {
+        "name": "aria",
+        "kind": "aria",
+        "optional": true
+      }
+    ],
+    "flags": [
+      {
+        "long": "from",
+        "value": "count",
+        "help": "First turn to print (default the first)"
+      },
+      {
+        "long": "until",
+        "value": "count",
+        "help": "Stop before this turn (default the end)"
+      },
+      {
+        "long": "json",
+        "short": "j",
+        "help": "One JSON object per entry, exact bytes"
+      }
+    ],
+    "complete": "send",
+    "pager": "routed"
+  },
+  {
     "name": "new",
     "group": "Prompt",
     "help": "Start a fresh aria and prompt it",
-    "usage": "new [-j|--json] [-O \u003cspec\u003e] [-C [\u003c@form\u003e]] [--image \u003cfile\u003e]... [--stdin | -- \u003cprompt\u003e]",
+    "usage": "new [-j|--json] [-O \u003cspec\u003e] [-C [\u003c@form\u003e]] [--log] [--image \u003cfile\u003e]... [--stdin | -- \u003cprompt\u003e]",
     "args": [
       {
         "name": "prompt",
@@ -359,7 +391,7 @@ export const commandDocs: readonly CommandDoc[] = [
       },
       {
         "long": "stdin",
-        "help": "Read the prompt from stdin, never from argv"
+        "help": "Read the prompt from stdin, never from argv; to an aria log the entry lands byte for byte, empty included"
       },
       {
         "long": "image",
@@ -987,7 +1019,7 @@ export const commandDocs: readonly CommandDoc[] = [
       },
       {
         "long": "stdin",
-        "help": "Read the prompt from stdin, never from argv"
+        "help": "Read the prompt from stdin, never from argv; to an aria log the entry lands byte for byte, empty included"
       },
       {
         "long": "image",
