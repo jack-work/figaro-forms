@@ -142,4 +142,26 @@ describe("a door that fails a send", () => {
     await fresh.attach(id).ready();
     expect(errors).toEqual([]);
   }, 20_000);
+
+  it("answers a message over the frame limit with an error that names it, and keeps the socket", async () => {
+    const fake = new FakeAria();
+    fake.addAria(id);
+    fake.answers.set("figaro.qua", { ok: true, cursor: 1 });
+    const port = await gateway({ door: fake.dial });
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/door`, { headers });
+    cleanups.push(() => ws.terminate());
+    const got: Record<string, unknown>[] = [];
+    ws.on("message", (d) => got.push(JSON.parse(d.toString()) as Record<string, unknown>));
+    await new Promise((ok) => ws.once("open", ok));
+    const big = JSON.stringify({ jsonrpc: "2.0", id: 9, method: "figaro.qua", params: { figaro_id: id, text: "é😀 ".repeat(200_000) } });
+    ws.send(big);
+    await until("the refusal", () => got.some((g) => g.id === 9));
+    const err = (got.find((g) => g.id === 9) as { error: { message: string } }).error.message;
+    expect(err).toContain("over 1048576 bytes");
+    expect(err).toContain(`this one is ${Buffer.byteLength(big)} bytes`);
+    ws.send(JSON.stringify({ jsonrpc: "2.0", id: 10, method: "figaro.qua", params: { figaro_id: id, text: "x".repeat(900_000) } }));
+    await until("the next send passes", () => got.some((g) => g.id === 10));
+    expect(got.find((g) => g.id === 10)).toMatchObject({ result: { ok: true } });
+    expect(fake.calls.filter((c) => c.method === "figaro.qua")).toHaveLength(1);
+  });
 });
