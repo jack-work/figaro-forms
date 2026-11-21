@@ -28,7 +28,10 @@ const permitted: Readonly<Record<string, ReadonlySet<string>>> = {
   "figaro.create": new Set(["outfits"]),
   "angelus.outfits": new Set(["spec"]),
   "figaro.set": new Set(["figaro_id", "patch", "client", "seq"]),
+  "figaro.interrupt": new Set(["figaro_id", "queue", "traceparent"]),
 };
+
+const queueDispositions: ReadonlySet<unknown> = new Set([undefined, "keep", "clear"]);
 
 function forbiddenField(method: string, params: unknown): string | undefined {
   const keys = permitted[method];
@@ -187,7 +190,11 @@ export function proxyDoor(ws: WebSocket, dial: Dial, hub: AudioHub | undefined, 
       refuse(ws, frame.id ?? null, `gateway: ${frame.method} may not carry ${field}; the gateway passes only the fields a plain call needs (no form patch on qua or fork, no outfit, seat, study or abdication)`);
       return;
     }
-    const params = frame.params as { figaro_id?: unknown; traceparent?: unknown } | null | undefined;
+    const params = frame.params as { figaro_id?: unknown; traceparent?: unknown; queue?: unknown } | null | undefined;
+    if (frame.method === "figaro.interrupt" && !queueDispositions.has(params?.queue)) {
+      refuse(ws, frame.id ?? null, `gateway: figaro.interrupt queue must be "keep" or "clear"`);
+      return;
+    }
     const asked = params?.traceparent;
     if (asked !== undefined && (typeof asked !== "string" || !parseTraceparent(asked))) {
       refuse(ws, frame.id ?? null, `gateway: ${frame.method} traceparent must be a W3C traceparent, 00-<32 hex>-<16 hex>-<2 hex>`);
