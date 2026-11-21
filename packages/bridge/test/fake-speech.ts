@@ -9,6 +9,7 @@ export interface SpeechCall {
   readonly frames: Record<string, unknown>[];
   readonly socket: WebSocket;
   readonly session: string | undefined;
+  readonly traceparent?: string | undefined;
   closed: boolean;
 }
 
@@ -20,7 +21,7 @@ export interface FakeSpeech {
   rejectVoice: boolean;
   holdUrl: string | undefined;
   readonly replays: { url: string; range: string | undefined; session?: string | undefined }[];
-  readonly clips: { url: string; contentType: string | undefined; body: Buffer; session?: string | undefined }[];
+  readonly clips: { url: string; contentType: string | undefined; body: Buffer; session?: string | undefined; traceparent?: string | undefined }[];
   readonly lookups: (string | undefined)[];
   sttStatus: number;
   readonly keyed: Record<string, string>;
@@ -67,7 +68,7 @@ export async function startFakeSpeech(): Promise<FakeSpeech> {
       const parts: Buffer[] = [];
       req.on("data", (c: Buffer) => parts.push(c));
       req.on("end", () => {
-        fake.clips.push({ url: req.url ?? "", contentType: req.headers["content-type"], body: Buffer.concat(parts), ...(session !== undefined ? { session } : {}) });
+        fake.clips.push({ url: req.url ?? "", contentType: req.headers["content-type"], body: Buffer.concat(parts), ...(session !== undefined ? { session } : {}), ...(typeof req.headers.traceparent === "string" ? { traceparent: req.headers.traceparent } : {}) });
         res.writeHead(fake.sttStatus, { "Content-Type": "application/json" }).end(JSON.stringify(fake.sttReply));
       });
       return;
@@ -88,7 +89,7 @@ export async function startFakeSpeech(): Promise<FakeSpeech> {
     }
     ws.handleUpgrade(req, sock, head, (socket) => {
       const header = req.headers["x-figchat-session"];
-      const call: SpeechCall = { url, frames: [], socket, session: typeof header === "string" ? header : undefined, closed: false };
+      const call: SpeechCall = { url, frames: [], socket, session: typeof header === "string" ? header : undefined, traceparent: typeof req.headers.traceparent === "string" ? req.headers.traceparent : undefined, closed: false };
       calls.push(call);
       socket.on("close", () => (call.closed = true));
       socket.on("message", (data) => {

@@ -1,6 +1,7 @@
 import type { IncomingMessage } from "node:http";
 import WebSocket from "ws";
 import { noSession, sessionHeader, sessionOf } from "./door.js";
+import { parseTraceparent } from "./trace.js";
 
 export interface SttStreamLimits {
   readonly idleMs?: number;
@@ -36,7 +37,7 @@ export function attendSttStream(
   if (!release) return refuse("busy", "too many clips in flight", 1011);
 
   const started = Date.now();
-  const up = new WebSocket(`ws+unix://${o.socket}:/stt/stream?${new URLSearchParams({ lang })}`, session !== noSession ? { headers: { [sessionHeader]: session } } : {});
+  const up = new WebSocket(`ws+unix://${o.socket}:/stt/stream?${new URLSearchParams({ lang })}`, { headers: { ...(session !== noSession ? { [sessionHeader]: session } : {}), ...(parseTraceparent(req.headers.traceparent as string | undefined) ? { traceparent: req.headers.traceparent as string } : {}) } });
   let ready = false;
   let ended = false;
   let finished = false;

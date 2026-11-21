@@ -9,6 +9,7 @@ import { noSession, proxyDoor, redact, sessionHeader, sessionOf } from "./door.j
 import { edgeHeader } from "./bridge.js";
 import type { SpeechDial } from "./speech.js";
 import { keyStored } from "./stt.js";
+import { noTracer, parseTraceparent, type Tracer } from "./trace.js";
 
 export interface GatewayEdge {
   readonly secret: string;
@@ -30,6 +31,7 @@ export interface GatewayOptions {
   readonly log?: (line: string) => void;
   readonly joinTimeoutMs?: number;
   readonly routes?: GatewayRoute;
+  readonly tracer?: Tracer;
   readonly sockets?: GatewaySocket;
 }
 
@@ -99,8 +101,10 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
 
   const log = o.log ?? ((line: string) => process.stderr.write(`figaro-gateway: ${line}\n`));
   let shared: AriaClient | undefined;
+  const tracer = o.tracer ?? noTracer;
   const hub = new AudioHub({
     log,
+    tracer,
     connect: () => {
       log("audio: dialing the door");
       return (shared = new AriaClient({ dial: o.door(e.admin, noSession) }));
@@ -128,7 +132,16 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
     }
     const session = sessionOf(req, false);
     const started = Date.now();
-    res.once("finish", () => log(`http ${req.method ?? "-"} ${redact(path)} ${res.statusCode} ${Date.now() - started} ms session=${session}`));
+    const asked = typeof req.headers.traceparent === "string" && parseTraceparent(req.headers.traceparent) ? req.headers.traceparent : undefined;
+    if (asked === undefined) delete req.headers.traceparent;
+    const sp = tracer.recording ? tracer.start(`http ${req.method ?? "-"} ${routeOf(path)}`, asked, { "http.request.method": req.method ?? "-", "figchat.session": session }) : undefined;
+    if (sp) req.headers.traceparent = sp.traceparent;
+    res.once("finish", () => {
+      log(`http ${req.method ?? "-"} ${redact(path)} ${res.statusCode} ${Date.now() - started} ms session=${session}`);
+      sp?.set("http.response.status_code", res.statusCode);
+      if (res.statusCode >= 500) sp?.fail(`status ${res.statusCode}`);
+      sp?.end();
+    });
     if (path.startsWith("/audio/key/")) {
       let key: string;
       try {
@@ -180,7 +193,7 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
     if (path === "/door") {
       wss.handleUpgrade(req, sock, head, (ws) => {
         track(ws);
-        proxyDoor(ws, o.door(String(req.headers["remote-user"]), session), hub, log, session);
+        proxyDoor(ws, o.door(String(req.headers["remote-user"]), session), hub, log, session, tracer);
       });
     } else if (audio !== undefined && ariaIdPattern.test(audio)) {
       wss.handleUpgrade(req, sock, head, (ws) => {
@@ -304,6 +317,12 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
   };
 }
 
+function routeOf(path: string): string {
+  if (path.startsWith("/audio/key/")) return "/audio/key";
+  if (path.startsWith("/stt/key/")) return "/stt/key";
+  return path === "/stt" ? "/stt" : "other";
+}
+
 function replay(socket: string | undefined, store: string, key: string, req: IncomingMessage, res: ServerResponse, session: string): void {
   if (req.method !== "GET" && req.method !== "HEAD") {
     res.writeHead(405, { Allow: "GET, HEAD" }).end();
@@ -320,6 +339,7 @@ function replay(socket: string | undefined, store: string, key: string, req: Inc
   const headers: Record<string, string> = {};
   if (typeof req.headers.range === "string") headers.range = req.headers.range;
   if (session !== noSession) headers[sessionHeader] = session;
+  if (typeof req.headers.traceparent === "string") headers.traceparent = req.headers.traceparent;
   const up = request({ socketPath: socket, path: `/audio/key/${key}`, method: req.method, headers }, (r) => {
     const keep = ["content-type", "content-length", "content-range", "accept-ranges", "cache-control"];
     const out: Record<string, string> = { "x-content-type-options": "nosniff", "cache-control": "no-store" };

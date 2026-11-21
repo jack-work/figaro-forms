@@ -63,14 +63,14 @@ interface SpeechAnswer {
   readonly error?: string;
 }
 
-function callSpeech(o: SttOptions, path: string, body: Buffer, contentType: string, session: string = noSession): Promise<SpeechAnswer> {
+function callSpeech(o: SttOptions, path: string, body: Buffer, contentType: string, session: string = noSession, traceparent?: string): Promise<SpeechAnswer> {
   return new Promise((ok) => {
     const up = request(
       {
         socketPath: o.socket,
         path,
         method: "POST",
-        headers: { "Content-Type": contentType, "Content-Length": body.length, ...(session !== noSession ? { [sessionHeader]: session } : {}) },
+        headers: { "Content-Type": contentType, "Content-Length": body.length, ...(session !== noSession ? { [sessionHeader]: session } : {}), ...(traceparent ? { traceparent } : {}) },
         timeout: o.timeoutMs ?? 60_000,
       },
       (r) => {
@@ -91,6 +91,8 @@ function callSpeech(o: SttOptions, path: string, body: Buffer, contentType: stri
     up.end(body);
   });
 }
+
+const traceparentOf = (req: IncomingMessage): string | undefined => (typeof req.headers.traceparent === "string" ? req.headers.traceparent : undefined);
 
 type Outcome = { status: number; body: Record<string, unknown> };
 
@@ -113,21 +115,21 @@ function transcription(j: Record<string, unknown>, audioId: unknown): Outcome {
   return { status: 200, body: { text: j.text, duration_ms: j.duration_ms, audio_id: audioId } };
 }
 
-async function transcribe(o: SttOptions, clip: Buffer, contentType: string, session: string): Promise<Outcome> {
-  const a = await callSpeech(o, "/stt", clip, contentType, session);
+async function transcribe(o: SttOptions, clip: Buffer, contentType: string, session: string, traceparent: string | undefined): Promise<Outcome> {
+  const a = await callSpeech(o, "/stt", clip, contentType, session, traceparent);
   return speechFailure(a) ?? transcription(a.json!, a.json!.audio_id);
 }
 
 const clipKey = /^([a-z0-9-]{1,63})\/[0-9a-f]{32}:\d{1,20}\/in$/;
 const audioId = /^[0-9]{6}-[0-9a-f]{16}$/;
 
-async function retranscribe(o: SttOptions, key: string, session: string): Promise<Outcome> {
-  const found = await callSpeech(o, "/audio/keys", Buffer.from(JSON.stringify({ keys: [key] })), "application/json", session);
+async function retranscribe(o: SttOptions, key: string, session: string, traceparent: string | undefined): Promise<Outcome> {
+  const found = await callSpeech(o, "/audio/keys", Buffer.from(JSON.stringify({ keys: [key] })), "application/json", session, traceparent);
   const lookupFailed = speechFailure(found);
   if (lookupFailed) return lookupFailed;
   const id = found.json![key];
   if (typeof id !== "string" || !audioId.test(id)) return { status: 404, body: { error: "no clip under that key" } };
-  const a = await callSpeech(o, `/stt/${encodeURIComponent(id)}`, Buffer.alloc(0), "application/octet-stream", session);
+  const a = await callSpeech(o, `/stt/${encodeURIComponent(id)}`, Buffer.alloc(0), "application/octet-stream", session, traceparent);
   if (a.error === undefined && a.status === 404) return { status: 404, body: { error: "no clip under that key" } };
   if (a.error === undefined && a.status === 409) return { status: 409, body: { error: "the key names a reply, not a clip" } };
   return speechFailure(a) ?? transcription(a.json!, id);
@@ -155,7 +157,7 @@ function keyRoute(o: SttOptions, req: IncomingMessage, res: ServerResponse, raw:
     reply(req, res, 503, { error: "too many clips in flight" });
     return;
   }
-  void retranscribe(o, key, sessionOf(req, false))
+  void retranscribe(o, key, sessionOf(req, false), traceparentOf(req))
     .then((r) => reply(req, res, r.status, r.body))
     .finally(done);
 }
@@ -219,7 +221,7 @@ export function stt(o: SttOptions): { routes: GatewayRoute; sockets: GatewaySock
         reply(req, res, 415, { error: `the body is not ${type}` });
         return;
       }
-      const r = await transcribe(o, clip, type, sessionOf(req, false));
+      const r = await transcribe(o, clip, type, sessionOf(req, false), traceparentOf(req));
       reply(req, res, r.status, r.body);
     })().finally(done);
     return true;

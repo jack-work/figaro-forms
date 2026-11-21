@@ -5,6 +5,7 @@ export interface SpeechRequest {
   readonly key: string;
   readonly voice?: string;
   readonly sessions?: readonly string[];
+  readonly traceparent?: string;
 }
 
 export interface SpeechHandlers {
@@ -28,7 +29,10 @@ export function speechOverSocket(socketPath: string): SpeechDial {
     const q = new URLSearchParams({ format: "pcm", key: req.key });
     if (req.voice) q.set("voice", req.voice);
     const sessions = req.sessions ?? [];
-    const ws = new WebSocket(`ws+unix://${socketPath}:/tts?${q}`, sessions.length > 0 ? { headers: { [sessionHeader]: sessionField(sessions) } } : {});
+    const headers: Record<string, string> = {};
+    if (sessions.length > 0) headers[sessionHeader] = sessionField(sessions);
+    if (req.traceparent) headers.traceparent = req.traceparent;
+    const ws = new WebSocket(`ws+unix://${socketPath}:/tts?${q}`, { headers });
     const queue: string[] = [];
     let open = false;
     let finished = false;

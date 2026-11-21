@@ -2,6 +2,7 @@ import type { Dial, Socket } from "figaro-forms";
 import type { Credential } from "figaro-forms/auth";
 import type { WebSocket } from "ws";
 import type { AudioHub } from "./audio.js";
+import { noTracer, parseTraceparent, type Span, type Tracer } from "./trace.js";
 
 export const gatewayMethods = [
   "angelus.hello",
@@ -21,7 +22,7 @@ export const gatewayMethods = [
 const allowed: ReadonlySet<string> = new Set(gatewayMethods);
 
 const permitted: Readonly<Record<string, ReadonlySet<string>>> = {
-  "figaro.qua": new Set(["figaro_id", "text", "images"]),
+  "figaro.qua": new Set(["figaro_id", "text", "images", "traceparent"]),
   "figaro.fork": new Set(["figaro_id", "at_turn", "at_lt"]),
   "figaro.create": new Set(["outfits"]),
   "angelus.outfits": new Set(["spec"]),
@@ -98,17 +99,43 @@ export function redact(text: string): string {
   return text.replace(/(\w+:\/\/)[^@/\s]*@/g, "$1").replace(/\?[^\s"')]*/g, "");
 }
 
-export function proxyDoor(ws: WebSocket, dial: Dial, hub: AudioHub | undefined, log: (line: string) => void = () => {}, session: string = noSession): void {
+export function proxyDoor(ws: WebSocket, dial: Dial, hub: AudioHub | undefined, log: (line: string) => void = () => {}, session: string = noSession, tracer: Tracer = noTracer): void {
   const queue: string[] = [];
+  const pending = new Map<string, Span>();
   let up: Socket | undefined;
   let gone = false;
+  const answered = (frame: string): void => {
+    if (pending.size === 0) return;
+    let f: { id?: unknown; method?: unknown; error?: { message?: unknown } };
+    try {
+      f = JSON.parse(frame) as typeof f;
+    } catch {
+      return;
+    }
+    if (f.method !== undefined || f.id === undefined) return;
+    const key = JSON.stringify(f.id);
+    const sp = pending.get(key);
+    if (!sp) return;
+    pending.delete(key);
+    if (f.error) sp.fail(typeof f.error.message === "string" ? redact(f.error.message).slice(0, 200) : "error");
+    sp.end();
+  };
+  const abandon = (why: string): void => {
+    for (const sp of pending.values()) {
+      sp.fail(why);
+      sp.end();
+    }
+    pending.clear();
+  };
   dial({
     message: (frame) => {
+      answered(frame);
       if (!gone) ws.send(frame);
     },
     closed: (reason) => {
       gone = true;
       log(`door closed: ${redact(reason)} session=${session}`);
+      abandon("door closed");
       ws.close(1011, "door closed");
     },
   }).then(
@@ -123,11 +150,13 @@ export function proxyDoor(ws: WebSocket, dial: Dial, hub: AudioHub | undefined, 
     (e: unknown) => {
       gone = true;
       log(`door unreachable: ${redact(e instanceof Error ? e.message : String(e))} session=${session}`);
+      abandon("door unreachable");
       ws.close(1011, "door unreachable");
     },
   );
   ws.on("close", () => {
     gone = true;
+    abandon("client left");
     up?.close();
   });
   ws.on("message", (data, binary) => {
@@ -156,9 +185,25 @@ export function proxyDoor(ws: WebSocket, dial: Dial, hub: AudioHub | undefined, 
       refuse(ws, frame.id ?? null, `gateway: ${frame.method} may not carry ${field}; the gateway passes only the fields a plain call needs (no form patch on qua or fork, no outfit, seat, study or abdication)`);
       return;
     }
-    const aria = (frame.params as { figaro_id?: unknown } | null | undefined)?.figaro_id;
-    log(`door: call method=${frame.method} aria=${typeof aria === "string" && loggedAria.test(aria) ? aria : noSession} session=${session}`);
+    const params = frame.params as { figaro_id?: unknown; traceparent?: unknown } | null | undefined;
+    const asked = params?.traceparent;
+    if (asked !== undefined && (typeof asked !== "string" || !parseTraceparent(asked))) {
+      refuse(ws, frame.id ?? null, `gateway: ${frame.method} traceparent must be a W3C traceparent, 00-<32 hex>-<16 hex>-<2 hex>`);
+      return;
+    }
+    const aria = params?.figaro_id;
+    const shownAria = typeof aria === "string" && loggedAria.test(aria) ? aria : noSession;
+    log(`door: call method=${frame.method} aria=${shownAria} session=${session}`);
     if (frame.method === "figaro.interrupt" && typeof aria === "string") hub?.cancel(aria, "interrupt");
+    if (frame.id !== undefined && tracer.recording) {
+      const sp = tracer.start(`door ${frame.method}`, typeof asked === "string" ? asked : undefined, { "rpc.method": frame.method, "figaro.aria": shownAria, "figchat.session": session });
+      pending.get(JSON.stringify(frame.id))?.end();
+      pending.set(JSON.stringify(frame.id), sp);
+      if (frame.method === "figaro.qua" && params) {
+        params.traceparent = sp.traceparent;
+        if (typeof aria === "string") hub?.noteTrace(aria, sp.context);
+      }
+    }
     const text = JSON.stringify(frame);
     if (up) up.send(text);
     else queue.push(text);

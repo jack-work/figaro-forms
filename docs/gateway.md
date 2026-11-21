@@ -16,7 +16,7 @@ every request needs the edge secret in `X-Figaro-Edge` and the admin in
   `figaro.form`, `figaro.read`, `figaro.qua`, `figaro.interrupt`, `figaro.fork`,
   `figaro.list`, `figaro.create`, `figaro.set`.
   Everything else (form.create, kill) is refused. `figaro.qua` may carry only
-  `figaro_id`, `text` and `images`, `figaro.fork` only `figaro_id`, `at_turn` and
+  `figaro_id`, `text`, `images` and `traceparent` (W3C only, else refused), `figaro.fork` only `figaro_id`, `at_turn` and
   `at_lt`, `figaro.create` only `outfits` (no patch, no cwd), `angelus.outfits` only
   `spec`, and `figaro.set` only `figaro_id`, `patch`, `client` and `seq`: any other
   field (`form` with its patch, context or outfits on a qua; a fork's
@@ -182,6 +182,28 @@ Each `/door` socket logs one line per call it passes to the door, `door: call
 method= aria= session=`, with no params; the door's pushes (`figaro.aria`,
 `form.delta`, `turn.done`) are not logged. Each HTTP request behind the gate logs
 `http <method> <path> <status> <ms> ms session=`.
+
+## Traces
+
+With `--otlp-endpoint URL` the gateway makes spans and posts them as OTLP/HTTP JSON
+to `URL/v1/traces` every 5 s or 256 spans (a full queue of 4096 drops spans; a
+failed post drops its batch and is logged at most once a minute). Without it the
+gateway makes none, and passes a page's valid `traceparent` through untouched.
+
+- `door <method>`: each client call with an id, from forward to the door's answer,
+  under the `traceparent` a `figaro.qua` carried. The qua goes on carrying the
+  gateway span's `traceparent`, so figaro's turn hangs under it.
+- `http <method> <route>`: each HTTP request behind the gate, under the request's
+  `traceparent` header; a malformed one is dropped. Speech calls made for it
+  (`/stt`, `/stt/<id>`, `/audio/keys`, the replay) carry this span's `traceparent`.
+- `tts` (and `say`): a spoken turn from tts open to done, cancel or error, under the
+  last traced `figaro.qua` on that aria in the past 120 s; the `/tts` dial carries
+  its `traceparent`.
+- `/stt/stream` passes a valid `traceparent` header of the upgrade on to speech.
+
+Attributes are `rpc.method`, `figaro.aria`, `figchat.session`, `tts.turn`,
+`tts.bytes`, `http.request.method` and `http.response.status_code`; never params,
+text or credentials. Errors are the span status, redacted.
 
 ## Session ids
 

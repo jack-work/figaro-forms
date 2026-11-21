@@ -2,6 +2,7 @@ import type { Anchor, AppliedFrame, AriaClient, AriaStream, Node, TurnEnd } from
 import { pcmFormat, type SpeechDial, type SpeechSession } from "./speech.js";
 import { takeSentences } from "./sentences.js";
 import { redact, sessionField, sessionList } from "./door.js";
+import { noTracer, type Span, type SpanContext, type Tracer } from "./trace.js";
 
 export interface AudioListener {
   readonly session?: string;
@@ -16,7 +17,10 @@ export interface AudioHubOptions {
   readonly voiceOf?: (aria: string) => Promise<string | undefined>;
   readonly stored?: (key: string, session: string) => Promise<boolean>;
   readonly log?: (line: string) => void;
+  readonly tracer?: Tracer;
 }
+
+const traceJoinMs = 120_000;
 
 export type CancelReason = "interrupt" | "new-turn" | "client" | "reaped" | "left";
 
@@ -38,6 +42,7 @@ interface Active {
   fedNode: number;
   fedChars: number;
   speech: SpeechSession | undefined;
+  span: Span | undefined;
   starting: boolean;
   ended: boolean;
   retried: boolean;
@@ -105,6 +110,8 @@ class Follower {
   private halt(a: Active, why: CancelReason, tell: boolean): void {
     a.dead = true;
     a.speech?.cancel();
+    a.span?.set("tts.cancelled", why);
+    a.span?.end();
     this.log(`${a.only ? "say" : "turn"} cancelled aria=${this.aria} turn=${a.turn} why=${why} chunks=${a.chunks} bytes=${a.offset}`, this.heard(a));
     if (tell && (a.started || a.written.length > 0 || a.buf !== "")) this.tell(a, { type: "audio.cancel", turn: a.turn, key: a.key, why });
   }
@@ -283,6 +290,7 @@ class Follower {
       fedNode: 0,
       fedChars: 0,
       speech: undefined,
+      span: undefined,
       starting: false,
       ended: false,
       retried: false,
@@ -349,12 +357,20 @@ class Follower {
   private speechFailed(a: Active, text: string): void {
     this.settle(a);
     a.dead = true;
+    a.span?.fail(redact(text).slice(0, 200));
+    a.span?.end();
     this.log(`${a.only ? "say failed code=speech" : "tts error"} aria=${this.aria} turn=${a.turn} chunks=${a.chunks} text=${redact(text)}`, this.heard(a));
     this.tell(a, { type: "error", turn: a.turn, code: "speech", text });
   }
 
   private openSpeech(a: Active, voice: string | undefined): void {
     let heard = false;
+    const sessions = this.sessions(this.heard(a));
+    a.span ??= (this.hub.options.tracer ?? noTracer).start(a.only ? "say" : "tts", a.only ? undefined : this.hub.traceOf(this.aria), {
+      "figaro.aria": this.aria,
+      "tts.turn": a.turn,
+      "figchat.session": sessionField(sessions),
+    });
     this.log(`tts open aria=${this.aria} turn=${a.turn} key=${a.key}${voice ? " voice=" + voice : ""}`, this.heard(a));
     let session: SpeechSession;
     try {
@@ -370,7 +386,7 @@ class Follower {
 
   private openSession(a: Active, voice: string | undefined, hear: () => void, wasHeard: () => boolean): SpeechSession {
     return this.hub.options.speech(
-      { key: a.key, ...(voice ? { voice } : {}), sessions: this.sessions(this.heard(a)) },
+      { key: a.key, ...(voice ? { voice } : {}), sessions: this.sessions(this.heard(a)), ...(this.hub.options.tracer?.recording && a.span ? { traceparent: a.span.traceparent } : {}) },
       {
         audio: (pcm) => {
           if (a.dead) return;
@@ -380,6 +396,8 @@ class Follower {
         done: (audioId) => {
           if (a.dead) return;
           this.settle(a);
+          a.span?.set("tts.bytes", a.offset);
+          a.span?.end();
           this.log(`${a.only ? "say" : "tts done"} aria=${this.aria} turn=${a.turn} chunks=${a.chunks} bytes=${a.offset}${audioId !== undefined ? " audio_id=" + audioId : ""}`, this.heard(a));
           this.tell(a, { type: "audio.end", turn: a.turn, key: a.key, ...(audioId !== undefined ? { audio_id: audioId } : {}) });
         },
@@ -421,8 +439,25 @@ export class AudioHub {
   private client: AriaClient | undefined;
   private readonly followers = new Map<string, Follower>();
   private readonly pending = new Map<string, Promise<void>>();
+  private readonly traces = new Map<string, { context: SpanContext; at: number }>();
 
   constructor(readonly options: AudioHubOptions) {}
+
+  noteTrace(aria: string, context: SpanContext): void {
+    this.traces.delete(aria);
+    this.traces.set(aria, { context, at: Date.now() });
+    if (this.traces.size > 1000) this.traces.delete(this.traces.keys().next().value as string);
+  }
+
+  traceOf(aria: string): SpanContext | undefined {
+    const t = this.traces.get(aria);
+    if (!t) return undefined;
+    if (Date.now() - t.at > traceJoinMs) {
+      this.traces.delete(aria);
+      return undefined;
+    }
+    return t.context;
+  }
 
   async join(aria: string, listener: AudioListener): Promise<() => void> {
     let f = this.followers.get(aria);
