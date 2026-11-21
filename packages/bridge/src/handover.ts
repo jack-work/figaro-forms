@@ -10,6 +10,7 @@ export interface HandoverOptions {
   readonly retireMs?: number;
   readonly settleMs?: number;
   readonly catchUpMs?: number;
+  readonly moved?: (outcome: "ok" | "error", kind: string, ms: number) => void;
 }
 
 const reserved = (id: unknown): boolean => typeof id === "number" && id < 0;
@@ -179,6 +180,7 @@ class Handover {
       }
       if (answered.some((ok) => !ok)) {
         this.log(`door handover abandoned: a follow failed on the new leg (${why})`);
+        this.o.moved?.("error", why, 0);
         this.next = undefined;
         this.recorded = undefined;
         this.buffered = [];
@@ -195,8 +197,10 @@ class Handover {
       }
       this.switchTo(next);
       this.log(`door handover done (${why}): ${follows.length} follows moved in ${this.now() - started} ms${caught ? "" : ", the old leg never caught up"}`);
+      this.o.moved?.("ok", why, this.now() - started);
     } catch (e) {
       this.log(`door handover failed (${why}): ${e instanceof Error ? e.message : String(e)}`);
+      this.o.moved?.("error", why, 0);
       if (this.next) this.drop(this.next);
       this.next = undefined;
       this.recorded = undefined;

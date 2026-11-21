@@ -3,6 +3,7 @@ import { pcmFormat, type SpeechDial, type SpeechSession } from "./speech.js";
 import { takeSentences } from "./sentences.js";
 import { redact, sessionField, sessionList } from "./door.js";
 import { noTracer, type Span, type SpanContext, type Tracer } from "./trace.js";
+import type { Metrics } from "./metrics.js";
 
 export interface AudioListener {
   readonly session?: string;
@@ -18,6 +19,7 @@ export interface AudioHubOptions {
   readonly stored?: (key: string, session: string) => Promise<boolean>;
   readonly log?: (line: string) => void;
   readonly tracer?: Tracer;
+  readonly metrics?: Metrics;
 }
 
 const traceJoinMs = 120_000;
@@ -43,6 +45,7 @@ interface Active {
   fedChars: number;
   speech: SpeechSession | undefined;
   span: Span | undefined;
+  readonly seen: number;
   starting: boolean;
   ended: boolean;
   retried: boolean;
@@ -291,6 +294,7 @@ class Follower {
       fedChars: 0,
       speech: undefined,
       span: undefined,
+      seen: Date.now(),
       starting: false,
       ended: false,
       retried: false,
@@ -355,6 +359,7 @@ class Follower {
   }
 
   private speechFailed(a: Active, text: string): void {
+    this.hub.options.metrics?.count("figchat.gateway.errors", { "figchat.session": sessionField(this.sessions(this.heard(a))), kind: "speech" });
     this.settle(a);
     a.dead = true;
     a.span?.fail(redact(text).slice(0, 200));
@@ -423,6 +428,7 @@ class Follower {
     const out = pcm.subarray(0, even);
     if (!a.started) {
       a.started = true;
+      if (!a.only) this.hub.options.metrics?.ms("figchat.gateway.audio.first_byte_ms", Date.now() - a.seen, { "figchat.session": sessionField(this.sessions(this.heard(a))), "figaro.aria": this.aria });
       this.tell(a, { type: "audio.start", turn: a.turn, key: a.key, ...(a.only ? { say: true } : {}), ...pcmFormat, node: a.fedNode, chars: a.fedChars, cursor: this.cursor() });
     }
     const header = { type: "audio.chunk", turn: a.turn, node: a.fedNode, chars: a.fedChars, cursor: this.cursor(), offset: a.offset, bytes: out.length };

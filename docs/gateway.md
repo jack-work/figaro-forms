@@ -183,6 +183,23 @@ method= aria= session=`, with no params; the door's pushes (`figaro.aria`,
 `form.delta`, `turn.done`) are not logged. Each HTTP request behind the gate logs
 `http <method> <path> <status> <ms> ms session=`.
 
+## Metrics
+
+With `--otlp-endpoint URL` the gateway also posts metrics to `URL/v1/metrics` every
+10 s (OTLP/HTTP JSON, delta temporality), named and shaped as the shared figchat
+table says (captains-log 2026/11/21/figchat-metrics-table.md): durations in ms as
+histograms with bounds 5 to 30000, counts as monotonic sums, attributes only
+`figchat.session`, `figaro.aria`, `kind`, `outcome`.
+
+- `figchat.gateway.door.dial_ms` (kind page, audio, handover; outcome)
+- `figchat.gateway.door.first_frame_ms`: page socket open to its first frame
+- `figchat.gateway.turn.first_token_ms`: a page's qua to the first frame carrying
+  output for that aria
+- `figchat.gateway.handover_ms` (kind between_turns, deadline, lapse_notice)
+- `figchat.gateway.audio.first_byte_ms`: turn seen to its first PCM
+- `figchat.gateway.reconnects` (kind door, audio): a session's socket opened again
+- `figchat.gateway.errors` (kind door_closed, refused, speech, handover)
+
 ## Faults (test mode)
 
 `--fault-socket PATH` turns on test mode: the gateway takes fault ops as one JSON
