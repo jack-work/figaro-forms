@@ -20,3 +20,19 @@ export {
 export { ariaRefusal, AriaUnavailable, type AriaRefusal, type RefusalKind } from "./errors.js";
 export { spliceBytes, utf8Length } from "./utf8.js";
 export * from "./wire.js";
+export {
+  boundFormWriter,
+  foldAriasForm,
+  foldRecent,
+  foldTree,
+  parseRoleAddresses,
+  recentFormID,
+  troupeFormID,
+  type BoundFormState,
+  type NodeStatus,
+  type RecentRow,
+  type RecentState,
+  type TreeDaemon,
+  type TreeNode,
+  type TreeState,
+} from "./surface.js";

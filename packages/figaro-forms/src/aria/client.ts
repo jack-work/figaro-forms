@@ -1,4 +1,5 @@
 import { Connection, type ConnectionState, type Dial } from "../rpc.js";
+import { FormsClient } from "../client.js";
 import { method, protocolVersion, type Capability, type HelloResponse } from "../wire.js";
 import type { Json } from "../json.js";
 import { AriaStream, type AttachOptions } from "./stream.js";
@@ -85,6 +86,7 @@ export class AriaClient {
   private readonly streams = new Map<string, Set<AriaStream>>();
   private readonly shared = new Map<string, Shared>();
   private readonly opts: AriaClientOptions;
+  private formsClient: FormsClient | undefined;
 
   constructor(opts: AriaClientOptions) {
     this.opts = opts;
@@ -117,6 +119,17 @@ export class AriaClient {
 
   get state(): ConnectionState {
     return this.connection.state;
+  }
+
+  get forms(): FormsClient {
+    this.formsClient ??= new FormsClient({
+      dial: this.opts.dial,
+      ...(this.opts.callTimeoutMs !== undefined ? { callTimeoutMs: this.opts.callTimeoutMs } : {}),
+      ...(this.opts.retryMinMs !== undefined ? { retryMinMs: this.opts.retryMinMs } : {}),
+      ...(this.opts.retryMaxMs !== undefined ? { retryMaxMs: this.opts.retryMaxMs } : {}),
+      ...(this.opts.releaseGraceMs !== undefined ? { releaseGraceMs: this.opts.releaseGraceMs } : {}),
+    });
+    return this.formsClient;
   }
 
   attach(aria: string, o: AttachOptions = {}): AriaStream {
@@ -237,6 +250,8 @@ export class AriaClient {
   }
 
   close(): void {
+    this.formsClient?.close();
+    this.formsClient = undefined;
     for (const e of this.shared.values()) if (e.reap) clearTimeout(e.reap);
     this.shared.clear();
     for (const set of [...this.streams.values()]) for (const s of [...set]) s.close();
