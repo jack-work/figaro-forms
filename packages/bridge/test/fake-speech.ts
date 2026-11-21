@@ -13,10 +13,54 @@ export interface SpeechCall {
   closed: boolean;
 }
 
+export interface PaceOptions {
+  readonly seed?: number;
+  readonly sliceMs?: number;
+  readonly jitterMs?: number;
+  readonly stallProbability?: number;
+  readonly stallMs?: readonly [number, number];
+  readonly slowStartMs?: number;
+}
+
+export interface PacedSend {
+  readonly at: number;
+  readonly bytes: number;
+  readonly offset: number;
+}
+
+export interface PacedStall {
+  readonly at: number;
+  readonly ms: number;
+  readonly offset: number;
+}
+
+export interface PacedLog {
+  readonly sends: PacedSend[];
+  readonly stalls: PacedStall[];
+  startedAt: number;
+}
+
+export const fakePcmFormat = { rate: 24000, bits: 16, channels: 1 } as const;
+
+export const pcmBytesPerMs = (fakePcmFormat.rate * fakePcmFormat.channels * (fakePcmFormat.bits / 8)) / 1000;
+
+export const seeded = (seed: number): (() => number) => {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+};
+
 export interface FakeSpeech {
   readonly path: string;
   readonly calls: SpeechCall[];
   pcmPerText: number;
+  pace: PaceOptions | undefined;
+  readonly paced: PacedLog[];
   audioId: string;
   rejectVoice: boolean;
   holdUrl: string | undefined;
@@ -52,7 +96,7 @@ export async function startFakeSpeech(): Promise<FakeSpeech> {
   const calls: SpeechCall[] = [];
   const server = createServer();
   const ws = new WebSocketServer({ noServer: true });
-  const fake: FakeSpeech = { path, calls, pcmPerText: 480, audioId: "a-1", rejectVoice: false, holdUrl: undefined, replays: [], clips: [], lookups: [], streamAudioId: "clip-2", attached: [], sttStatus: 200, keyed: {}, sttReply: { text: "hello figaro", duration_ms: 1200, audio_id: "clip-1" }, streams: [], streamReady: true, streamFailAfter: undefined, stop: () => new Promise((ok) => { for (const c of [...calls, ...fake.streams]) c.socket.terminate(); server.close(() => ok()); server.closeAllConnections(); }) };
+  const fake: FakeSpeech = { path, calls, pcmPerText: 480, pace: undefined, paced: [], audioId: "a-1", rejectVoice: false, holdUrl: undefined, replays: [], clips: [], lookups: [], streamAudioId: "clip-2", attached: [], sttStatus: 200, keyed: {}, sttReply: { text: "hello figaro", duration_ms: 1200, audio_id: "clip-1" }, streams: [], streamReady: true, streamFailAfter: undefined, stop: () => new Promise((ok) => { for (const c of [...calls, ...fake.streams]) c.socket.terminate(); server.close(() => ok()); server.closeAllConnections(); }) };
   server.on("request", (req, res) => {
     const session = typeof req.headers["x-figchat-session"] === "string" ? req.headers["x-figchat-session"] : undefined;
     const attach = req.method === "POST" ? /^\/audio\/([^/?]+)\/key\?key=(.+)$/.exec(req.url ?? "") : null;
@@ -101,11 +145,18 @@ export async function startFakeSpeech(): Promise<FakeSpeech> {
       const call: SpeechCall = { url, frames: [], socket, session: typeof header === "string" ? header : undefined, traceparent: typeof req.headers.traceparent === "string" ? req.headers.traceparent : undefined, closed: false };
       calls.push(call);
       socket.on("close", () => (call.closed = true));
+      const pacer = fake.pace ? startPacer(fake, socket, fake.pace) : undefined;
       socket.on("message", (data) => {
         const f = JSON.parse(data.toString()) as Record<string, unknown>;
         call.frames.push(f);
+        const holding = f.end === true && fake.holdUrl && url.includes(fake.holdUrl);
+        if (pacer) {
+          if (typeof f.text === "string" && fake.pcmPerText > 0) pacer.push(fakePcm(fake.pcmPerText));
+          if (f.end === true && !holding) pacer.finish(() => { socket.send(JSON.stringify({ audio_id: fake.audioId })); socket.close(); });
+          return;
+        }
         if (typeof f.text === "string" && fake.pcmPerText > 0) socket.send(fakePcm(fake.pcmPerText));
-        if (f.end === true && !(fake.holdUrl && url.includes(fake.holdUrl))) {
+        if (f.end === true && !holding) {
           socket.send(JSON.stringify({ audio_id: fake.audioId }));
           socket.close();
         }
@@ -145,4 +196,57 @@ function answerStream(fake: FakeSpeech, url: string, socket: WebSocket, session:
       socket.close(1000);
     }
   });
+}
+
+function startPacer(fake: FakeSpeech, socket: WebSocket, opts: PaceOptions): { push(pcm: Buffer): void; finish(done: () => void): void } {
+  const rand = seeded(opts.seed ?? 1);
+  const sliceBytes = Math.round((opts.sliceMs ?? 20) * pcmBytesPerMs);
+  const log: PacedLog = { sends: [], stalls: [], startedAt: Date.now() };
+  fake.paced.push(log);
+  let queue = Buffer.alloc(0);
+  let offset = 0;
+  let idealMs = 0;
+  let first = true;
+  let running = false;
+  let finishing: (() => void) | undefined;
+  const between = (lo: number, hi: number): number => lo + rand() * (hi - lo);
+  const pump = (): void => {
+    if (socket.readyState !== socket.OPEN) return;
+    if (queue.length === 0) {
+      running = false;
+      if (finishing) { const done = finishing; finishing = undefined; done(); }
+      return;
+    }
+    const slice = queue.subarray(0, sliceBytes);
+    queue = queue.subarray(slice.length);
+    let stall = 0;
+    if (opts.stallProbability && rand() < opts.stallProbability) {
+      const [lo, hi] = opts.stallMs ?? [300, 1500];
+      stall = Math.round(between(lo, hi));
+      log.stalls.push({ at: Date.now() - log.startedAt, ms: stall, offset });
+    }
+    idealMs += stall;
+    const jitter = opts.jitterMs ? Math.round(between(0, opts.jitterMs)) : 0;
+    const wait = Math.max(0, log.startedAt + idealMs + jitter - Date.now());
+    setTimeout(() => {
+      if (socket.readyState !== socket.OPEN) return;
+      log.sends.push({ at: Date.now() - log.startedAt, bytes: slice.length, offset });
+      offset += slice.length;
+      socket.send(Buffer.from(slice));
+      idealMs += slice.length / pcmBytesPerMs;
+      pump();
+    }, wait);
+  };
+  return {
+    push(pcm) {
+      if (queue.length === 0 && !running) idealMs = Math.max(idealMs, Date.now() - log.startedAt);
+      if (first) { first = false; idealMs += opts.slowStartMs ?? 0; }
+      queue = Buffer.concat([queue, pcm]);
+      if (!running) { running = true; pump(); }
+    },
+    finish(done) {
+      if (!running) done();
+      else finishing = done;
+    },
+  };
 }
