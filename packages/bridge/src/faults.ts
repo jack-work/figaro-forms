@@ -325,10 +325,15 @@ export async function faultSocket(path: string, faults: Faults, log: (line: stri
     });
     c.on("error", () => {});
   });
-  await new Promise<void>((ok, fail) => {
-    server.once("error", fail);
-    server.listen(path, ok);
-  });
+  const mask = process.umask(0o077);
+  try {
+    await new Promise<void>((ok, fail) => {
+      server.once("error", fail);
+      server.listen(path, ok);
+    });
+  } finally {
+    process.umask(mask);
+  }
   await chmod(path, 0o600);
   log(`faults armed on ${path}: this gateway is in test mode`);
   return server;
