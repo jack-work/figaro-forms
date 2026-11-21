@@ -189,7 +189,9 @@ Body is one file, any `Content-Type`; `X-Attach-Name` (URL-encoded, cut to 120
 characters) names it for the reply. At most 10 MiB; two uploads are worked at once
 (`503` beyond). The type is read from the bytes:
 
-- png, jpeg, gif, webp, heic: decoded by ImageMagick from the sniffed format only,
+- png, jpeg, gif, webp, heic: decoded by ImageMagick from the sniffed format only, under
+  its own policy (only those coders; no delegates, filters or @-paths; 16K pixels a
+  side, 128 MP, 256 MiB, 15 s),
   turned upright, scaled to a long edge of 1568 px, stripped of metadata (EXIF,
   GPS), and kept as png (png in) or jpeg; over 5 MB after that is scaled again or
   refused.

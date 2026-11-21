@@ -248,4 +248,9 @@ describe.skipIf(!real)("attachments with the real tools", () => {
     expect(pages).toHaveLength(1);
     expect(sniff(pages[0]!)).toBe("jpeg");
   }, 30_000);
+
+  it("runs magick under its own policy: a png wider than 16K pixels is refused", async () => {
+    const wide = execFileSync("magick", ["-size", "20000x4", "xc:white", "png:-"], { maxBuffer: 16 * 1024 * 1024 });
+    await expect(systemTools().picture(wide, "png")).rejects.toThrow("magick failed");
+  }, 30_000);
 });

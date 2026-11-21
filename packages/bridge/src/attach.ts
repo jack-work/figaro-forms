@@ -1,6 +1,6 @@
 import { execFile, type ExecFileOptions } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -47,9 +47,35 @@ export function sniff(b: Buffer): ImageFormat | "pdf" | undefined {
   return undefined;
 }
 
-function run(file: string, args: readonly string[], input: Buffer, timeoutMs: number, maxBuffer: number, cwd?: string): Promise<Buffer> {
+export const magickPolicy = `<policymap>
+  <policy domain="resource" name="memory" value="256MiB"/>
+  <policy domain="resource" name="map" value="512MiB"/>
+  <policy domain="resource" name="disk" value="1GiB"/>
+  <policy domain="resource" name="area" value="128MP"/>
+  <policy domain="resource" name="width" value="16KP"/>
+  <policy domain="resource" name="height" value="16KP"/>
+  <policy domain="resource" name="time" value="15"/>
+  <policy domain="delegate" rights="none" pattern="*"/>
+  <policy domain="filter" rights="none" pattern="*"/>
+  <policy domain="path" rights="none" pattern="@*"/>
+  <policy domain="module" rights="none" pattern="*"/>
+  <policy domain="module" rights="read | write" pattern="{PNG,JPEG,GIF,WEBP,HEIC}"/>
+  <policy domain="coder" rights="none" pattern="*"/>
+  <policy domain="coder" rights="read | write" pattern="{PNG,JPEG,JPG,GIF,WEBP,HEIC,HEIF}"/>
+</policymap>
+`;
+
+let policyDir: Promise<string> | undefined;
+const magickConfig = (): Promise<string> =>
+  (policyDir ??= (async () => {
+    const dir = await mkdtemp(join(tmpdir(), "attach-magick-"));
+    await writeFile(join(dir, "policy.xml"), magickPolicy, { mode: 0o444 });
+    return dir;
+  })());
+
+function run(file: string, args: readonly string[], input: Buffer, timeoutMs: number, maxBuffer: number, cwd?: string, env: Record<string, string> = {}): Promise<Buffer> {
   return new Promise((ok, fail) => {
-    const opts: ExecFileOptions & { encoding: "buffer" } = { timeout: timeoutMs, maxBuffer, encoding: "buffer", killSignal: "SIGKILL", env: { PATH: process.env.PATH ?? "" }, ...(cwd ? { cwd } : {}) };
+    const opts: ExecFileOptions & { encoding: "buffer" } = { timeout: timeoutMs, maxBuffer, encoding: "buffer", killSignal: "SIGKILL", env: { PATH: process.env.PATH ?? "", ...env }, ...(cwd ? { cwd } : {}) };
     const child = execFile(file, args as string[], opts, (err, stdout) => {
       if (err) fail(new Error(`${file} failed${(err as { killed?: boolean }).killed ? " (timed out)" : ""}`));
       else ok(stdout as Buffer);
@@ -70,15 +96,18 @@ export function systemTools(p: ToolPaths = {}): Tools {
   const magick = p.magick ?? "magick";
   const picture = async (data: Buffer, from: ImageFormat): Promise<Picture> => {
     const keepPng = from === "png";
+    const env = { MAGICK_CONFIGURE_PATH: await magickConfig(), HOME: "/nonexistent" };
     const out = await run(
       magick,
       ["-limit", "memory", "256MiB", "-limit", "area", "128MP", "-limit", "time", "15", `${from}:-[0]`, "-auto-orient", "-resize", `${maxImageEdge}x${maxImageEdge}>`, "-strip", ...(keepPng ? [] : ["-quality", "85"]), keepPng ? "png:-" : "jpeg:-"],
       data,
       20_000,
       32 * 1024 * 1024,
+      undefined,
+      env,
     );
     if (out.length > maxImageBytes) {
-      const smaller = await run(magick, ["-limit", "memory", "256MiB", "-limit", "time", "15", `${keepPng ? "png" : "jpeg"}:-`, "-resize", "1024x1024>", "-quality", "75", "jpeg:-"], out, 20_000, 32 * 1024 * 1024);
+      const smaller = await run(magick, ["-limit", "memory", "256MiB", "-limit", "time", "15", `${keepPng ? "png" : "jpeg"}:-`, "-resize", "1024x1024>", "-quality", "75", "jpeg:-"], out, 20_000, 32 * 1024 * 1024, undefined, env);
       if (smaller.length > maxImageBytes) throw new AttachError(413, "the image is still over 5 MB after scaling");
       return { mime: "image/jpeg", data: smaller };
     }
