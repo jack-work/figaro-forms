@@ -43,6 +43,7 @@ export interface GatewayOptions {
   readonly sockets?: GatewaySocket;
   readonly faults?: Faults;
   readonly metrics?: Metrics;
+  readonly audioLeaveGraceMs?: number;
   readonly dictations?: Dictations;
 }
 
@@ -149,6 +150,7 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
     log,
     tracer,
     ...(o.metrics ? { metrics: o.metrics } : {}),
+    ...(o.audioLeaveGraceMs !== undefined ? { leaveGraceMs: o.audioLeaveGraceMs } : {}),
     connect: () => {
       log("audio: dialing the door");
       return (shared = new AriaClient({ dial: doorFor(e.admin, noSession, { session: noSession, audio: true }) }));

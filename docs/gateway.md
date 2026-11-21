@@ -133,8 +133,11 @@ Server to client, text (JSON):
   spoken. A turn already running when the follow starts is spoken **from the join
   point on**: the text its open message holds at that moment counts as heard, and
   what arrives after it is spoken (a sentence cut in half by the join is spoken
-  from its second half), also when the aria's stream is still warm from an
-  earlier listener (a page that leaves and comes back). A turn that starts after the
+  from its second half). The aria's speech outlives its last listener by 15 s: a
+  page that reloads within that time joins the same reply, gets its own
+  `audio.start` at the current position and hears nothing again, and the reply is
+  still stored whole under its key. After that, a returning page starts a fresh
+  follow, spoken from the join point as above. A turn that starts after the
   follow is spoken whole. After a
   reconnect the stream re-reads the running turn and the gateway speaks what it
   gained while offline, once; a turn that ended while offline is spoken from where
@@ -148,8 +151,11 @@ Server to client, text (JSON):
   `markdown` the speech service had been fed when this audio arrived; `cursor` is
   the stream's cursor (the highest sealed turn, `Client.Cursor`) at that moment. The
   audio is at or after that point in the text, never before. `offset` is the byte
-  position in this audio of the turn (it starts at 0 on every audio.start); place and
-  deduplicate audio by `node` and `chars`, not by `offset`.
+  position in this audio of the turn (0 at the turn's first chunk; a listener that joins
+  while the turn's audio plays gets its own `audio.start` first, then chunks at their
+  running offset); place and deduplicate audio by `node` and `chars`, not by `offset`.
+  `audio.end` and `audio.cancel` after audio started go only to listeners that got its
+  `audio.start`.
 - `{type:"audio.end", turn, key, partial?, audio_id?}` after the last chunk. `key` is
   always present: the A9 key `<store>/<aria>:<turn>/out`. A whole turn is stored
   under it and replayable at `/audio/key/<key>`, with `audio_id` when the speech
