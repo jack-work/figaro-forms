@@ -22,6 +22,9 @@ describe("web catalog", () => {
         pager: full.pager,
         ...(full.refusal && { refusal: full.refusal }),
         ...(full.switches && { switches: true }),
+        ...(full.args?.[0]?.choices && {
+          choices: full.args[0].choices.map(({ name, help }) => ({ name, help })),
+        }),
       });
     }
   });

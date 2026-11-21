@@ -374,20 +374,35 @@ type webCommand struct {
 	Pager        command.Mode   `json:"pager"`
 	Refusal      string         `json:"refusal,omitempty"`
 	Switches     bool           `json:"switches,omitempty"`
+	Choices      []webChoice    `json:"choices,omitempty"`
+}
+
+type webChoice struct {
+	Name string `json:"name"`
+	Help string `json:"help"`
+}
+
+func webChoices(c command.Command) []webChoice {
+	var out []webChoice
+	for _, ch := range c.Choices() {
+		out = append(out, webChoice{ch.Name, ch.Help})
+	}
+	return out
 }
 
 func webCatalogSource() string {
 	var rows []string
 	for _, c := range command.All() {
 		min, max := c.Bounds()
-		b, err := json.Marshal(webCommand{c.Name, c.Aliases, c.PagerAliases, c.Help, c.Usage, min, max, c.Hidden, c.PagerOnly, c.Complete, c.Pager, c.Refusal, c.Switches})
+		b, err := json.Marshal(webCommand{c.Name, c.Aliases, c.PagerAliases, c.Help, c.Usage, min, max, c.Hidden, c.PagerOnly, c.Complete, c.Pager, c.Refusal, c.Switches, webChoices(c)})
 		if err != nil {
 			panic(err)
 		}
 		rows = append(rows, "  "+string(b)+",\n")
 	}
 	return "import type { CommandName, CompletionSource, PagerMode } from \"./commands.gen.js\";\n\n" +
-		"export interface WebCommandDoc {\n  readonly name: CommandName;\n  readonly aliases?: readonly string[];\n  readonly pagerAliases?: readonly string[];\n  readonly help: string;\n  readonly usage?: string;\n  readonly min: number;\n  readonly max: number;\n  readonly hidden?: boolean;\n  readonly pagerOnly?: boolean;\n  readonly complete?: CompletionSource;\n  readonly pager: PagerMode;\n  readonly refusal?: string;\n  readonly switches?: boolean;\n}\n\n" +
+		"export interface WebCommandChoice {\n  readonly name: string;\n  readonly help: string;\n}\n\n" +
+		"export interface WebCommandDoc {\n  readonly name: CommandName;\n  readonly aliases?: readonly string[];\n  readonly pagerAliases?: readonly string[];\n  readonly help: string;\n  readonly usage?: string;\n  readonly min: number;\n  readonly max: number;\n  readonly hidden?: boolean;\n  readonly pagerOnly?: boolean;\n  readonly complete?: CompletionSource;\n  readonly pager: PagerMode;\n  readonly refusal?: string;\n  readonly switches?: boolean;\n  readonly choices?: readonly WebCommandChoice[];\n}\n\n" +
 		"export const webCommandDocs: readonly WebCommandDoc[] = [\n" + strings.Join(rows, "") + "];\n"
 }
 
