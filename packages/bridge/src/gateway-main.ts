@@ -7,6 +7,7 @@ import { webSocketDial } from "figaro-forms";
 import { bearer, type Credential } from "figaro-forms/auth";
 import { onBehalfOf, redact, withSession } from "./door.js";
 import { otlpExporter } from "./trace.js";
+import { otlpMetrics } from "./metrics.js";
 import { AttachStore, systemTools } from "./attach.js";
 import { Faults, faultSocket, faultsRefusal } from "./faults.js";
 import { ClientCredentials, doorTokenPath, redialAfterRejection } from "./token.js";
@@ -48,7 +49,8 @@ Usage: figaro-gateway --door-url URL --speech-socket PATH --admin USER --store N
   --no-deflate          do not offer permessage-deflate on /door and /audio (default: offer it)
   --no-attach           refuse POST /attach and qua attachments (default: take them; needs
                         magick, pdfinfo, pdftotext and pdftoppm on PATH)
-  --otlp-endpoint URL   post spans as OTLP/HTTP JSON to URL/v1/traces (e.g. http://127.0.0.1:4318);
+  --otlp-endpoint URL   post spans to URL/v1/traces and figchat.gateway.* metrics to URL/v1/metrics
+                        as OTLP/HTTP JSON (e.g. http://127.0.0.1:4318);
                         without it the gateway makes no spans and passes traceparent through
 
 Routes behind the edge gate: /door (WebSocket, JSON-RPC, aria methods), /audio/<aria>
@@ -136,7 +138,9 @@ try {
   }
   const exporter = values["otlp-endpoint"] ? otlpExporter({ endpoint: values["otlp-endpoint"], service: "figaro-gateway", log: (line) => process.stderr.write(`figaro-gateway: ${line}\n`) }) : undefined;
   const attachments = values["no-attach"] ? undefined : new AttachStore({ tools: systemTools() });
+  const meter = values["otlp-endpoint"] ? otlpMetrics({ endpoint: values["otlp-endpoint"], service: "figaro-gateway", log: say }) : undefined;
   const g = await startGateway({
+    ...(meter ? { metrics: meter.metrics } : {}),
     ...(faults ? { faults } : {}),
     ...(minter ? { renew: (until: number) => (minter as ClientCredentials).lasting(until) } : {}),
     ...(attachments ? { attachments } : {}),
@@ -162,7 +166,7 @@ try {
   });
   process.stderr.write(`figaro-gateway: listening on ${g.address}, door ${redact(url)}\n`);
   if (faults) await faultSocket(values["fault-socket"] as string, faults, say);
-  const stop = (): void => void g.close().then(() => exporter?.close()).then(() => process.exit(0));
+  const stop = (): void => void g.close().then(() => Promise.all([exporter?.close(), meter?.close()])).then(() => process.exit(0));
   process.on("SIGINT", stop);
   process.on("SIGTERM", stop);
 } catch (e) {

@@ -13,6 +13,7 @@ import { noTracer, parseTraceparent, type Tracer } from "./trace.js";
 import { attachRoute, type AttachStore } from "./attach.js";
 import { handoverDial } from "./handover.js";
 import type { Faults, Who } from "./faults.js";
+import { noMetrics, type Metrics } from "./metrics.js";
 
 export interface GatewayEdge {
   readonly secret: string;
@@ -40,6 +41,7 @@ export interface GatewayOptions {
   readonly renew?: (until: number) => Promise<number | undefined>;
   readonly sockets?: GatewaySocket;
   readonly faults?: Faults;
+  readonly metrics?: Metrics;
 }
 
 export type GatewayRoute = (req: IncomingMessage, res: ServerResponse, path: string, user: string) => boolean;
@@ -109,15 +111,41 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
   const log = o.log ?? ((line: string) => process.stderr.write(`figaro-gateway: ${line}\n`));
   const renew = o.faults ? o.faults.renew(o.renew) : o.renew;
   const doorFor = (user: string, session: string, who: Who): Dial => {
-    const dial = o.faults ? o.faults.door(o.door(user, session), who) : o.door(user, session);
+    const base = o.faults ? o.faults.door(o.door(user, session), who) : o.door(user, session);
+    let legs = 0;
+    const dial: Dial = async (events) => {
+      const kind = legs++ === 0 ? (who.audio ? "audio" : "page") : "handover";
+      const t = Date.now();
+      try {
+        const s = await base(events);
+        metrics.ms("figchat.gateway.door.dial_ms", Date.now() - t, { "figchat.session": session, kind, outcome: "ok" });
+        return s;
+      } catch (e) {
+        metrics.ms("figchat.gateway.door.dial_ms", Date.now() - t, { "figchat.session": session, kind, outcome: "error" });
+        throw e;
+      }
+    };
     const tag = who.audio ? "for=audio" : `session=${session}`;
-    return renew ? handoverDial(dial, { renew, log: (l) => log(`${l} ${tag}`) }) : dial;
+    const moved = (outcome: "ok" | "error", why: string, ms: number): void => {
+      const kind = why.replace(/ /g, "_");
+      if (outcome === "ok") metrics.ms("figchat.gateway.handover_ms", ms, { "figchat.session": session, kind, outcome });
+      else metrics.count("figchat.gateway.errors", { "figchat.session": session, kind: "handover" });
+    };
+    return renew ? handoverDial(dial, { renew, moved, log: (l) => log(`${l} ${tag}`) }) : dial;
   };
   let shared: AriaClient | undefined;
   const tracer = o.tracer ?? noTracer;
+  const metrics = o.metrics ?? noMetrics;
+  const seenSessions = { door: new Set<string>(), audio: new Set<string>() };
+  const reconnect = (path: "door" | "audio", session: string): void => {
+    if (session === noSession) return;
+    if (seenSessions[path].has(session)) metrics.count("figchat.gateway.reconnects", { "figchat.session": session, kind: path });
+    else seenSessions[path].add(session);
+  };
   const hub = new AudioHub({
     log,
     tracer,
+    ...(o.metrics ? { metrics: o.metrics } : {}),
     connect: () => {
       log("audio: dialing the door");
       return (shared = new AriaClient({ dial: doorFor(e.admin, noSession, { session: noSession, audio: true }) }));
@@ -231,6 +259,7 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
       wss.handleUpgrade(req, sock, head, (ws) => {
         track(ws);
         o.faults?.page(ws, { session, audio: true });
+        reconnect("audio", session);
         void attend(ws, audio, asked, String(req.headers["remote-user"]), session);
       });
     } else if ((take = o.sockets?.(path))) {
@@ -251,17 +280,35 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
     let outFrames = 0;
     let inBytes = 0;
     let inFrames = 0;
+    const opened = Date.now();
+    const asked = new Map<string, number>();
+    reconnect("door", session);
     const send = ws.send.bind(ws) as (data: unknown, ...rest: unknown[]) => void;
     (ws as unknown as { send: (data: unknown, ...rest: unknown[]) => void }).send = (data, ...rest) => {
       out += typeof data === "string" ? Buffer.byteLength(data) : Buffer.isBuffer(data) ? data.length : 0;
-      outFrames++;
+      if (outFrames++ === 0) metrics.ms("figchat.gateway.door.first_frame_ms", Date.now() - opened, { "figchat.session": session });
+      if (typeof data === "string") {
+        if (data.includes('"code":-32020')) metrics.count("figchat.gateway.errors", { "figchat.session": session, kind: "refused" });
+        if (asked.size > 0 && data.includes('"figaro.aria"') && data.includes('"role":"output"')) {
+          const aria = /"figaro_id":"([^"]+)"/.exec(data)?.[1];
+          const at = aria === undefined ? undefined : asked.get(aria);
+          if (aria !== undefined && at !== undefined) {
+            asked.delete(aria);
+            metrics.ms("figchat.gateway.turn.first_token_ms", Date.now() - at, { "figchat.session": session, "figaro.aria": aria });
+          }
+        }
+      }
       send(data, ...rest);
     };
     ws.on("message", (d: Buffer | ArrayBuffer | Buffer[]) => {
       inBytes += Buffer.isBuffer(d) ? d.length : Array.isArray(d) ? d.reduce((n, b) => n + b.length, 0) : d.byteLength;
       inFrames++;
+      if (!Buffer.isBuffer(d) || !d.includes('"figaro.qua"')) return;
+      const aria = /"figaro_id"\s*:\s*"([^"]+)"/.exec(d.toString())?.[1];
+      if (aria !== undefined) asked.set(aria, Date.now());
     });
-    ws.once("close", () => {
+    ws.once("close", (code: number) => {
+      if (code === 1011) metrics.count("figchat.gateway.errors", { "figchat.session": session, kind: "door_closed" });
       const wireOut = sock.bytesWritten - wire0.out;
       const wireIn = sock.bytesRead - wire0.in;
       const deflate = ws.extensions.includes("permessage-deflate");
