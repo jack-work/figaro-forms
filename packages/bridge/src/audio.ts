@@ -88,6 +88,7 @@ class Follower {
 
   async attach(client: AriaClient): Promise<void> {
     const stream = client.retain(this.aria);
+    stream.transcript.setClosedLimit(1);
     this.stream = stream;
     this.offs = [stream.onFrame((a) => this.onFrame(a)), stream.onTurnEnd((e) => this.onTurnEnd(e))];
     try {
