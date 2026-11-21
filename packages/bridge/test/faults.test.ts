@@ -1,5 +1,5 @@
 import { connect } from "node:net";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, statSync } from "node:fs";
 import { request } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -216,6 +216,7 @@ describe("faults", () => {
     expect(answers[3]).toEqual({ ok: false, error: "page.delay needs ms" });
     expect(answers[4]).toMatchObject({ ok: true, rules: [{ kind: "page.drop", count: 2 }] });
     expect(lines[0]).toMatch(/^faults armed on .*test mode$/);
+    expect(statSync(path).mode & 0o777).toBe(0o600);
   });
 
   it("refuses to arm on a production-shaped gateway", () => {
