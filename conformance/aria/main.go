@@ -595,6 +595,22 @@ func forkBirth() fixture {
 	return play("synthetic/fork-birth", "a turn that opens a branch names its parent on the open and the sealed message, survives a slice at offset 0, and an ordinary turn names none", steps)
 }
 
+func toolStyle() fixture {
+	call := func(v int, set map[string]any) aria.Page {
+		return aria.Page{Parts: []aria.TurnPart{{Turn: wire.Turn{ID: 1, Live: &aria.Live{From: 0, V: v, Nodes: []wire.NodeDelta{{ID: 0, Set: set}}}}}}}
+	}
+	unset := aria.Page{Parts: []aria.TurnPart{{Turn: wire.Turn{ID: 1, Live: &aria.Live{From: 0, V: 3, Nodes: []wire.NodeDelta{{ID: 0, Unset: []string{"diff", "label", "body_arg"}}}}}}}}
+	steps := []step{
+		{Op: "apply", Page: ptr(call(1, map[string]any{"type": "tool", "name": "bash", "status": "running", "label": "$", "head_arg": "command"}))},
+		{Op: "view"},
+		{Op: "apply", Page: ptr(call(2, map[string]any{"name": "edit", "head_arg": "path", "diff": true, "body_arg": "content", "label": "$"}))},
+		{Op: "view"},
+		{Op: "apply", Page: &unset},
+		{Op: "view"},
+	}
+	return play("synthetic/tool-style", "a tool node's label, head_arg, body_arg and diff set on the first delta, changed when the name arrives, and unset", steps)
+}
+
 func synthetic() []fixture {
 	var out []fixture
 	{
@@ -646,7 +662,7 @@ func synthetic() []fixture {
 		}
 		out = append(out, play("synthetic/inquiry-only", "turns with no nodes occupy one anchor; an empty turn bridges two ranges", s))
 	}
-	out = append(out, forkBirth())
+	out = append(out, forkBirth(), toolStyle())
 	out = append(out, utf8Deltas())
 	return out
 }

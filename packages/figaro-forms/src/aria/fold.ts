@@ -496,7 +496,7 @@ function keep(n: Record<string, unknown>, field: string, v: unknown): void {
   else n[field] = v;
 }
 
-const stringFields = new Set(["name", "summary", "sender", "sender_name", "status", "markdown", "role", "tool_call_id", "output", "input", "id"]);
+const stringFields = new Set(["name", "summary", "label", "head_arg", "body_arg", "sender", "sender_name", "status", "markdown", "role", "tool_call_id", "output", "input", "id"]);
 const intFields = new Set(["at", "opened_at", "started_at", "finished_at", "output_base"]);
 
 function setField(n: Record<string, unknown>, field: string, v: unknown): void {
@@ -504,6 +504,9 @@ function setField(n: Record<string, unknown>, field: string, v: unknown): void {
     n.type = asStr(v);
   } else if (stringFields.has(field)) {
     keep(n, field, asStr(v));
+  } else if (field === "diff") {
+    if (v === true) n.diff = true;
+    else delete n.diff;
   } else if (intFields.has(field)) {
     keep(n, field, asInt(v));
   } else if (field === "lts") {

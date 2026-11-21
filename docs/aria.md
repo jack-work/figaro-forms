@@ -132,7 +132,7 @@ JS client converts before it splices (`spliceBytes`).
 
 ### Fields a client draws without knowing figaro
 
-Things the pager paints are carried as fields so that no client has to
+Three things the pager paints are carried as fields so that no client has to
 know a key name or a tool name to draw them.
 
 - `forked_from` on a turn (`forkedFrom` on the `Message`): the figaro id this
@@ -143,6 +143,13 @@ know a key name or a tool name to draw them.
   deltas, and drops the stamp's own row if it draws the deltas. It is the id, not a
   handle: resolve it with `figaro.list`. Like `inquiry`, it rides only the message
   that starts the turn and survives a slice at node 0.
+- `label`, `head_arg`, `body_arg`, `diff` on a `tool` node: how the call draws.
+  `label` replaces the tool's name on the collapsed header (`$` for `bash`);
+  `head_arg` names the argument that rides that header (`command`, `path`);
+  `body_arg` names the argument drawn in place of `output` (`write`'s `content`);
+  `diff` says the output is a diff to colour. All four are set on the node's first
+  delta and are absent for a tool with no special drawing. They are a function of
+  `name`, stamped by the daemon, so a tool the client has never heard of still draws.
 - A question that quotes a passage of the conversation starts with a block the
   daemon does not parse: `> quoting <412.0:23-1180>! · aria 90ec6584 · turn 9 · 1157 chars`
   followed by `> ` lines of the passage and a blank line. The grammar (the

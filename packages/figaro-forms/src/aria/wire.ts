@@ -72,6 +72,10 @@ export interface Node {
   readonly output?: string;
   readonly output_base?: number;
   readonly summary?: string;
+  readonly label?: string;
+  readonly head_arg?: string;
+  readonly body_arg?: string;
+  readonly diff?: boolean;
   readonly opened_at?: number;
   readonly started_at?: number;
   readonly finished_at?: number;
