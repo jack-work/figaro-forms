@@ -57,7 +57,7 @@ class Handover {
   private lost: string | undefined;
   private movedFollows = new Set<string>();
   private recorded: string[] | undefined;
-  private buffered: { frame: string; h: string }[] = [];
+  private buffered: { frame: string; h: string; f: Frame }[] = [];
   private align: { list: string[]; seen: number; cands: number[] | undefined } | undefined;
   private seq = 0;
   private readonly now: () => number;
@@ -277,7 +277,7 @@ class Handover {
     this.recorded = undefined;
     this.lost = undefined;
     for (const [aria, params] of this.follows) if (!this.movedFollows.has(aria)) void this.internal(next, "figaro.follow", params);
-    for (const b of this.buffered.splice(0)) this.deliverNew(b.frame, b.h);
+    for (const b of this.buffered.splice(0)) this.deliverNew(b.frame, b.h, b.f);
     this.schedule(next);
     for (const t of old.timers) clearTimeout(t);
     old.timers = [];
@@ -299,10 +299,10 @@ class Handover {
     this.retired = undefined;
   }
 
-  private deliverNew(frame: string, h: string): void {
+  private deliverNew(frame: string, h: string, f: Frame): void {
     const a = this.align;
     if (a && this.matched(a, h)) return;
-    this.forward(frame);
+    this.forward(frame, f);
   }
 
   private matched(a: { list: string[]; seen: number; cands: number[] | undefined }, h: string): boolean {
@@ -323,18 +323,12 @@ class Handover {
     if (this.retired) this.retire(this.retired, false);
   }
 
-  private forward(frame: string): void {
-    this.note(frame);
+  private forward(frame: string, f: Frame): void {
+    this.note(f);
     this.events.message(frame);
   }
 
-  private note(frame: string): void {
-    let f: Frame;
-    try {
-      f = JSON.parse(frame) as Frame;
-    } catch {
-      return;
-    }
+  private note(f: Frame): void {
     if (f.method !== "figaro.aria") return;
     this.lastFrame = this.now();
     const p = f.params as { figaro_id?: string; parts?: { turn?: number; sealed?: boolean }[] } | undefined;
@@ -381,20 +375,20 @@ class Handover {
     }
     if (leg === this.current && this.next === undefined) {
       if (this.align) {
-        this.deliverNew(frame, hash(frame));
+        this.deliverNew(frame, hash(frame), f);
         return;
       }
       if (this.recorded) this.recorded.push(hash(frame));
-      this.forward(frame);
+      this.forward(frame, f);
       return;
     }
     if (leg === this.current && this.next) {
       this.recorded?.push(hash(frame));
-      this.forward(frame);
+      this.forward(frame, f);
       return;
     }
     if (leg === this.next) {
-      this.buffered.push({ frame, h: hash(frame) });
+      this.buffered.push({ frame, h: hash(frame), f });
       return;
     }
   }
