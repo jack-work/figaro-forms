@@ -211,7 +211,7 @@ follow) to scope it, and `count` to end it after that many hits (default: until
 `clear`).
 
 `npm run test:load` in packages/bridge runs a load test through `/door` against a
-fake door (LOAD_FIGAROS, LOAD_TURNS, LOAD_DELTAS, LOAD_PAGES).
+fake door (LOAD_FIGAROS, LOAD_TURNS, LOAD_DELTAS, LOAD_PAGES; LOAD_DEFLATE=0 for plain sockets).
 
 ## Door handover
 
