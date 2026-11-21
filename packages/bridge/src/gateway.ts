@@ -107,6 +107,7 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
   if (!("path" in o.listen) && e.peers === undefined) throw new Error("a TCP gateway needs --peer: the address the edge proxy connects from");
   const origins = new Set(o.origins ?? []);
   const maxPayload = o.maxFrameBytes ?? 1 << 20;
+  const socketCeiling = Math.max(maxPayload * 8, 8 << 20);
 
   const log = o.log ?? ((line: string) => process.stderr.write(`figaro-gateway: ${line}\n`));
   const renew = o.faults ? o.faults.renew(o.renew) : o.renew;
@@ -210,7 +211,7 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
 
   const wss = new WebSocketServer({
     noServer: true,
-    maxPayload,
+    maxPayload: socketCeiling,
     perMessageDeflate:
       o.compress === false
         ? false
@@ -253,7 +254,7 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
         track(ws);
         meterDoor(ws, req.socket, session);
         o.faults?.page(ws, { session, audio: false });
-        proxyDoor(ws, doorFor(String(req.headers["remote-user"]), session, { session, audio: false }), hub, log, session, tracer, o.attachments);
+        proxyDoor(ws, doorFor(String(req.headers["remote-user"]), session, { session, audio: false }), hub, log, session, tracer, o.attachments, maxPayload);
       });
     } else if (audio !== undefined && ariaIdPattern.test(audio)) {
       wss.handleUpgrade(req, sock, head, (ws) => {

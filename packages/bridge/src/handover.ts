@@ -88,12 +88,22 @@ class Handover {
       this.events.message(JSON.stringify({ jsonrpc: "2.0", id: f.id, error: { code: -32600, message: "gateway: that request id is reserved" } }));
       return;
     }
-    if (f && typeof f.method === "string" && f.id !== undefined && f.id !== null) {
-      const key = idKey(f.id);
-      this.current.pending.add(key);
-      if (f.method === "figaro.follow" || f.method === "figaro.unfollow" || f.method === "figaro.qua") this.asked.set(key, { method: f.method, params: JSON.stringify(f.params ?? {}) });
+    const request = f && typeof f.method === "string" && f.id !== undefined && f.id !== null ? f : undefined;
+    const key = request ? idKey(request.id) : "";
+    const leg = this.current;
+    if (request) {
+      leg.pending.add(key);
+      if (request.method === "figaro.follow" || request.method === "figaro.unfollow" || request.method === "figaro.qua") this.asked.set(key, { method: request.method as string, params: JSON.stringify(request.params ?? {}) });
     }
-    this.current.socket.send(frame);
+    try {
+      leg.socket.send(frame);
+    } catch (e) {
+      this.log(`door send failed: ${e instanceof Error ? e.message : String(e)}`);
+      if (!request) return;
+      leg.pending.delete(key);
+      this.asked.delete(key);
+      this.events.message(`{"jsonrpc":"2.0","id":${key},"error":{"code":-32003,"message":"gateway: the door connection is closed; send again"}}`);
+    }
   }
 
   close(): void {
@@ -247,7 +257,13 @@ class Handover {
           ok(good);
         },
       });
-      leg.socket.send(`{"jsonrpc":"2.0","id":${JSON.stringify(id)},"method":${JSON.stringify(method)},"params":${params}}`);
+      try {
+        leg.socket.send(`{"jsonrpc":"2.0","id":${JSON.stringify(id)},"method":${JSON.stringify(method)},"params":${params}}`);
+      } catch {
+        clearTimeout(t);
+        this.waiting.delete(key);
+        ok(false);
+      }
     });
   }
 

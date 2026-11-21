@@ -104,7 +104,7 @@ export function redact(text: string): string {
   return text.replace(/(\w+:\/\/)[^@/\s]*@/g, "$1").replace(/\?[^\s"')]*/g, "");
 }
 
-export function proxyDoor(ws: WebSocket, dial: Dial, hub: AudioHub | undefined, log: (line: string) => void = () => {}, session: string = noSession, tracer: Tracer = noTracer, attachments?: AttachStore): void {
+export function proxyDoor(ws: WebSocket, dial: Dial, hub: AudioHub | undefined, log: (line: string) => void = () => {}, session: string = noSession, tracer: Tracer = noTracer, attachments?: AttachStore, maxFrame: number = 1 << 20): void {
   const queue: string[] = [];
   const pending = new Map<string, Span>();
   let up: Socket | undefined;
@@ -150,7 +150,13 @@ export function proxyDoor(ws: WebSocket, dial: Dial, hub: AudioHub | undefined, 
         return;
       }
       up = socket;
-      for (const f of queue.splice(0)) socket.send(f);
+      try {
+        for (const f of queue.splice(0)) socket.send(f);
+      } catch (e) {
+        log(`door send failed: ${redact(e instanceof Error ? e.message : String(e))} session=${session}`);
+        gone = true;
+        ws.close(1011, "door closed");
+      }
     },
     (e: unknown) => {
       gone = true;
@@ -167,6 +173,14 @@ export function proxyDoor(ws: WebSocket, dial: Dial, hub: AudioHub | undefined, 
   ws.on("message", (data, binary) => {
     if (binary) {
       ws.close(1003, "text frames only");
+      return;
+    }
+    const size = Buffer.isBuffer(data) ? data.length : Array.isArray(data) ? data.reduce((n, b) => n + b.length, 0) : data.byteLength;
+    if (size > maxFrame) {
+      const head = (Buffer.isBuffer(data) ? data : Buffer.from(data as ArrayBuffer)).subarray(0, 256).toString();
+      const at = /"id"\s*:\s*(-?\d{1,15}|"[^"\\]{0,64}")/.exec(head)?.[1];
+      log(`door: frame of ${size} bytes refused, over ${maxFrame} session=${session}`);
+      refuse(ws, at === undefined ? null : JSON.parse(at), `gateway: a message over ${maxFrame} bytes is refused (this one is ${size} bytes); send it in smaller parts`);
       return;
     }
     let frame: { id?: unknown; method?: unknown; params?: unknown };
@@ -248,7 +262,16 @@ export function proxyDoor(ws: WebSocket, dial: Dial, hub: AudioHub | undefined, 
       if (frame.method === "figaro.qua" && typeof aria === "string") hub?.noteTrace(aria, sp.context);
     }
     const text = JSON.stringify(frame);
-    if (up) up.send(text);
-    else queue.push(text);
+    if (!up) {
+      queue.push(text);
+      return;
+    }
+    try {
+      up.send(text);
+    } catch (e) {
+      log(`door send failed: ${redact(e instanceof Error ? e.message : String(e))} session=${session}`);
+      gone = true;
+      ws.close(1011, "door closed");
+    }
   });
 }
