@@ -112,6 +112,18 @@ describe("traces through the gateway", () => {
     expect(fake.calls.filter((c) => c.method === "figaro.qua").map((c) => c.params.traceparent)).toEqual([tp]);
   });
 
+  it("replaces a caller's traceparent on any method with the gateway's span when tracing", async () => {
+    const { tracer, spans } = recorder();
+    const { fake, port } = await rig(tracer);
+    const { ws, got } = await open(`ws://127.0.0.1:${port}/door`);
+    ws.send(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "figaro.form", params: { figaro_id: id, traceparent: tp } }));
+    await until("answer", () => got.some((f) => f.id === 1));
+    await until("span", () => spans.length === 1);
+    const sent = fake.calls.find((c) => c.method === "figaro.form")?.params.traceparent;
+    expect(spans[0]).toMatchObject({ name: "door figaro.form", traceId, parentSpanId: pageSpan });
+    expect(sent).toBe(`00-${traceId}-${spans[0]!.spanId}-01`);
+  });
+
   it("starts a trace for a qua without one when tracing, and none when not", async () => {
     for (const traced of [true, false]) {
       const { tracer, spans } = recorder();
@@ -236,5 +248,59 @@ describe("OTLP export", () => {
 
   it("refuses an endpoint that is not http(s)", () => {
     expect(() => otlpExporter({ endpoint: "ftp://x", service: "s", log: () => {} })).toThrow("not an http(s) URL");
+  });
+
+  it("drops a batch a slow collector holds past the deadline, posts one batch at a time, and counts it against the queue", async () => {
+    const held: import("node:http").ServerResponse[] = [];
+    let open = 0;
+    let most = 0;
+    const slow = createServer((req, res) => {
+      open++;
+      most = Math.max(most, open);
+      req.resume();
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.write("{");
+      held.push(res);
+      res.on("close", () => open--);
+    });
+    await new Promise<void>((ok) => slow.listen(0, "127.0.0.1", ok));
+    cleanups.push(() => new Promise<void>((ok) => {
+      for (const r of held) r.destroy();
+      slow.close(() => ok());
+      slow.closeAllConnections();
+    }));
+    const addr = slow.address();
+    const port = typeof addr === "object" && addr ? addr.port : 0;
+    const lines: string[] = [];
+    const ex = otlpExporter({ endpoint: `http://127.0.0.1:${port}`, service: "s", log: (l) => lines.push(l), flushMs: 60_000, maxBatch: 2, maxQueue: 3, deadlineMs: 150 });
+    ex.tracer.start("a", undefined).end();
+    ex.tracer.start("b", undefined).end();
+    ex.tracer.start("c", undefined).end();
+    ex.tracer.start("d", undefined).end();
+    expect(lines).toEqual(["traces: queue full at 3 spans; span dropped (further errors this minute are not logged)"]);
+    const first = ex.flush();
+    expect(ex.flush()).toBe(first);
+    const started = Date.now();
+    await first;
+    expect(Date.now() - started).toBeLessThan(2_000);
+    expect(most).toBe(1);
+  });
+
+  it("gives up flushing on close after the close limit, so shutdown cannot hang", async () => {
+    const silent = createServer(() => {});
+    await new Promise<void>((ok) => silent.listen(0, "127.0.0.1", ok));
+    cleanups.push(() => new Promise<void>((ok) => {
+      silent.close(() => ok());
+      silent.closeAllConnections();
+    }));
+    const addr = silent.address();
+    const port = typeof addr === "object" && addr ? addr.port : 0;
+    const lines: string[] = [];
+    const ex = otlpExporter({ endpoint: `http://127.0.0.1:${port}`, service: "s", log: (l) => lines.push(l), flushMs: 60_000, deadlineMs: 60_000, closeMs: 100 });
+    ex.tracer.start("a", undefined).end();
+    const started = Date.now();
+    await ex.close();
+    expect(Date.now() - started).toBeLessThan(1_000);
+    expect(lines[0]).toMatch(/^traces: spans not flushed within 100 ms of shutdown/);
   });
 });

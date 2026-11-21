@@ -339,7 +339,7 @@ function replay(socket: string | undefined, store: string, key: string, req: Inc
   const headers: Record<string, string> = {};
   if (typeof req.headers.range === "string") headers.range = req.headers.range;
   if (session !== noSession) headers[sessionHeader] = session;
-  if (typeof req.headers.traceparent === "string") headers.traceparent = req.headers.traceparent;
+  if (typeof req.headers.traceparent === "string" && parseTraceparent(req.headers.traceparent)) headers.traceparent = req.headers.traceparent;
   const up = request({ socketPath: socket, path: `/audio/key/${key}`, method: req.method, headers }, (r) => {
     const keep = ["content-type", "content-length", "content-range", "accept-ranges", "cache-control"];
     const out: Record<string, string> = { "x-content-type-options": "nosniff", "cache-control": "no-store" };

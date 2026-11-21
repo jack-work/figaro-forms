@@ -1,6 +1,7 @@
 import { request, type IncomingMessage, type ServerResponse } from "node:http";
 import type { GatewayRoute, GatewaySocket } from "./gateway.js";
 import { noSession, sessionHeader, sessionOf } from "./door.js";
+import { parseTraceparent } from "./trace.js";
 import { ariaParam, attendSttStream, type SttStreamLimits } from "./stt-stream.js";
 
 export const maxClipBytes = 10 * 1024 * 1024;
@@ -92,7 +93,10 @@ function callSpeech(o: SttOptions, path: string, body: Buffer, contentType: stri
   });
 }
 
-const traceparentOf = (req: IncomingMessage): string | undefined => (typeof req.headers.traceparent === "string" ? req.headers.traceparent : undefined);
+const traceparentOf = (req: IncomingMessage): string | undefined => {
+  const tp = req.headers.traceparent;
+  return typeof tp === "string" && parseTraceparent(tp) ? tp : undefined;
+};
 
 type Outcome = { status: number; body: Record<string, unknown> };
 

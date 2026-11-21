@@ -110,6 +110,8 @@ export interface OtlpOptions {
   readonly flushMs?: number;
   readonly maxBatch?: number;
   readonly maxQueue?: number;
+  readonly deadlineMs?: number;
+  readonly closeMs?: number;
 }
 
 export interface Exporter {
@@ -123,6 +125,7 @@ export function otlpExporter(o: OtlpOptions): Exporter {
   if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error(`--otlp-endpoint ${o.endpoint} is not an http(s) URL`);
   const maxBatch = o.maxBatch ?? 256;
   const maxQueue = o.maxQueue ?? 4096;
+  const closeMs = o.closeMs ?? 3_000;
   const queue: FinishedSpan[] = [];
   let lastComplaint = 0;
   const complain = (line: string): void => {
@@ -131,29 +134,48 @@ export function otlpExporter(o: OtlpOptions): Exporter {
     lastComplaint = now;
     o.log(`traces: ${line} (further errors this minute are not logged)`);
   };
+  const deadlineMs = o.deadlineMs ?? 10_000;
   const post = (body: string): Promise<void> =>
     new Promise((ok) => {
-      const send = url.protocol === "https:" ? httpsRequest : httpRequest;
-      const req = send(url, { method: "POST", headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) }, timeout: 10_000 }, (res) => {
-        res.resume();
-        if ((res.statusCode ?? 0) >= 300) complain(`collector answered ${res.statusCode}; batch dropped`);
-        res.once("end", () => ok());
-      });
-      req.once("timeout", () => req.destroy(new Error("timed out")));
-      req.once("error", (e) => {
-        complain(`collector unreachable (${e.message}); batch dropped`);
+      let settled = false;
+      const settle = (why?: string): void => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(deadline);
+        if (why) complain(why);
         ok();
+      };
+      const send = url.protocol === "https:" ? httpsRequest : httpRequest;
+      const req = send(url, { method: "POST", headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) } }, (res) => {
+        res.resume();
+        const status = res.statusCode ?? 0;
+        res.once("end", () => settle(status >= 300 ? `collector answered ${status}; batch dropped` : undefined));
+        res.once("error", (e) => settle(`collector reply failed (${e.message}); batch dropped`));
       });
+      const deadline = setTimeout(() => {
+        req.destroy();
+        settle(`collector took over ${deadlineMs} ms; batch dropped`);
+      }, deadlineMs);
+      deadline.unref();
+      req.once("error", (e) => settle(`collector unreachable (${e.message}); batch dropped`));
       req.end(body);
     });
-  const flush = async (): Promise<void> => {
-    while (queue.length > 0) await post(otlpBody(o.service, queue.splice(0, maxBatch)));
+  let inFlight = 0;
+  let running: Promise<void> | undefined;
+  const drain = async (): Promise<void> => {
+    while (queue.length > 0) {
+      const batch = queue.splice(0, maxBatch);
+      inFlight = batch.length;
+      await post(otlpBody(o.service, batch));
+      inFlight = 0;
+    }
   };
+  const flush = (): Promise<void> => (running ??= drain().finally(() => (running = undefined)));
   const timer = setInterval(() => void flush(), o.flushMs ?? 5_000);
   timer.unref();
   return {
     tracer: recordingTracer((s) => {
-      if (queue.length >= maxQueue) {
+      if (queue.length + inFlight >= maxQueue) {
         complain(`queue full at ${maxQueue} spans; span dropped`);
         return;
       }
@@ -163,7 +185,15 @@ export function otlpExporter(o: OtlpOptions): Exporter {
     flush,
     close: async () => {
       clearInterval(timer);
-      await flush();
+      let gaveUp: ReturnType<typeof setTimeout> | undefined;
+      const late = new Promise<void>((ok) => {
+        gaveUp = setTimeout(() => {
+          complain(`spans not flushed within ${closeMs} ms of shutdown; dropped`);
+          ok();
+        }, closeMs);
+      });
+      await Promise.race([flush(), late]);
+      clearTimeout(gaveUp);
     },
   };
 }

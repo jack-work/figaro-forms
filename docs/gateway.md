@@ -186,8 +186,10 @@ method= aria= session=`, with no params; the door's pushes (`figaro.aria`,
 ## Traces
 
 With `--otlp-endpoint URL` the gateway makes spans and posts them as OTLP/HTTP JSON
-to `URL/v1/traces` every 5 s or 256 spans (a full queue of 4096 drops spans; a
-failed post drops its batch and is logged at most once a minute). Without it the
+to `URL/v1/traces` every 5 s or 256 spans, one batch at a time (a full queue of
+4096, the batch in flight included, drops spans; a post the collector has not
+answered within 10 s, or a failed one, drops its batch and is logged at most once
+a minute; shutdown waits at most 3 s for the last flush). Without it the
 gateway makes none, and passes a page's valid `traceparent` through untouched.
 
 - `door <method>`: each client call with an id, from forward to the door's answer,

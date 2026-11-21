@@ -48,6 +48,7 @@ export const noSession = "-";
 const sessionPattern = /^[A-Za-z0-9_-]{8,64}$/;
 const loggedAria = /^@?[A-Za-z0-9_-]{1,64}$/;
 const maxSessions = 8;
+const maxPending = 1024;
 
 export function sessionOf(req: { readonly headers: { readonly [name: string]: string | string[] | undefined }; readonly url?: string | undefined }, upgrade: boolean): string {
   const header = req.headers[sessionHeader.toLowerCase()];
@@ -197,12 +198,18 @@ export function proxyDoor(ws: WebSocket, dial: Dial, hub: AudioHub | undefined, 
     if (frame.method === "figaro.interrupt" && typeof aria === "string") hub?.cancel(aria, "interrupt");
     if (frame.id !== undefined && tracer.recording) {
       const sp = tracer.start(`door ${frame.method}`, typeof asked === "string" ? asked : undefined, { "rpc.method": frame.method, "figaro.aria": shownAria, "figchat.session": session });
-      pending.get(JSON.stringify(frame.id))?.end();
-      pending.set(JSON.stringify(frame.id), sp);
-      if (frame.method === "figaro.qua" && params) {
-        params.traceparent = sp.traceparent;
-        if (typeof aria === "string") hub?.noteTrace(aria, sp.context);
+      const key = JSON.stringify(frame.id);
+      pending.get(key)?.end();
+      pending.delete(key);
+      if (pending.size >= maxPending) {
+        const [oldest, stale] = pending.entries().next().value as [string, Span];
+        stale.fail("no answer before the pending cap");
+        stale.end();
+        pending.delete(oldest);
       }
+      pending.set(key, sp);
+      if (params && (frame.method === "figaro.qua" || asked !== undefined)) params.traceparent = sp.traceparent;
+      if (frame.method === "figaro.qua" && typeof aria === "string") hub?.noteTrace(aria, sp.context);
     }
     const text = JSON.stringify(frame);
     if (up) up.send(text);
