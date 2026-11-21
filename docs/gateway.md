@@ -200,6 +200,8 @@ followed (and every aria a `figaro.qua` followed), then switches.
   switch, both legs deliver; the page gets the old leg's frames, the new leg's are
   held, then matched in order against what the old leg already delivered (the
   daemon sends every follower the same bytes) and only the rest are passed on.
+- A follow, unfollow or qua answered on one leg while another exists is repeated
+  on the other, so a request in flight across the switch leaves both legs agreeing.
 - Requests already sent on the old leg are answered from it; the old leg closes
   once they are and the overlap is matched (2 s at most when no frame comes).
 - Logged: `door handover done (between turns|deadline|lapse notice): N follows

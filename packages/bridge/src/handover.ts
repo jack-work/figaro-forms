@@ -310,7 +310,10 @@ class Handover {
       const asked = this.asked.get(key);
       if (asked) {
         this.asked.delete(key);
-        if (f.error === undefined) this.remember(asked.method, asked.params);
+        if (f.error === undefined) {
+          const change = this.remember(asked.method, asked.params);
+          if (change) this.carry(leg, change.method, change.aria);
+        }
       }
       this.events.message(frame);
       if (leg === this.retired) this.retire(leg, leg.overdue === true);
@@ -336,17 +339,29 @@ class Handover {
     }
   }
 
-  private remember(method: string, params: string): void {
+  private remember(method: string, params: string): { method: string; aria: string } | undefined {
     let p: { figaro_id?: unknown };
     try {
       p = JSON.parse(params) as typeof p;
     } catch {
-      return;
+      return undefined;
     }
-    if (typeof p.figaro_id !== "string") return;
-    if (method === "figaro.unfollow") this.follows.delete(p.figaro_id);
-    else if (method === "figaro.follow") this.follows.set(p.figaro_id, params);
-    else if (!this.follows.has(p.figaro_id)) this.follows.set(p.figaro_id, JSON.stringify({ figaro_id: p.figaro_id }));
+    const aria = p.figaro_id;
+    if (typeof aria !== "string") return undefined;
+    if (method === "figaro.unfollow") return this.follows.delete(aria) ? { method, aria } : undefined;
+    if (method === "figaro.follow") {
+      this.follows.set(aria, params);
+      return { method, aria };
+    }
+    if (this.follows.has(aria)) return undefined;
+    this.follows.set(aria, JSON.stringify({ figaro_id: aria }));
+    return { method: "figaro.follow", aria };
+  }
+
+  private carry(answered: Leg, method: string, aria: string): void {
+    const params = method === "figaro.unfollow" ? JSON.stringify({ figaro_id: aria }) : this.follows.get(aria);
+    if (params === undefined) return;
+    for (const l of [this.current, this.next]) if (l && l !== answered && !l.gone) void this.internal(l, method, params);
   }
 
   private onClosed(leg: Leg, reason: string): void {

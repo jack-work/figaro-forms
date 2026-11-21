@@ -21,7 +21,7 @@ interface Door {
   lapses: number;
 }
 
-function lapsingDoor(fake: FakeAria, ttlMs: number, notice = true, o: { followAckMs?: number; claimedSkewMs?: number } = {}): Door {
+function lapsingDoor(fake: FakeAria, ttlMs: number, notice = true, o: { followAckMs?: number; claimedSkewMs?: number; holdReply?: { id: number; ms: number } } = {}): Door {
   let tokenExp = 0;
   const door: Door = {
     legs: 0,
@@ -37,6 +37,10 @@ function lapsingDoor(fake: FakeAria, ttlMs: number, notice = true, o: { followAc
       const inner = await fake.dial({
         message: (f) => {
           if (dead) return;
+          if (o.holdReply && JSON.parse(f).id === o.holdReply.id && !JSON.parse(f).method) {
+            setTimeout(() => !dead && outer.message(f), o.holdReply.ms);
+            return;
+          }
           if (o.followAckMs && f.includes("gw-handover")) {
             setTimeout(() => !dead && outer.message(f), o.followAckMs);
             return;
@@ -256,6 +260,51 @@ describe("door handover", () => {
     expect(p.closed).toEqual([]);
     expect(p.frames).toEqual(ref);
   }, 15_000);
+
+  it("follows on the new leg an aria whose qua is answered on the old leg after the switch, and drops an unfollow there too", async () => {
+    const fake = new FakeAria();
+    fake.addAria(id);
+    fake.addForm("@recent", {});
+    const door = lapsingDoor(fake, 3_000, true, { holdReply: { id: 5, ms: 2_400 } });
+    const p = page();
+    const sock = await handoverDial(door.dial, { renew: door.renew, quietMs: 50 })(p.events);
+    cleanups.push(() => sock.close());
+    sock.send(JSON.stringify({ jsonrpc: "2.0", id: 4, method: "figaro.follow", params: { figaro_id: "@recent" } }));
+    await until("follow answer", () => p.replies.some((r) => r.id === 4));
+    fake.conns[fake.conns.length - 1]!.follows.add(id);
+    sock.send(JSON.stringify({ jsonrpc: "2.0", id: 5, method: "figaro.qua", params: { figaro_id: id, text: "hi" } }));
+    await until("a second leg", () => door.legs === 2, 4_000);
+    await until("the qua answer", () => p.replies.some((r) => r.id === 5), 4_000);
+    await until("the aria followed on the new leg", () => fake.conns[fake.conns.length - 1]!.follows.has(id), 300);
+    expect(door.legs).toBe(2);
+    sock.send(JSON.stringify({ jsonrpc: "2.0", id: 6, method: "figaro.unfollow", params: { figaro_id: "@recent" } }));
+    await until("unfollow answer", () => p.replies.some((r) => r.id === 6));
+    expect(fake.conns.filter((c) => c.open).every((c) => !c.follows.has("@recent"))).toBe(true);
+    fake.openTurn(id, 2, "after");
+    await until("a frame after the switch", () => p.frames.some((f) => f.includes('"after"')));
+    expect(p.closed).toEqual([]);
+  }, 12_000);
+
+  it("carries an unfollow answered on the old leg to the new leg it is moving to", async () => {
+    const fake = new FakeAria();
+    fake.addAria(id);
+    fake.addForm("@recent", {});
+    const door = lapsingDoor(fake, 3_000, true, { followAckMs: 600 });
+    const p = page();
+    const sock = await handoverDial(door.dial, { renew: door.renew, quietMs: 50 })(p.events);
+    cleanups.push(() => sock.close());
+    sock.send(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "figaro.follow", params: { figaro_id: "@recent" } }));
+    sock.send(JSON.stringify({ jsonrpc: "2.0", id: 2, method: "figaro.follow", params: { figaro_id: id } }));
+    await until("follow answers", () => p.replies.filter((r) => r.id === 1 || r.id === 2).length === 2);
+    await until("a second leg following", () => door.legs === 2 && fake.conns[fake.conns.length - 1]!.follows.size === 2, 4_000);
+    sock.send(JSON.stringify({ jsonrpc: "2.0", id: 3, method: "figaro.unfollow", params: { figaro_id: "@recent" } }));
+    await until("unfollow answer", () => p.replies.some((r) => r.id === 3));
+    await tick(800);
+    const open = fake.conns.filter((c) => c.open);
+    expect(open).toHaveLength(1);
+    expect([...open[0]!.follows]).toEqual([id]);
+    expect(p.closed).toEqual([]);
+  }, 10_000);
 
   it("moves at once on a lapse notice it did not expect, and never passes the notice on", async () => {
     const fake = new FakeAria();
