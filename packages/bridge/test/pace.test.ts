@@ -85,6 +85,14 @@ describe("paced fake speech", () => {
     expect(fake!.paced[0]!.stalls.map((s) => [s.offset, s.ms])).toEqual(a);
   });
 
+  it("reports its own lateness separately from the jitter it chose", async () => {
+    await speak({ seed: 5, jitterMs: 60 }, 300);
+    for (const s of fake!.paced[0]!.sends) {
+      expect(s.jitterMs).toBeLessThanOrEqual(60);
+      expect(s.overrunMs).toBeLessThan(100);
+    }
+  });
+
   it("keeps jitter inside its bound", async () => {
     const r = await speak({ seed: 5, jitterMs: 80 }, 400);
     expect(r.total).toBe(Math.round(400 * pcmBytesPerMs));

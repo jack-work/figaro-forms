@@ -26,6 +26,8 @@ export interface PacedSend {
   readonly at: number;
   readonly bytes: number;
   readonly offset: number;
+  readonly jitterMs: number;
+  readonly overrunMs: number;
 }
 
 export interface PacedStall {
@@ -231,7 +233,8 @@ function startPacer(fake: FakeSpeech, socket: WebSocket, opts: PaceOptions): { p
     const wait = Math.max(0, log.startedAt + idealMs + jitter - Date.now());
     setTimeout(() => {
       if (socket.readyState !== socket.OPEN) return;
-      log.sends.push({ at: Date.now() - log.startedAt, bytes: slice.length, offset });
+      const now = Date.now();
+      log.sends.push({ at: now - log.startedAt, bytes: slice.length, offset, jitterMs: jitter, overrunMs: Math.max(0, now - (log.startedAt + idealMs + jitter)) });
       offset += slice.length;
       socket.send(Buffer.from(slice));
       idealMs += slice.length / pcmBytesPerMs;
