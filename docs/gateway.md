@@ -183,10 +183,18 @@ method= aria= session=`, with no params; the door's pushes (`figaro.aria`,
 `form.delta`, `turn.done`) are not logged. Each HTTP request behind the gate logs
 `http <method> <path> <status> <ms> ms session=`.
 
+## Origin on writes
+
+Any request behind the gate other than GET or HEAD (`POST /attach`, `POST /stt`,
+`POST /stt/key/...`) with an `Origin` that is not this host or a `--origin` is
+answered `403` and logged `403 foreign origin`, before it is read. A request with
+no `Origin` (a script on the host) passes, as upgrades do.
+
 ## POST /attach
 
 Body is one file, any `Content-Type`; `X-Attach-Name` (URL-encoded, cut to 120
-characters) names it for the reply. At most 10 MiB; two uploads are worked at once
+characters) names it for the reply and is required (`400` without it), so a
+cross-site form cannot post one. At most 10 MiB; two uploads are worked at once
 (`503` beyond). The type is read from the bytes:
 
 - png, jpeg, gif, webp, heic: decoded by ImageMagick from the sniffed format only, under

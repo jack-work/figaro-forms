@@ -77,7 +77,7 @@ async function rig(store: AttachStore | undefined): Promise<{ fake: FakeAria; po
 
 function upload(port: number, body: Buffer, headers: Record<string, string> = {}, method = "POST"): Promise<{ status: number; body: Record<string, unknown> }> {
   return new Promise((ok, fail) => {
-    const req = request({ port, host: "127.0.0.1", method, path: "/attach", agent: false, headers: { ...good, "content-type": "application/octet-stream", ...headers } }, (res) => {
+    const req = request({ port, host: "127.0.0.1", method, path: "/attach", agent: false, headers: Object.fromEntries(Object.entries({ ...good, "content-type": "application/octet-stream", "x-attach-name": "file", ...headers }).filter(([, v]) => v !== "")) }, (res) => {
       let b = "";
       res.on("data", (c) => (b += c));
       res.on("end", () => {
@@ -185,6 +185,26 @@ describe("attachments", () => {
     await upload(port, png);
     expect(await upload(port, png)).toMatchObject({ status: 429 });
     expect(lines.filter((l) => l.startsWith("attach refused")).map((l) => l.split(" ")[2])).toEqual(["status=415", "status=422", "status=429"]);
+  });
+
+  it("refuses a POST from a foreign origin on /attach and /stt, and an upload without X-Attach-Name; same origin passes", async () => {
+    const { port, lines } = await rig(new AttachStore({ tools: fakeTools() }));
+    const host = `127.0.0.1:${port}`;
+    expect(await upload(port, png, { origin: "https://evil.example" })).toMatchObject({ status: 403 });
+    expect(await upload(port, png, { origin: "null" })).toMatchObject({ status: 403 });
+    const stt = await new Promise<number>((ok, fail) => {
+      const req = request({ port, host: "127.0.0.1", method: "POST", path: `/stt?aria=gluck/${id}`, agent: false, headers: { ...good, origin: "https://evil.example", "content-type": "audio/webm" } }, (res) => {
+        res.resume();
+        ok(res.statusCode ?? 0);
+      });
+      req.on("error", fail);
+      req.end(Buffer.from([0x1a, 0x45, 0xdf, 0xa3, 1, 2]));
+    });
+    expect(stt).toBe(403);
+    expect(await upload(port, png, { "x-attach-name": "" })).toMatchObject({ status: 400, body: { error: "X-Attach-Name is required" } });
+    expect(await upload(port, png, { origin: `http://${host}` })).toMatchObject({ status: 200 });
+    expect(await upload(port, png)).toMatchObject({ status: 200 });
+    expect(lines.filter((l) => l.includes("403 foreign origin"))).toHaveLength(3);
   });
 
   it("refuses attachments when the gateway takes none, and passes a plain qua untouched", async () => {

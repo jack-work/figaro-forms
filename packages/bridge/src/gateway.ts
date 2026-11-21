@@ -133,6 +133,11 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
       res.writeHead(400).end();
       return;
     }
+    if (req.method !== "GET" && req.method !== "HEAD" && !originOk(req, origins)) {
+      log(`http ${req.method ?? "-"} ${redact(path)} 403 foreign origin session=${sessionOf(req, false)}`);
+      res.writeHead(403, { "Content-Type": "text/plain; charset=utf-8", Connection: "close" }).end("foreign origin");
+      return;
+    }
     const session = sessionOf(req, false);
     const started = Date.now();
     const asked = typeof req.headers.traceparent === "string" && parseTraceparent(req.headers.traceparent) ? req.headers.traceparent : undefined;

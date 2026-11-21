@@ -302,6 +302,10 @@ export function attachRoute(store: AttachStore, log: (line: string) => void, ses
       res.writeHead(405, { Allow: "POST", Connection: "close" }).end();
       return;
     }
+    if (typeof req.headers["x-attach-name"] !== "string") {
+      reply(req, res, 400, { error: "X-Attach-Name is required" });
+      return;
+    }
     if (Number(req.headers["content-length"] ?? 0) > maxAttachBytes) {
       reply(req, res, 413, { error: `over ${maxAttachBytes} bytes` });
       return;
