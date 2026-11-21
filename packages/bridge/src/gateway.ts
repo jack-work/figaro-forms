@@ -11,6 +11,7 @@ import type { SpeechDial } from "./speech.js";
 import { keyStored } from "./stt.js";
 import { noTracer, parseTraceparent, type Tracer } from "./trace.js";
 import { attachRoute, type AttachStore } from "./attach.js";
+import { handoverDial } from "./handover.js";
 
 export interface GatewayEdge {
   readonly secret: string;
@@ -35,6 +36,7 @@ export interface GatewayOptions {
   readonly tracer?: Tracer;
   readonly attachments?: AttachStore;
   readonly compress?: boolean;
+  readonly renew?: (until: number) => Promise<number | undefined>;
   readonly sockets?: GatewaySocket;
 }
 
@@ -103,6 +105,7 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
   const maxPayload = o.maxFrameBytes ?? 1 << 20;
 
   const log = o.log ?? ((line: string) => process.stderr.write(`figaro-gateway: ${line}\n`));
+  const lasting = (dial: Dial, who: string): Dial => (o.renew ? handoverDial(dial, { renew: o.renew, log: (l) => log(`${l} ${who}`) }) : dial);
   let shared: AriaClient | undefined;
   const tracer = o.tracer ?? noTracer;
   const hub = new AudioHub({
@@ -110,7 +113,7 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
     tracer,
     connect: () => {
       log("audio: dialing the door");
-      return (shared = new AriaClient({ dial: o.door(e.admin, noSession) }));
+      return (shared = new AriaClient({ dial: lasting(o.door(e.admin, noSession), "for=audio") }));
     },
     speech: o.speech,
     store: o.store,
@@ -214,7 +217,7 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
       wss.handleUpgrade(req, sock, head, (ws) => {
         track(ws);
         meterDoor(ws, req.socket, session);
-        proxyDoor(ws, o.door(String(req.headers["remote-user"]), session), hub, log, session, tracer, o.attachments);
+        proxyDoor(ws, lasting(o.door(String(req.headers["remote-user"]), session), `session=${session}`), hub, log, session, tracer, o.attachments);
       });
     } else if (audio !== undefined && ariaIdPattern.test(audio)) {
       wss.handleUpgrade(req, sock, head, (ws) => {

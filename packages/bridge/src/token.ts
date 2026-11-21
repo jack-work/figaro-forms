@@ -46,6 +46,11 @@ export class ClientCredentials {
     return (this.held as Held).value;
   }
 
+  async lasting(until: number): Promise<number | undefined> {
+    if (!this.held || this.held.expiresAt < until) await this.mint();
+    return this.held?.expiresAt;
+  }
+
   get generation(): number {
     return this.minted;
   }

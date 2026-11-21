@@ -183,6 +183,32 @@ method= aria= session=`, with no params; the door's pushes (`figaro.aria`,
 `form.delta`, `turn.done`) are not logged. Each HTTP request behind the gate logs
 `http <method> <path> <status> <ms> ms session=`.
 
+## Door handover
+
+gluck's door closes a connection when the bearer it was admitted with expires
+("the bearer expired: reconnect with a fresh token"). With a minted bearer
+(`--token-url`) the gateway hides that from the page and from the audio follow:
+each door leg knows its bearer's expiry, and before it the gateway opens a new leg
+with a bearer that outlasts it, follows on it every aria and form the old leg
+followed (and every aria a `figaro.qua` followed), then switches.
+
+- When: from expiry minus a quarter of the bearer's life (2 s to 60 s) it waits for
+  a quiet moment (no open turn, no request waiting, no frame for 500 ms) and moves
+  between turns; at expiry minus 8 percent (1 s to 10 s) it moves anyway, mid-turn.
+  A `door.lapsed` notice it did not expect moves at once and is never passed on.
+- Nothing lost or doubled: from the moment it follows on the new leg until the
+  switch, both legs deliver; the page gets the old leg's frames, the new leg's are
+  held, then matched in order against what the old leg already delivered (the
+  daemon sends every follower the same bytes) and only the rest are passed on.
+- Requests already sent on the old leg are answered from it; the old leg closes
+  once they are and the overlap is matched (2 s at most when no frame comes).
+- Logged: `door handover done (between turns|deadline|lapse notice): N follows
+  moved in M ms`, `door handover skipped`, `abandoned` or `failed` with why. If no
+  bearer outlasting the current one can be had, or the new leg fails, the old
+  leg's close reaches the page as before.
+
+A static `--door-token-file` bearer cannot be renewed, so there is no handover.
+
 ## Compression and the door meter
 
 `/door` and `/audio` offer permessage-deflate (level 6, context takeover, messages

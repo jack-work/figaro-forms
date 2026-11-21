@@ -102,6 +102,21 @@ describe("client credentials", () => {
     expect(await c.token()).toBe("tok-5");
   });
 
+  it("mints a token that lasts past a time only when the one it holds does not", async () => {
+    const ep = await endpoint();
+    let t = 1_000_000;
+    const c = new ClientCredentials(opts(ep.url, { now: () => t, refreshAt: 100 }));
+    cleanups.push(() => c.close());
+    expect(await c.lasting(t)).toBe(t + 100_000);
+    expect(ep.hits).toHaveLength(1);
+    expect(await c.lasting(t + 50_000)).toBe(t + 100_000);
+    expect(ep.hits).toHaveLength(1);
+    t += 40_000;
+    expect(await c.lasting(t + 61_000)).toBe(t + 100_000);
+    expect(ep.hits).toHaveLength(2);
+    expect(await c.token()).toBe("tok-2");
+  });
+
   it("fails start when the first mint fails, and token() fails once the held token has expired and refresh keeps failing", async () => {
     const ep = await endpoint();
     ep.mode.status = 401;

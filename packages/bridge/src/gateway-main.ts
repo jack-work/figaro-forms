@@ -126,6 +126,7 @@ try {
   const exporter = values["otlp-endpoint"] ? otlpExporter({ endpoint: values["otlp-endpoint"], service: "figaro-gateway", log: (line) => process.stderr.write(`figaro-gateway: ${line}\n`) }) : undefined;
   const attachments = values["no-attach"] ? undefined : new AttachStore({ tools: systemTools() });
   const g = await startGateway({
+    ...(minter ? { renew: (until: number) => (minter as ClientCredentials).lasting(until) } : {}),
     ...(attachments ? { attachments } : {}),
     ...(values["no-deflate"] ? { compress: false } : {}),
     ...(exporter ? { tracer: exporter.tracer } : {}),
