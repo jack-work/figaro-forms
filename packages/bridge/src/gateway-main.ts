@@ -7,6 +7,7 @@ import { webSocketDial } from "figaro-forms";
 import { bearer, type Credential } from "figaro-forms/auth";
 import { onBehalfOf, redact, withSession } from "./door.js";
 import { otlpExporter } from "./trace.js";
+import { AttachStore, systemTools } from "./attach.js";
 import { ClientCredentials, doorTokenPath, redialAfterRejection } from "./token.js";
 import { startGateway, type GatewayListen } from "./gateway.js";
 import { speechOverSocket } from "./speech.js";
@@ -18,7 +19,7 @@ Usage: figaro-gateway --door-url URL --speech-socket PATH --admin USER --store N
                        (--listen-socket PATH [--mode OCTAL] | --port N --peer ADDR...)
                        [--edge-secret-file PATH] [--origin URL]...
                        [--door-token-file PATH | --token-url URL --client-id ID --client-secret-file PATH [--audience URL]]
-                       [--otlp-endpoint URL]
+                       [--otlp-endpoint URL] [--no-attach]
 
   --door-url URL        the figaro door, e.g. wss://gluck.tailnet.ts.net:7445/door
                         (ws+unix://PATH:/door for a daemon's web socket)
@@ -41,12 +42,15 @@ Usage: figaro-gateway --door-url URL --speech-socket PATH --admin USER --store N
   --admin USER          the one Remote-User served
   --edge-secret-file P  shared secret, 32 bytes or more (default $CREDENTIALS_DIRECTORY/edge)
   --origin URL          also admit pages from URL (same-origin pages always pass)
+  --no-attach           refuse POST /attach and qua attachments (default: take them; needs
+                        magick, pdfinfo, pdftotext and pdftoppm on PATH)
   --otlp-endpoint URL   post spans as OTLP/HTTP JSON to URL/v1/traces (e.g. http://127.0.0.1:4318);
                         without it the gateway makes no spans and passes traceparent through
 
 Routes behind the edge gate: /door (WebSocket, JSON-RPC, aria methods), /audio/<aria>
 (WebSocket, audio frames), GET /audio/key/<key> (replay from the speech service), POST /stt?aria=<store>/<aria>
-(a recording in, {text, duration_ms, audio_id} out), POST /stt/key/<key> (re-transcribe a stored clip).`;
+(a recording in, {text, duration_ms, audio_id} out), POST /stt/key/<key> (re-transcribe a stored clip),
+POST /attach (an image or pdf in, an id out for the next figaro.qua's attachments).`;
 
 const { values } = parseArgs({
   options: {
@@ -58,6 +62,7 @@ const { values } = parseArgs({
     audience: { type: "string" },
     "on-behalf-of": { type: "boolean" },
     "otlp-endpoint": { type: "string" },
+    "no-attach": { type: "boolean" },
     "speech-socket": { type: "string" },
     store: { type: "string" },
     "listen-socket": { type: "string" },
@@ -117,7 +122,9 @@ try {
     ? { port: Number(values.port), host: "127.0.0.1" }
     : { path: values["listen-socket"] ?? "/run/figaro-gateway/gateway.sock", mode: values.mode ? parseInt(values.mode, 8) : 0o660 };
   const exporter = values["otlp-endpoint"] ? otlpExporter({ endpoint: values["otlp-endpoint"], service: "figaro-gateway", log: (line) => process.stderr.write(`figaro-gateway: ${line}\n`) }) : undefined;
+  const attachments = values["no-attach"] ? undefined : new AttachStore({ tools: systemTools() });
   const g = await startGateway({
+    ...(attachments ? { attachments } : {}),
     ...(exporter ? { tracer: exporter.tracer } : {}),
     listen,
     edge: { secret, admin: values.admin ?? "", ...(values.port ? { peers: values.peer ?? [] } : {}) },

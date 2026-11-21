@@ -10,6 +10,7 @@ import { edgeHeader } from "./bridge.js";
 import type { SpeechDial } from "./speech.js";
 import { keyStored } from "./stt.js";
 import { noTracer, parseTraceparent, type Tracer } from "./trace.js";
+import { attachRoute, type AttachStore } from "./attach.js";
 
 export interface GatewayEdge {
   readonly secret: string;
@@ -32,6 +33,7 @@ export interface GatewayOptions {
   readonly joinTimeoutMs?: number;
   readonly routes?: GatewayRoute;
   readonly tracer?: Tracer;
+  readonly attachments?: AttachStore;
   readonly sockets?: GatewaySocket;
 }
 
@@ -119,6 +121,7 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
     },
   });
 
+  const attach = o.attachments ? attachRoute(o.attachments, log, (req) => sessionOf(req, false)) : undefined;
   const server = createServer((req, res) => {
     const refusal = gatewayRefusal(e, req);
     if (refusal) {
@@ -151,6 +154,10 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
         return;
       }
       replay(o.speechSocket, o.store, key, req, res, session);
+      return;
+    }
+    if (path === "/attach" && attach) {
+      attach(req, res);
       return;
     }
     if (o.routes?.(req, res, path, String(req.headers["remote-user"]))) return;
@@ -193,7 +200,7 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
     if (path === "/door") {
       wss.handleUpgrade(req, sock, head, (ws) => {
         track(ws);
-        proxyDoor(ws, o.door(String(req.headers["remote-user"]), session), hub, log, session, tracer);
+        proxyDoor(ws, o.door(String(req.headers["remote-user"]), session), hub, log, session, tracer, o.attachments);
       });
     } else if (audio !== undefined && ariaIdPattern.test(audio)) {
       wss.handleUpgrade(req, sock, head, (ws) => {
@@ -320,6 +327,7 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
 function routeOf(path: string): string {
   if (path.startsWith("/audio/key/")) return "/audio/key";
   if (path.startsWith("/stt/key/")) return "/stt/key";
+  if (path === "/attach") return "/attach";
   return path === "/stt" ? "/stt" : "other";
 }
 

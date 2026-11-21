@@ -3,6 +3,7 @@ import type { Credential } from "figaro-forms/auth";
 import type { WebSocket } from "ws";
 import type { AudioHub } from "./audio.js";
 import { noTracer, parseTraceparent, type Span, type Tracer } from "./trace.js";
+import { fold, type AttachStore } from "./attach.js";
 
 export const gatewayMethods = [
   "angelus.hello",
@@ -22,7 +23,7 @@ export const gatewayMethods = [
 const allowed: ReadonlySet<string> = new Set(gatewayMethods);
 
 const permitted: Readonly<Record<string, ReadonlySet<string>>> = {
-  "figaro.qua": new Set(["figaro_id", "text", "images", "traceparent"]),
+  "figaro.qua": new Set(["figaro_id", "text", "images", "traceparent", "attachments"]),
   "figaro.fork": new Set(["figaro_id", "at_turn", "at_lt"]),
   "figaro.create": new Set(["outfits"]),
   "angelus.outfits": new Set(["spec"]),
@@ -100,7 +101,7 @@ export function redact(text: string): string {
   return text.replace(/(\w+:\/\/)[^@/\s]*@/g, "$1").replace(/\?[^\s"')]*/g, "");
 }
 
-export function proxyDoor(ws: WebSocket, dial: Dial, hub: AudioHub | undefined, log: (line: string) => void = () => {}, session: string = noSession, tracer: Tracer = noTracer): void {
+export function proxyDoor(ws: WebSocket, dial: Dial, hub: AudioHub | undefined, log: (line: string) => void = () => {}, session: string = noSession, tracer: Tracer = noTracer, attachments?: AttachStore): void {
   const queue: string[] = [];
   const pending = new Map<string, Span>();
   let up: Socket | undefined;
@@ -192,9 +193,37 @@ export function proxyDoor(ws: WebSocket, dial: Dial, hub: AudioHub | undefined, 
       refuse(ws, frame.id ?? null, `gateway: ${frame.method} traceparent must be a W3C traceparent, 00-<32 hex>-<16 hex>-<2 hex>`);
       return;
     }
+    let attached = 0;
+    const named = (params as { attachments?: unknown } | null | undefined)?.attachments;
+    if (named !== undefined && params) {
+      const q = params as { attachments?: unknown; text?: unknown; images?: unknown };
+      if (!attachments) {
+        refuse(ws, frame.id ?? null, "gateway: this gateway takes no attachments");
+        return;
+      }
+      if (!Array.isArray(named) || named.length === 0 || named.length > 8 || !named.every((n) => typeof n === "string")) {
+        refuse(ws, frame.id ?? null, "gateway: attachments is a list of 1 to 8 ids from POST /attach");
+        return;
+      }
+      if (typeof q.text !== "string" || q.text.trim() === "") {
+        refuse(ws, frame.id ?? null, "gateway: an attachment is sent with a prompt: give text too");
+        return;
+      }
+      const inline = Array.isArray(q.images) ? q.images.length : 0;
+      const held = attachments.take(named as string[], inline);
+      if (typeof held === "string") {
+        refuse(ws, frame.id ?? null, `gateway: ${held}`);
+        return;
+      }
+      const f = fold(q.text, held);
+      q.text = f.text;
+      if (f.images.length > 0) q.images = [...(Array.isArray(q.images) ? q.images : []), ...f.images];
+      delete q.attachments;
+      attached = held.length;
+    }
     const aria = params?.figaro_id;
     const shownAria = typeof aria === "string" && loggedAria.test(aria) ? aria : noSession;
-    log(`door: call method=${frame.method} aria=${shownAria} session=${session}`);
+    log(`door: call method=${frame.method} aria=${shownAria}${attached > 0 ? ` attachments=${attached}` : ""} session=${session}`);
     if (frame.method === "figaro.interrupt" && typeof aria === "string") hub?.cancel(aria, "interrupt");
     if (frame.id !== undefined && tracer.recording) {
       const sp = tracer.start(`door ${frame.method}`, typeof asked === "string" ? asked : undefined, { "rpc.method": frame.method, "figaro.aria": shownAria, "figchat.session": session });

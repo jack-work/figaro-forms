@@ -183,6 +183,33 @@ method= aria= session=`, with no params; the door's pushes (`figaro.aria`,
 `form.delta`, `turn.done`) are not logged. Each HTTP request behind the gate logs
 `http <method> <path> <status> <ms> ms session=`.
 
+## POST /attach
+
+Body is one file, any `Content-Type`; `X-Attach-Name` (URL-encoded, cut to 120
+characters) names it for the reply. At most 10 MiB; two uploads are worked at once
+(`503` beyond). The type is read from the bytes:
+
+- png, jpeg, gif, webp, heic: decoded by ImageMagick from the sniffed format only,
+  turned upright, scaled to a long edge of 1568 px, stripped of metadata (EXIF,
+  GPS), and kept as png (png in) or jpeg; over 5 MB after that is scaled again or
+  refused.
+- pdf: `pdftotext -layout`. A pdf with no text layer (a scan) has its first 4 pages
+  drawn as jpeg images instead; it never goes out as empty text.
+
+Answers `200 {id, kind, name, bytes, images, pages?, text?}`, or `400` (empty),
+`405`, `413` (over 10 MiB, declared or read), `415` (not one of those types), `422`
+(unreadable), `429` (16 waiting, or 64 MiB held), `503`. An id is 128 random bits,
+held 15 minutes, and spent by the first `figaro.qua` that names it.
+
+`figaro.qua` may carry `attachments: [id, ...]` (1 to 8) with non-empty `text`. The
+gateway replaces them before the door: images (and a scan's pages) join `images`,
+at most 4 with any the page sent; each pdf's text is appended to `text` as a fenced
+block headed by its name and page count. An unknown, spent, expired or repeated id,
+or too many images, refuses the call naming why, and nothing is spent. The ids are
+capabilities, not tied to the session id (which stays correlation only). The log
+says `attach kind= bytes= images= pages= text= session=` and `attachments=N` on the
+qua line, never a name or content. `--no-attach` turns it off.
+
 ## Traces
 
 With `--otlp-endpoint URL` the gateway makes spans and posts them as OTLP/HTTP JSON
