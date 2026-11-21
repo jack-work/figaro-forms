@@ -1,6 +1,7 @@
 import { commandDocs, type CommandDoc } from "./commands.gen.js";
 
 export * from "./commands.gen.js";
+export * from "./commands-web.js";
 
 const names = (c: CommandDoc): readonly string[] => [c.name, ...(c.aliases ?? [])];
 
