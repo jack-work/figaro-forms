@@ -1,4 +1,4 @@
-import type { Anchor, AppliedFrame, AriaClient, AriaStream, Node, TurnEnd } from "figaro-forms/aria";
+import type { Anchor, AppliedFrame, AriaClient, AriaStream, Message, Node, TurnEnd } from "figaro-forms/aria";
 import { pcmFormat, type SpeechDial, type SpeechSession } from "./speech.js";
 import { takeSentences } from "./sentences.js";
 import { redact, sessionField, sessionList } from "./door.js";
@@ -36,6 +36,7 @@ interface Active {
   readonly only: AudioListener | undefined;
   readonly turn: number;
   readonly key: string;
+  partial: boolean;
   readonly texts: Map<number, number>;
   readonly written: string[];
   readonly voice: Promise<string | undefined>;
@@ -93,6 +94,16 @@ class Follower {
       this.detach(client);
       throw e;
     }
+    this.baseline(stream.snapshot().view.open);
+  }
+
+  private baseline(open: Message | undefined): void {
+    if (this.active || !open || open.turn <= this.finished) return;
+    const a = this.begin(open.turn);
+    open.nodes.forEach((n, i) => {
+      if (spoken(n)) a.texts.set(open.from + i, (n.markdown ?? "").length);
+    });
+    a.partial = [...a.texts.values()].some((n) => n > 0);
   }
 
   detach(client: AriaClient): void {
@@ -267,6 +278,7 @@ class Follower {
           if (spoken(n)) (a as Active).texts.set(m.from + i, (n.markdown ?? "").length);
         });
       }
+      a.partial = [...a.texts.values()].some((n) => n > 0);
       return;
     }
     if (!a || a.ended) return;
@@ -285,6 +297,7 @@ class Follower {
       only,
       turn,
       key: audioKey(this.hub.options.store, this.aria, turn),
+      partial: false,
       texts: new Map(),
       written: [],
       voice,
@@ -391,7 +404,7 @@ class Follower {
 
   private openSession(a: Active, voice: string | undefined, hear: () => void, wasHeard: () => boolean): SpeechSession {
     return this.hub.options.speech(
-      { key: a.key, ...(voice ? { voice } : {}), sessions: this.sessions(this.heard(a)), ...(this.hub.options.tracer?.recording && a.span ? { traceparent: a.span.traceparent } : {}) },
+      { ...(a.partial ? {} : { key: a.key }), ...(voice ? { voice } : {}), sessions: this.sessions(this.heard(a)), ...(this.hub.options.tracer?.recording && a.span ? { traceparent: a.span.traceparent } : {}) },
       {
         audio: (pcm) => {
           if (a.dead) return;
@@ -404,7 +417,7 @@ class Follower {
           a.span?.set("tts.bytes", a.offset);
           a.span?.end();
           this.log(`${a.only ? "say" : "tts done"} aria=${this.aria} turn=${a.turn} chunks=${a.chunks} bytes=${a.offset}${audioId !== undefined ? " audio_id=" + audioId : ""}`, this.heard(a));
-          this.tell(a, { type: "audio.end", turn: a.turn, key: a.key, ...(audioId !== undefined ? { audio_id: audioId } : {}) });
+          this.tell(a, { type: "audio.end", turn: a.turn, key: a.key, ...(a.partial ? { partial: true } : audioId !== undefined ? { audio_id: audioId } : {}) });
         },
         error: (text) => {
           if (a.dead) return;
@@ -429,7 +442,7 @@ class Follower {
     if (!a.started) {
       a.started = true;
       if (!a.only) this.hub.options.metrics?.ms("figchat.gateway.audio.first_byte_ms", Date.now() - a.seen, { "figchat.session": sessionField(this.sessions(this.heard(a))), "figaro.aria": this.aria });
-      this.tell(a, { type: "audio.start", turn: a.turn, key: a.key, ...(a.only ? { say: true } : {}), ...pcmFormat, node: a.fedNode, chars: a.fedChars, cursor: this.cursor() });
+      this.tell(a, { type: "audio.start", turn: a.turn, key: a.key, ...(a.only ? { say: true } : {}), ...(a.partial ? { partial: true } : {}), ...pcmFormat, node: a.fedNode, chars: a.fedChars, cursor: this.cursor() });
     }
     const header = { type: "audio.chunk", turn: a.turn, node: a.fedNode, chars: a.fedChars, cursor: this.cursor(), offset: a.offset, bytes: out.length };
     a.offset += out.length;

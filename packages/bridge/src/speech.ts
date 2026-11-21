@@ -2,7 +2,7 @@ import WebSocket from "ws";
 import { sessionField, sessionHeader } from "./door.js";
 
 export interface SpeechRequest {
-  readonly key: string;
+  readonly key?: string;
   readonly voice?: string;
   readonly sessions?: readonly string[];
   readonly traceparent?: string;
@@ -26,7 +26,8 @@ export const pcmFormat = { format: "pcm", rate: 24000, bits: 16, channels: 1 } a
 
 export function speechOverSocket(socketPath: string): SpeechDial {
   return (req, on) => {
-    const q = new URLSearchParams({ format: "pcm", key: req.key });
+    const q = new URLSearchParams({ format: "pcm" });
+    if (req.key) q.set("key", req.key);
     if (req.voice) q.set("voice", req.voice);
     const sessions = req.sessions ?? [];
     const headers: Record<string, string> = {};
