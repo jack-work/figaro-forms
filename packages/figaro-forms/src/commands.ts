@@ -2,19 +2,11 @@ import { commandDocs, type CommandDoc } from "./commands.gen.js";
 
 export * from "./commands.gen.js";
 export * from "./commands-web.js";
+import { pagerLookup, shellLookup } from "./lookup.js";
 
-const names = (c: CommandDoc): readonly string[] => [c.name, ...(c.aliases ?? [])];
+export const shellCommand = (word: string): CommandDoc | undefined => shellLookup(commandDocs, word);
 
-export function shellCommand(word: string): CommandDoc | undefined {
-  return commandDocs.find((c) => !c.pagerOnly && names(c).includes(word));
-}
-
-export function pagerCommand(word: string): CommandDoc | undefined {
-  return (
-    commandDocs.find((c) => c.pagerOnly === true && names(c).includes(word)) ??
-    commandDocs.find((c) => !c.pagerOnly && (names(c).includes(word) || (c.pagerAliases ?? []).includes(word)))
-  );
-}
+export const pagerCommand = (word: string): CommandDoc | undefined => pagerLookup(commandDocs, word);
 
 export function commandBounds(c: CommandDoc): { readonly min: number; readonly max: number } {
   let min = 0;

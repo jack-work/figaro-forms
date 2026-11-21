@@ -25,6 +25,10 @@
       "types": "./dist/commands.d.ts",
       "default": "./dist/commands.js"
     },
+    "./catalog": {
+      "types": "./dist/catalog.d.ts",
+      "default": "./dist/catalog.js"
+    },
     "./semantics": {
       "types": "./dist/semantics/index.d.ts",
       "default": "./dist/semantics/index.js"

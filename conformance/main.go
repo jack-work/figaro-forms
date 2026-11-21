@@ -360,6 +360,37 @@ func commandsSource() string {
 		"export const commandDocs: readonly CommandDoc[] = " + string(doc) + ";\n"
 }
 
+type webCommand struct {
+	Name         string         `json:"name"`
+	Aliases      []string       `json:"aliases,omitempty"`
+	PagerAliases []string       `json:"pagerAliases,omitempty"`
+	Help         string         `json:"help"`
+	Usage        string         `json:"usage,omitempty"`
+	Min          int            `json:"min"`
+	Max          int            `json:"max"`
+	Hidden       bool           `json:"hidden,omitempty"`
+	PagerOnly    bool           `json:"pagerOnly,omitempty"`
+	Complete     command.Source `json:"complete,omitempty"`
+	Pager        command.Mode   `json:"pager"`
+	Refusal      string         `json:"refusal,omitempty"`
+	Switches     bool           `json:"switches,omitempty"`
+}
+
+func webCatalogSource() string {
+	var rows []string
+	for _, c := range command.All() {
+		min, max := c.Bounds()
+		b, err := json.Marshal(webCommand{c.Name, c.Aliases, c.PagerAliases, c.Help, c.Usage, min, max, c.Hidden, c.PagerOnly, c.Complete, c.Pager, c.Refusal, c.Switches})
+		if err != nil {
+			panic(err)
+		}
+		rows = append(rows, "  "+string(b)+",\n")
+	}
+	return "import type { CommandName, CompletionSource, PagerMode } from \"./commands.gen.js\";\n\n" +
+		"export interface WebCommandDoc {\n  readonly name: CommandName;\n  readonly aliases?: readonly string[];\n  readonly pagerAliases?: readonly string[];\n  readonly help: string;\n  readonly usage?: string;\n  readonly min: number;\n  readonly max: number;\n  readonly hidden?: boolean;\n  readonly pagerOnly?: boolean;\n  readonly complete?: CompletionSource;\n  readonly pager: PagerMode;\n  readonly refusal?: string;\n  readonly switches?: boolean;\n}\n\n" +
+		"export const webCommandDocs: readonly WebCommandDoc[] = [\n" + strings.Join(rows, "") + "];\n"
+}
+
 func writeFile(path, src string) {
 	if err := os.WriteFile(path, []byte(src), 0o644); err != nil {
 		panic(err)
@@ -395,11 +426,12 @@ func main() {
 	keysOut := flag.String("keys", "../packages/figaro-forms/src/semantics/known-keys.gen.ts", "generated key catalog")
 	glyphsOut := flag.String("glyphs", "../packages/figaro-forms/src/glyphs.gen.ts", "generated glyph table")
 	commandsOut := flag.String("commands", "../packages/figaro-forms/src/commands.gen.ts", "generated command catalog")
+	webCatalogOut := flag.String("web-catalog", "../packages/figaro-forms/src/commands-slim.gen.ts", "generated slim command catalog for the web composer")
 	check := flag.Bool("check", false, "write nothing; exit 1 when the glyph table or command catalog differs from what the figaro in the build would produce")
 	flag.Parse()
-	generated := map[string]string{*keysOut: keysSource(), *glyphsOut: glyphsSource(), *commandsOut: commandsSource()}
+	generated := map[string]string{*keysOut: keysSource(), *glyphsOut: glyphsSource(), *commandsOut: commandsSource(), *webCatalogOut: webCatalogSource()}
 	if *check {
-		stale := drifted(map[string]string{*glyphsOut: generated[*glyphsOut], *commandsOut: generated[*commandsOut]})
+		stale := drifted(map[string]string{*glyphsOut: generated[*glyphsOut], *commandsOut: generated[*commandsOut], *webCatalogOut: generated[*webCatalogOut]})
 		for _, path := range stale {
 			fmt.Fprintf(os.Stderr, "stale: %s\n", path)
 		}
