@@ -21,7 +21,7 @@ interface Door {
   lapses: number;
 }
 
-function lapsingDoor(fake: FakeAria, ttlMs: number, notice = true, o: { followAckMs?: number; claimedSkewMs?: number; holdReply?: { id: number; ms: number } } = {}): Door {
+function lapsingDoor(fake: FakeAria, ttlMs: number, notice = true, o: { followAckMs?: number; claimedSkewMs?: number; holdReply?: { id: number; ms: number }; lagNewMs?: number; killLeg?: { leg: number; afterMs: number }; dialDelayMs?: number; onDial?: (leg: number) => void } = {}): Door {
   let tokenExp = 0;
   const door: Door = {
     legs: 0,
@@ -33,6 +33,9 @@ function lapsingDoor(fake: FakeAria, ttlMs: number, notice = true, o: { followAc
     dial: async (outer: SocketEvents) => {
       const exp = tokenExp;
       door.legs++;
+      const legNo = door.legs;
+      o.onDial?.(legNo);
+      if (o.dialDelayMs && legNo > 1) await tick(o.dialDelayMs);
       let dead = false;
       const inner = await fake.dial({
         message: (f) => {
@@ -43,6 +46,10 @@ function lapsingDoor(fake: FakeAria, ttlMs: number, notice = true, o: { followAc
           }
           if (o.followAckMs && f.includes("gw-handover")) {
             setTimeout(() => !dead && outer.message(f), o.followAckMs);
+            return;
+          }
+          if (o.lagNewMs && legNo > 1 && JSON.parse(f).method) {
+            setTimeout(() => !dead && outer.message(f), o.lagNewMs);
             return;
           }
           outer.message(f);
@@ -66,6 +73,16 @@ function lapsingDoor(fake: FakeAria, ttlMs: number, notice = true, o: { followAc
         }, 50);
       }, Math.max(0, exp - Date.now()));
       cleanups.push(() => clearTimeout(lapse));
+      if (o.killLeg && o.killLeg.leg === legNo) {
+        const k = setTimeout(() => {
+          if (dead) return;
+          dead = true;
+          clearTimeout(lapse);
+          inner.close();
+          outer.closed("killed");
+        }, o.killLeg.afterMs);
+        cleanups.push(() => clearTimeout(k));
+      }
       const socket: Socket = {
         send: (f) => {
           if (dead) throw new Error("socket closed");
@@ -198,6 +215,7 @@ describe("door handover", () => {
     await until("a second leg", () => door.legs === 2, 4_000);
     fake.release();
     await until("read answer", () => p.replies.some((r) => r.id === 2));
+    await until("the old leg closed", () => fake.conns.filter((c) => c.open).length === 1);
     sock.send(JSON.stringify({ jsonrpc: "2.0", id: 3, method: "figaro.read", params: { figaro_id: id } }));
     await until("second read answer", () => p.replies.some((r) => r.id === 3));
     const answered = fake.conns.filter((c) => c.received.some((f) => f.method === "figaro.read"));
@@ -304,6 +322,96 @@ describe("door handover", () => {
     expect(open).toHaveLength(1);
     expect([...open[0]!.follows]).toEqual([id]);
     expect(p.closed).toEqual([]);
+  }, 10_000);
+
+  it("doubles nothing when the new leg's copies arrive after the switch, with repeated identical frames in the stream", async () => {
+    const fake = new FakeAria();
+    fake.addAria(id);
+    const door = lapsingDoor(fake, 3_000, true, { lagNewMs: 80 });
+    const ref = await reference(fake);
+    const p = page();
+    const lines: string[] = [];
+    const sock = await handoverDial(door.dial, { renew: door.renew, log: (l) => lines.push(l), quietMs: 50 })(p.events);
+    cleanups.push(() => sock.close());
+    sock.send(JSON.stringify({ jsonrpc: "2.0", id: 7, method: "figaro.follow", params: { figaro_id: id } }));
+    await until("follow answer", () => p.replies.some((r) => r.id === 7));
+    const started = Date.now();
+    let t = 0;
+    while (Date.now() - started < 7_000) {
+      t++;
+      fake.openTurn(id, t, "go");
+      for (let k = 0; k < 4; k++) {
+        fake.update(id, t, [{ id: 0, ...(k === 0 ? { set: { type: "prose", role: "output", markdown: "" } } : {}), patch: { markdown: { at: k, del: 0, ins: "w" } } }]);
+        await tick(15);
+      }
+      fake.seal(id, t);
+      fake.done(id);
+      fake.done(id);
+      await tick(15);
+    }
+    await until("the last frame", () => p.frames.length >= ref.length, 4_000);
+    await tick(300);
+    expect(door.legs).toBeGreaterThanOrEqual(3);
+    expect(p.frames.length).toBe(ref.length);
+    expect(p.frames).toEqual(ref);
+    expect(p.closed).toEqual([]);
+  }, 20_000);
+
+  it("anchors on the right copy when a frame identical to the new leg's first was delivered before the new leg followed", async () => {
+    const fake = new FakeAria();
+    fake.addAria(id);
+    let moving = false;
+    const door = lapsingDoor(fake, 3_000, true, { dialDelayMs: 150, onDial: (n) => (moving = n === 2) });
+    const ref = await reference(fake);
+    const p = page();
+    const sock = await handoverDial(door.dial, { renew: door.renew, quietMs: 50 })(p.events);
+    cleanups.push(() => sock.close());
+    sock.send(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "figaro.follow", params: { figaro_id: id } }));
+    await until("the move begins", () => moving, 4_000);
+    fake.done(id);
+    fake.openTurn(id, 1, "a");
+    await until("the new leg following", () => fake.conns.length === 3 && fake.conns[2]!.follows.has(id), 2_000);
+    fake.done(id);
+    fake.openTurn(id, 2, "b");
+    await until("the old leg closed", () => fake.conns.filter((c) => c.open).length === 2, 3_000);
+    fake.openTurn(id, 3, "c");
+    await until("all frames", () => p.frames.length >= ref.length);
+    await tick(100);
+    expect(p.frames).toEqual(ref);
+  }, 10_000);
+
+  it("answers the page with an error for a request the retired leg took to its close, and refuses a reserved id", async () => {
+    const fake = new FakeAria();
+    fake.addAria(id);
+    const door = lapsingDoor(fake, 3_000);
+    const p = page();
+    const sock = await handoverDial(door.dial, { renew: door.renew, quietMs: 50 })(p.events);
+    cleanups.push(() => sock.close());
+    sock.send(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "figaro.follow", params: { figaro_id: id } }));
+    await until("follow answer", () => p.replies.some((r) => r.id === 1));
+    fake.holdReads = true;
+    sock.send(JSON.stringify({ jsonrpc: "2.0", id: 9, method: "figaro.read", params: { figaro_id: id } }));
+    await until("an error for the read", () => p.replies.some((r) => r.id === 9), 5_000);
+    expect(JSON.stringify(p.replies.find((r) => r.id === 9))).toContain("ended before answering");
+    sock.send(JSON.stringify({ jsonrpc: "2.0", id: "\u0000gw-handover-1", method: "figaro.follow", params: { figaro_id: id } }));
+    await until("reserved id refused", () => p.replies.some((r) => r.id === "\u0000gw-handover-1"));
+    expect(JSON.stringify(p.replies.find((r) => r.id === "\u0000gw-handover-1"))).toContain("reserved");
+    expect(p.closed).toEqual([]);
+  }, 10_000);
+
+  it("gives up a move at once when the new leg dies before its follows are answered", async () => {
+    const fake = new FakeAria();
+    fake.addAria(id);
+    const door = lapsingDoor(fake, 3_000, true, { followAckMs: 5_000, killLeg: { leg: 2, afterMs: 100 } });
+    const p = page();
+    const lines: string[] = [];
+    const sock = await handoverDial(door.dial, { renew: door.renew, log: (l) => lines.push(`${Date.now()} ${l}`), quietMs: 50 })(p.events);
+    cleanups.push(() => sock.close());
+    sock.send(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "figaro.follow", params: { figaro_id: id } }));
+    await until("a second leg", () => door.legs === 2, 4_000);
+    const t = Date.now();
+    await until("the move given up", () => lines.some((l) => l.includes("abandoned")), 2_000);
+    expect(Date.now() - t).toBeLessThan(1_000);
   }, 10_000);
 
   it("moves at once on a lapse notice it did not expect, and never passes the notice on", async () => {

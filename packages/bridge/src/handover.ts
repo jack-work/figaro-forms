@@ -8,6 +8,8 @@ export interface HandoverOptions {
   readonly quietMs?: number;
   readonly followTimeoutMs?: number;
   readonly retireMs?: number;
+  readonly settleMs?: number;
+  readonly catchUpMs?: number;
 }
 
 const internalPrefix = "\u0000gw-handover-";
@@ -21,6 +23,7 @@ interface Leg {
   timers: ReturnType<typeof setTimeout>[];
   gone: boolean;
   overdue?: boolean;
+  quietTimer?: ReturnType<typeof setTimeout>;
 }
 
 type Frame = { id?: unknown; method?: unknown; params?: unknown; result?: unknown; error?: unknown };
@@ -54,7 +57,7 @@ class Handover {
   private movedFollows = new Set<string>();
   private recorded: string[] | undefined;
   private buffered: { frame: string; h: string }[] = [];
-  private align: { list: string[]; at: number } | undefined;
+  private align: { list: string[]; seen: number; cands: number[] | undefined } | undefined;
   private seq = 0;
   private readonly now: () => number;
   private readonly log: (line: string) => void;
@@ -79,6 +82,10 @@ class Handover {
       f = JSON.parse(frame) as Frame;
     } catch {
       f = undefined;
+    }
+    if (f && typeof f.method === "string" && typeof f.id === "string" && f.id.startsWith(internalPrefix)) {
+      this.events.message(JSON.stringify({ jsonrpc: "2.0", id: f.id, error: { code: -32600, message: "gateway: that request id is reserved" } }));
+      return;
     }
     if (f && typeof f.method === "string" && f.id !== undefined && f.id !== null) {
       const key = idKey(f.id);
@@ -107,6 +114,7 @@ class Handover {
   }
 
   private drop(l: Leg): void {
+    if (l.quietTimer) clearTimeout(l.quietTimer);
     for (const t of l.timers) clearTimeout(t);
     l.timers = [];
     if (l.gone) return;
@@ -141,9 +149,9 @@ class Handover {
       return;
     }
     if (this.now() >= deadline) return;
-    const t = setTimeout(() => this.whenQuiet(l, deadline), 100);
-    t.unref?.();
-    l.timers.push(t);
+    if (l.quietTimer) clearTimeout(l.quietTimer);
+    l.quietTimer = setTimeout(() => this.whenQuiet(l, deadline), 100);
+    l.quietTimer.unref?.();
   }
 
   private async move(from: Leg, why: string): Promise<void> {
@@ -165,6 +173,8 @@ class Handover {
       if (this.closing || from !== this.current) {
         this.drop(next);
         this.next = undefined;
+        this.recorded = undefined;
+        this.buffered = [];
         return;
       }
       if (answered.some((ok) => !ok)) {
@@ -175,8 +185,16 @@ class Handover {
         this.drop(next);
         return;
       }
+      const caught = await this.caughtUp(from);
+      if (this.closing || from !== this.current) {
+        this.drop(next);
+        this.next = undefined;
+        this.recorded = undefined;
+        this.buffered = [];
+        return;
+      }
       this.switchTo(next);
-      this.log(`door handover done (${why}): ${follows.length} follows moved in ${this.now() - started} ms`);
+      this.log(`door handover done (${why}): ${follows.length} follows moved in ${this.now() - started} ms${caught ? "" : ", the old leg never caught up"}`);
     } catch (e) {
       this.log(`door handover failed (${why}): ${e instanceof Error ? e.message : String(e)}`);
       if (this.next) this.drop(this.next);
@@ -192,6 +210,22 @@ class Handover {
     }
   }
 
+  private caughtUp(old: Leg): Promise<boolean> {
+    const since = this.now();
+    return new Promise((ok) => {
+      const check = (): void => {
+        const first = this.buffered[0];
+        if (old.gone) return ok(true);
+        if (first && this.recorded?.includes(first.h)) return ok(true);
+        if (!first && this.now() - since >= (this.o.settleMs ?? 200)) return ok(true);
+        if (this.now() - since >= (this.o.catchUpMs ?? 2_000)) return ok(false);
+        const t = setTimeout(check, 10);
+        t.unref?.();
+      };
+      check();
+    });
+  }
+
   private internal(leg: Leg, method: string, params: string): Promise<boolean> {
     const id = `${internalPrefix}${++this.seq}`;
     return new Promise((ok) => {
@@ -202,21 +236,24 @@ class Handover {
         ok(false);
       }, this.o.followTimeoutMs ?? 10_000);
       t.unref?.();
-      this.waiting.set(key, (good) => {
-        clearTimeout(t);
-        ok(good);
+      this.waiting.set(key, {
+        leg,
+        done: (good) => {
+          clearTimeout(t);
+          ok(good);
+        },
       });
       leg.socket.send(`{"jsonrpc":"2.0","id":${JSON.stringify(id)},"method":${JSON.stringify(method)},"params":${params}}`);
     });
   }
 
-  private readonly waiting = new Map<string, (ok: boolean) => void>();
+  private readonly waiting = new Map<string, { leg: Leg; done: (ok: boolean) => void }>();
 
   private switchTo(next: Leg): void {
     const old = this.current;
     this.current = next;
     this.next = undefined;
-    this.align = this.recorded && this.recorded.length > 0 ? { list: this.recorded, at: -1 } : undefined;
+    this.align = this.recorded && this.recorded.length > 0 ? { list: this.recorded, seen: 0, cands: undefined } : undefined;
     this.recorded = undefined;
     this.lost = undefined;
     for (const [aria, params] of this.follows) if (!this.movedFollows.has(aria)) void this.internal(next, "figaro.follow", params);
@@ -244,22 +281,21 @@ class Handover {
 
   private deliverNew(frame: string, h: string): void {
     const a = this.align;
-    if (a) {
-      if (a.at < 0) {
-        const k = a.list.indexOf(h);
-        if (k >= 0) {
-          a.at = k + 1;
-          if (a.at >= a.list.length) this.aligned();
-          return;
-        }
-        this.aligned();
-      } else if (a.at < a.list.length && a.list[a.at] === h) {
-        a.at++;
-        if (a.at >= a.list.length) this.aligned();
-        return;
-      } else this.aligned();
-    }
+    if (a && this.matched(a, h)) return;
     this.forward(frame);
+  }
+
+  private matched(a: { list: string[]; seen: number; cands: number[] | undefined }, h: string): boolean {
+    const expect = (k: number): boolean => k + a.seen < a.list.length && a.list[k + a.seen] === h;
+    const cands = a.cands === undefined ? a.list.flatMap((x, k) => (x === h ? [k] : [])) : a.cands.filter(expect);
+    if (cands.length === 0) {
+      this.aligned();
+      return false;
+    }
+    a.cands = cands;
+    a.seen++;
+    if (cands.every((k) => k + a.seen >= a.list.length)) this.aligned();
+    return true;
   }
 
   private aligned(): void {
@@ -303,7 +339,7 @@ class Handover {
       const wait = this.waiting.get(key);
       if (wait) {
         this.waiting.delete(key);
-        wait(f.error === undefined);
+        wait.done(f.error === undefined);
         return;
       }
       leg.pending.delete(key);
@@ -324,6 +360,10 @@ class Handover {
       return;
     }
     if (leg === this.current && this.next === undefined) {
+      if (this.align) {
+        this.deliverNew(frame, hash(frame));
+        return;
+      }
       if (this.recorded) this.recorded.push(hash(frame));
       this.forward(frame);
       return;
@@ -350,6 +390,7 @@ class Handover {
     if (typeof aria !== "string") return undefined;
     if (method === "figaro.unfollow") return this.follows.delete(aria) ? { method, aria } : undefined;
     if (method === "figaro.follow") {
+      if (this.follows.get(aria) === params) return undefined;
       this.follows.set(aria, params);
       return { method, aria };
     }
@@ -364,10 +405,25 @@ class Handover {
     for (const l of [this.current, this.next]) if (l && l !== answered && !l.gone) void this.internal(l, method, params);
   }
 
+  private orphan(leg: Leg, why: string): void {
+    for (const [key, w] of this.waiting) {
+      if (w.leg !== leg) continue;
+      this.waiting.delete(key);
+      w.done(false);
+    }
+    for (const key of leg.pending) {
+      this.asked.delete(key);
+      if (leg !== this.current) this.events.message(`{"jsonrpc":"2.0","id":${key},"error":{"code":-32003,"message":${JSON.stringify(`gateway: the door connection ended before answering (${why})`)}}}`);
+    }
+    leg.pending.clear();
+  }
+
   private onClosed(leg: Leg, reason: string): void {
     if (leg.gone || this.closing) return;
     leg.gone = true;
+    if (leg.quietTimer) clearTimeout(leg.quietTimer);
     for (const t of leg.timers) clearTimeout(t);
+    this.orphan(leg, reason);
     if (leg === this.retired) {
       this.retired = undefined;
       return;

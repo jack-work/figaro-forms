@@ -197,13 +197,19 @@ followed (and every aria a `figaro.qua` followed), then switches.
   between turns; at expiry minus 8 percent (1 s to 10 s) it moves anyway, mid-turn.
   A `door.lapsed` notice it did not expect moves at once and is never passed on.
 - Nothing lost or doubled: from the moment it follows on the new leg until the
-  switch, both legs deliver; the page gets the old leg's frames, the new leg's are
-  held, then matched in order against what the old leg already delivered (the
-  daemon sends every follower the same bytes) and only the rest are passed on.
+  switch, both legs deliver; the page gets the old leg's frames and the new leg's
+  are held. It switches once the old leg has delivered the new leg's first frame
+  (or 200 ms pass with none, 2 s at most), so nothing fanned out before the new
+  follow is still in flight on the old leg. The new leg's frames, held and later,
+  are then matched in order against what the old leg delivered (the daemon sends
+  every follower the same bytes; every position a frame could anchor at is kept
+  until later frames rule it out), and only the rest are passed on.
 - A follow, unfollow or qua answered on one leg while another exists is repeated
   on the other, so a request in flight across the switch leaves both legs agreeing.
 - Requests already sent on the old leg are answered from it; the old leg closes
-  once they are and the overlap is matched (2 s at most when no frame comes).
+  once they are and the overlap is matched (2 s at most when no frame comes). If
+  it closes first, each unanswered request gets a JSON-RPC error, never silence.
+  Request ids that start with the gateway's own prefix are refused.
 - Logged: `door handover done (between turns|deadline|lapse notice): N follows
   moved in M ms`, `door handover skipped`, `abandoned` or `failed` with why. If no
   bearer outlasting the current one can be had, or the new leg fails, the old
