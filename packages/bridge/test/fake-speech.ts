@@ -23,8 +23,21 @@ export interface FakeSpeech {
   sttStatus: number;
   readonly keyed: Record<string, string>;
   sttReply: unknown;
+  readonly streams: SttStreamCall[];
+  streamReady: boolean;
+  streamFailAfter: number | undefined;
   stop(): Promise<void>;
 }
+
+export interface SttStreamCall {
+  readonly url: string;
+  readonly audio: Buffer[];
+  readonly frames: Record<string, unknown>[];
+  readonly socket: WebSocket;
+  closed: boolean;
+}
+
+export const streamWords = ["hello", "figaro", "how", "are", "you"];
 
 export const fakePcm = (bytes: number, fill = 1): Buffer => Buffer.alloc(bytes, fill);
 
@@ -33,7 +46,7 @@ export async function startFakeSpeech(): Promise<FakeSpeech> {
   const calls: SpeechCall[] = [];
   const server = createServer();
   const ws = new WebSocketServer({ noServer: true });
-  const fake: FakeSpeech = { path, calls, pcmPerText: 480, audioId: "a-1", rejectVoice: false, holdUrl: undefined, replays: [], clips: [], sttStatus: 200, keyed: {}, sttReply: { text: "hello figaro", duration_ms: 1200, audio_id: "clip-1" }, stop: () => new Promise((ok) => { for (const c of calls) c.socket.terminate(); server.close(() => ok()); server.closeAllConnections(); }) };
+  const fake: FakeSpeech = { path, calls, pcmPerText: 480, audioId: "a-1", rejectVoice: false, holdUrl: undefined, replays: [], clips: [], sttStatus: 200, keyed: {}, sttReply: { text: "hello figaro", duration_ms: 1200, audio_id: "clip-1" }, streams: [], streamReady: true, streamFailAfter: undefined, stop: () => new Promise((ok) => { for (const c of [...calls, ...fake.streams]) c.socket.terminate(); server.close(() => ok()); server.closeAllConnections(); }) };
   server.on("request", (req, res) => {
     if (req.method === "POST" && req.url === "/audio/keys") {
       const parts: Buffer[] = [];
@@ -64,6 +77,10 @@ export async function startFakeSpeech(): Promise<FakeSpeech> {
       sock.end("HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
       return;
     }
+    if (url.startsWith("/stt/stream")) {
+      ws.handleUpgrade(req, sock, head, (socket) => answerStream(fake, url, socket));
+      return;
+    }
     ws.handleUpgrade(req, sock, head, (socket) => {
       const call: SpeechCall = { url, frames: [], socket, closed: false };
       calls.push(call);
@@ -81,4 +98,35 @@ export async function startFakeSpeech(): Promise<FakeSpeech> {
   });
   await new Promise<void>((ok) => server.listen(path, ok));
   return fake;
+}
+
+function answerStream(fake: FakeSpeech, url: string, socket: WebSocket): void {
+  const call: SttStreamCall = { url, audio: [], frames: [], socket, closed: false };
+  fake.streams.push(call);
+  socket.on("close", () => (call.closed = true));
+  if (fake.streamReady) socket.send(JSON.stringify({ type: "ready" }));
+  const send = (f: Record<string, unknown>): void => socket.send(JSON.stringify(f));
+  socket.on("message", (data, binary) => {
+    if (binary) {
+      call.audio.push(data as Buffer);
+      const n = call.audio.length;
+      if (fake.streamFailAfter !== undefined && n >= fake.streamFailAfter) {
+        send({ type: "error", code: "speech", text: "recognition failed" });
+        socket.close(1011);
+        return;
+      }
+      send({ type: "partial", text: streamWords.slice(0, Math.min(n, streamWords.length)).join(" "), offset_ms: 0 });
+      return;
+    }
+    const f = JSON.parse(data.toString()) as Record<string, unknown>;
+    call.frames.push(f);
+    if (f.type === "cancel") socket.close(1000);
+    if (f.type === "end") {
+      const text = streamWords.slice(0, Math.min(call.audio.length, streamWords.length)).join(" ");
+      const bytes = call.audio.reduce((a, b) => a + b.length, 0);
+      send({ type: "final", text, offset_ms: 0, duration_ms: bytes / 32 });
+      send({ type: "done", audio_id: "clip-2", duration_ms: bytes / 32, text });
+      socket.close(1000);
+    }
+  });
 }
