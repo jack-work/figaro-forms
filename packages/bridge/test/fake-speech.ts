@@ -8,6 +8,7 @@ export interface SpeechCall {
   readonly url: string;
   readonly frames: Record<string, unknown>[];
   readonly socket: WebSocket;
+  readonly session: string | undefined;
   closed: boolean;
 }
 
@@ -18,8 +19,9 @@ export interface FakeSpeech {
   audioId: string;
   rejectVoice: boolean;
   holdUrl: string | undefined;
-  readonly replays: { url: string; range: string | undefined }[];
-  readonly clips: { url: string; contentType: string | undefined; body: Buffer }[];
+  readonly replays: { url: string; range: string | undefined; session?: string | undefined }[];
+  readonly clips: { url: string; contentType: string | undefined; body: Buffer; session?: string | undefined }[];
+  readonly lookups: (string | undefined)[];
   sttStatus: number;
   readonly keyed: Record<string, string>;
   sttReply: unknown;
@@ -34,6 +36,7 @@ export interface SttStreamCall {
   readonly audio: Buffer[];
   readonly frames: Record<string, unknown>[];
   readonly socket: WebSocket;
+  readonly session: string | undefined;
   closed: boolean;
 }
 
@@ -46,9 +49,11 @@ export async function startFakeSpeech(): Promise<FakeSpeech> {
   const calls: SpeechCall[] = [];
   const server = createServer();
   const ws = new WebSocketServer({ noServer: true });
-  const fake: FakeSpeech = { path, calls, pcmPerText: 480, audioId: "a-1", rejectVoice: false, holdUrl: undefined, replays: [], clips: [], sttStatus: 200, keyed: {}, sttReply: { text: "hello figaro", duration_ms: 1200, audio_id: "clip-1" }, streams: [], streamReady: true, streamFailAfter: undefined, stop: () => new Promise((ok) => { for (const c of [...calls, ...fake.streams]) c.socket.terminate(); server.close(() => ok()); server.closeAllConnections(); }) };
+  const fake: FakeSpeech = { path, calls, pcmPerText: 480, audioId: "a-1", rejectVoice: false, holdUrl: undefined, replays: [], clips: [], lookups: [], sttStatus: 200, keyed: {}, sttReply: { text: "hello figaro", duration_ms: 1200, audio_id: "clip-1" }, streams: [], streamReady: true, streamFailAfter: undefined, stop: () => new Promise((ok) => { for (const c of [...calls, ...fake.streams]) c.socket.terminate(); server.close(() => ok()); server.closeAllConnections(); }) };
   server.on("request", (req, res) => {
+    const session = typeof req.headers["x-figchat-session"] === "string" ? req.headers["x-figchat-session"] : undefined;
     if (req.method === "POST" && req.url === "/audio/keys") {
+      fake.lookups.push(session);
       const parts: Buffer[] = [];
       req.on("data", (c: Buffer) => parts.push(c));
       req.on("end", () => {
@@ -62,12 +67,12 @@ export async function startFakeSpeech(): Promise<FakeSpeech> {
       const parts: Buffer[] = [];
       req.on("data", (c: Buffer) => parts.push(c));
       req.on("end", () => {
-        fake.clips.push({ url: req.url ?? "", contentType: req.headers["content-type"], body: Buffer.concat(parts) });
+        fake.clips.push({ url: req.url ?? "", contentType: req.headers["content-type"], body: Buffer.concat(parts), ...(session !== undefined ? { session } : {}) });
         res.writeHead(fake.sttStatus, { "Content-Type": "application/json" }).end(JSON.stringify(fake.sttReply));
       });
       return;
     }
-    fake.replays.push({ url: req.url ?? "", range: req.headers.range });
+    fake.replays.push({ url: req.url ?? "", range: req.headers.range, ...(session !== undefined ? { session } : {}) });
     if (req.url?.startsWith("/audio/key/") && !req.url.includes("missing")) res.writeHead(200, { "Content-Type": "audio/mpeg", "Content-Length": 7 }).end("MP3DATA");
     else res.writeHead(404).end();
   });
@@ -78,11 +83,12 @@ export async function startFakeSpeech(): Promise<FakeSpeech> {
       return;
     }
     if (url.startsWith("/stt/stream")) {
-      ws.handleUpgrade(req, sock, head, (socket) => answerStream(fake, url, socket));
+      ws.handleUpgrade(req, sock, head, (socket) => answerStream(fake, url, socket, typeof req.headers["x-figchat-session"] === "string" ? req.headers["x-figchat-session"] : undefined));
       return;
     }
     ws.handleUpgrade(req, sock, head, (socket) => {
-      const call: SpeechCall = { url, frames: [], socket, closed: false };
+      const header = req.headers["x-figchat-session"];
+      const call: SpeechCall = { url, frames: [], socket, session: typeof header === "string" ? header : undefined, closed: false };
       calls.push(call);
       socket.on("close", () => (call.closed = true));
       socket.on("message", (data) => {
@@ -100,8 +106,8 @@ export async function startFakeSpeech(): Promise<FakeSpeech> {
   return fake;
 }
 
-function answerStream(fake: FakeSpeech, url: string, socket: WebSocket): void {
-  const call: SttStreamCall = { url, audio: [], frames: [], socket, closed: false };
+function answerStream(fake: FakeSpeech, url: string, socket: WebSocket, session: string | undefined): void {
+  const call: SttStreamCall = { url, audio: [], frames: [], socket, session, closed: false };
   fake.streams.push(call);
   socket.on("close", () => (call.closed = true));
   if (fake.streamReady) socket.send(JSON.stringify({ type: "ready" }));

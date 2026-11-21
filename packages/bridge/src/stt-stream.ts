@@ -1,5 +1,6 @@
 import type { IncomingMessage } from "node:http";
 import WebSocket from "ws";
+import { noSession, sessionHeader, sessionOf } from "./door.js";
 
 export interface SttStreamLimits {
   readonly idleMs?: number;
@@ -20,7 +21,8 @@ export function attendSttStream(
   req: IncomingMessage,
   admit: () => (() => void) | undefined,
 ): void {
-  const log = o.log ?? (() => {});
+  const session = sessionOf(req, true);
+  const log = (line: string): void => o.log?.(`${line} session=${session}`);
   const q = new URL(req.url ?? "/", "http://gateway").searchParams;
   const aria = ariaParam.exec(q.get("aria") ?? "");
   const lang = q.get("lang") ?? "en-US";
@@ -34,7 +36,7 @@ export function attendSttStream(
   if (!release) return refuse("busy", "too many clips in flight", 1011);
 
   const started = Date.now();
-  const up = new WebSocket(`ws+unix://${o.socket}:/stt/stream?${new URLSearchParams({ lang })}`);
+  const up = new WebSocket(`ws+unix://${o.socket}:/stt/stream?${new URLSearchParams({ lang })}`, session !== noSession ? { headers: { [sessionHeader]: session } } : {});
   let ready = false;
   let ended = false;
   let finished = false;

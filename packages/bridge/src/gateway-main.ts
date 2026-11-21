@@ -5,7 +5,7 @@ import { parseArgs } from "node:util";
 import WebSocket from "ws";
 import { webSocketDial } from "figaro-forms";
 import { bearer, type Credential } from "figaro-forms/auth";
-import { onBehalfOf, redact } from "./door.js";
+import { onBehalfOf, redact, withSession } from "./door.js";
 import { ClientCredentials, doorTokenPath, redialAfterRejection } from "./token.js";
 import { startGateway, type GatewayListen } from "./gateway.js";
 import { speechOverSocket } from "./speech.js";
@@ -114,9 +114,9 @@ try {
   const g = await startGateway({
     listen,
     edge: { secret, admin: values.admin ?? "", ...(values.port ? { peers: values.peer ?? [] } : {}) },
-    door: (user) => {
+    door: (user, session) => {
       const base: Credential | undefined = minter ? bearer(() => (minter as ClientCredentials).token()) : token ? bearer(token) : undefined;
-      const credential = base && values["on-behalf-of"] ? onBehalfOf(base, user) : base;
+      const credential = withSession(base && values["on-behalf-of"] ? onBehalfOf(base, user) : base, session);
       const dial = webSocketDial({
         url,
         ...(credential ? { credential } : {}),

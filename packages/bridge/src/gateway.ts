@@ -5,7 +5,7 @@ import { WebSocketServer, type WebSocket } from "ws";
 import type { Dial } from "figaro-forms";
 import { AriaClient, ariaRefusal, AriaUnavailable } from "figaro-forms/aria";
 import { AudioHub, ariaIdPattern, type AudioListener } from "./audio.js";
-import { proxyDoor, redact } from "./door.js";
+import { noSession, proxyDoor, redact, sessionHeader, sessionOf } from "./door.js";
 import { edgeHeader } from "./bridge.js";
 import type { SpeechDial } from "./speech.js";
 import { keyStored } from "./stt.js";
@@ -21,7 +21,7 @@ export type GatewayListen = { readonly path: string; readonly mode?: number } | 
 export interface GatewayOptions {
   readonly listen: GatewayListen;
   readonly edge: GatewayEdge;
-  readonly door: (user: string) => Dial;
+  readonly door: (user: string, session: string) => Dial;
   readonly speech: SpeechDial;
   readonly speechSocket?: string;
   readonly store: string;
@@ -103,11 +103,11 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
     log,
     connect: () => {
       log("audio: dialing the door");
-      return (shared = new AriaClient({ dial: o.door(e.admin) }));
+      return (shared = new AriaClient({ dial: o.door(e.admin, noSession) }));
     },
     speech: o.speech,
     store: o.store,
-    stored: async (key) => (o.speechSocket ? keyStored({ socket: o.speechSocket, store: o.store, timeoutMs: 5_000 }, key) : false),
+    stored: async (key, session) => (o.speechSocket ? keyStored({ socket: o.speechSocket, store: o.store, timeoutMs: 5_000 }, key, session) : false),
     voiceOf: async (aria) => {
       const r = (await shared?.connection.call("figaro.form", { figaro_id: aria })) as { snapshot?: { system?: { voice?: unknown } } } | null | undefined;
       const v = r?.snapshot?.system?.voice;
@@ -126,6 +126,9 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
       res.writeHead(400).end();
       return;
     }
+    const session = sessionOf(req, false);
+    const started = Date.now();
+    res.once("finish", () => log(`http ${req.method ?? "-"} ${redact(path)} ${res.statusCode} ${Date.now() - started} ms session=${session}`));
     if (path.startsWith("/audio/key/")) {
       let key: string;
       try {
@@ -134,7 +137,7 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
         res.writeHead(400).end();
         return;
       }
-      replay(o.speechSocket, o.store, key, req, res);
+      replay(o.speechSocket, o.store, key, req, res, session);
       return;
     }
     if (o.routes?.(req, res, path, String(req.headers["remote-user"]))) return;
@@ -169,6 +172,7 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
       refuseUpgrade(sock, "400 Bad Request");
       return;
     }
+    const session = sessionOf(req, true);
     const target = /^\/audio\/(?:([^/]+)\/)?([^/]+)$/.exec(path);
     const audio = target?.[2];
     const asked = target?.[1];
@@ -176,12 +180,12 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
     if (path === "/door") {
       wss.handleUpgrade(req, sock, head, (ws) => {
         track(ws);
-        proxyDoor(ws, o.door(String(req.headers["remote-user"])), hub, log);
+        proxyDoor(ws, o.door(String(req.headers["remote-user"]), session), hub, log, session);
       });
     } else if (audio !== undefined && ariaIdPattern.test(audio)) {
       wss.handleUpgrade(req, sock, head, (ws) => {
         track(ws);
-        void attend(ws, audio, asked, String(req.headers["remote-user"]));
+        void attend(ws, audio, asked, String(req.headers["remote-user"]), session);
       });
     } else if ((take = o.sockets?.(path))) {
       const attend = take;
@@ -201,10 +205,11 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
     ws.on("close", () => pings.delete(ws));
   }
 
-  async function attend(ws: WebSocket, aria: string, asked: string | undefined, user: string): Promise<void> {
+  async function attend(ws: WebSocket, aria: string, asked: string | undefined, user: string, session: string): Promise<void> {
     let jsonSent = 0;
     let binarySent = 0;
     const listener: AudioListener = {
+      session,
       json: (f) => {
         if (ws.readyState !== ws.OPEN) return;
         jsonSent += 1;
@@ -213,7 +218,7 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
       binary: (b) => {
         if (ws.readyState !== ws.OPEN) return;
         if (ws.bufferedAmount > bufferCeiling) {
-          log(`audio: closing aria=${aria}, client too slow`);
+          log(`audio: closing aria=${aria}, client too slow session=${session}`);
           ws.close(1013, "client too slow for audio");
           return;
         }
@@ -223,14 +228,14 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
     };
     let leave: (() => void) | undefined;
     let closed = false;
-    log(`audio: connect aria=${aria} user=${user}${asked !== undefined ? ` store=${asked}` : ""}`);
+    log(`audio: connect aria=${aria} user=${user}${asked !== undefined ? ` store=${asked}` : ""} session=${session}`);
     ws.on("close", (code, reason) => {
       closed = true;
       leave?.();
-      log(`audio: closed aria=${aria} code=${code} reason=${redact(reason.toString())} json=${jsonSent} binary=${binarySent}`);
+      log(`audio: closed aria=${aria} code=${code} reason=${redact(reason.toString())} json=${jsonSent} binary=${binarySent} session=${session}`);
     });
     if (asked !== undefined && asked !== o.store) {
-      log(`audio: refused aria=${aria}, store ${redact(asked)} is not served here`);
+      log(`audio: refused aria=${aria}, store ${redact(asked)} is not served here session=${session}`);
       listener.json({ type: "error", code: "store", text: `this gateway serves the store ${o.store}, not ${asked}` });
       ws.close(1008, "unknown store");
       return;
@@ -261,11 +266,11 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
       }
       leave = left;
       ready(true);
-      log(`audio: follow ready aria=${aria}`);
+      log(`audio: follow ready aria=${aria} session=${session}`);
       listener.json({ type: "ready", aria, store: o.store });
     } catch (err) {
       const text = err instanceof Error ? err.message : String(err);
-      log(`audio: follow failed aria=${aria} code=${refusalCode(err)} text=${redact(text)}`);
+      log(`audio: follow failed aria=${aria} code=${refusalCode(err)} text=${redact(text)} session=${session}`);
       ready(false);
       listener.json({ type: "error", code: refusalCode(err), text });
       ws.close(1011, "cannot attend");
@@ -299,7 +304,7 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
   };
 }
 
-function replay(socket: string | undefined, store: string, key: string, req: IncomingMessage, res: ServerResponse): void {
+function replay(socket: string | undefined, store: string, key: string, req: IncomingMessage, res: ServerResponse, session: string): void {
   if (req.method !== "GET" && req.method !== "HEAD") {
     res.writeHead(405, { Allow: "GET, HEAD" }).end();
     return;
@@ -314,6 +319,7 @@ function replay(socket: string | undefined, store: string, key: string, req: Inc
   }
   const headers: Record<string, string> = {};
   if (typeof req.headers.range === "string") headers.range = req.headers.range;
+  if (session !== noSession) headers[sessionHeader] = session;
   const up = request({ socketPath: socket, path: `/audio/key/${key}`, method: req.method, headers }, (r) => {
     const keep = ["content-type", "content-length", "content-range", "accept-ranges", "cache-control"];
     const out: Record<string, string> = { "x-content-type-options": "nosniff", "cache-control": "no-store" };

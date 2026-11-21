@@ -174,6 +174,31 @@ text=` with the refusal verbatim, `turn seen`, `tts open`, `tts done` / `tts err
 chunks= bytes=`, `say stored`, `say refused ... code=`, `say failed code=speech`), and `audio: closed code= reason=
 json= binary=` with the frame counts sent.
 
+Each `/door` socket logs one line per call it passes to the door, `door: call
+method= aria= session=`, with no params; the door's pushes (`figaro.aria`,
+`form.delta`, `turn.done`) are not logged. Each HTTP request behind the gate logs
+`http <method> <path> <status> <ms> ms session=`.
+
+## Session ids
+
+A figaro web page mints one id per load and sends it as `X-Figchat-Session` on
+every request; a WebSocket upgrade, which a browser cannot give headers, may carry
+it as `?session=` instead (the header wins, and a query is read only on an
+upgrade). An id is `[A-Za-z0-9_-]{8,64}`; anything else, or none, is `-`.
+
+The id is correlation only: never identity, never authorization. It decides
+nothing; a request with a bad or missing id is served exactly as one with a good
+id. It rides:
+
+- every gateway log line about that request or socket (`session=`);
+- the door dial of that `/door` socket, as `X-Figchat-Session` (figaro ignores it
+  today); the shared audio follow dials without one;
+- every speech call: `POST /stt`, `POST /stt/<id>`, `POST /audio/keys` and the
+  `/audio/key/` replay carry the asker's id, and so does the `/stt/stream` dial (as a header, never in its query). A `/tts` session is shared by every
+  socket listening to the aria, so its header, and each audio line about that
+  turn, carry the listening sessions comma-joined, deduped, in the order they
+  joined, at most 8 (a say carries only the asker's).
+
 ## Sample unit
 
 ```

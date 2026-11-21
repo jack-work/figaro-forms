@@ -1,5 +1,6 @@
 import { request, type IncomingMessage, type ServerResponse } from "node:http";
 import type { GatewayRoute, GatewaySocket } from "./gateway.js";
+import { noSession, sessionHeader, sessionOf } from "./door.js";
 import { ariaParam, attendSttStream, type SttStreamLimits } from "./stt-stream.js";
 
 export const maxClipBytes = 10 * 1024 * 1024;
@@ -62,14 +63,14 @@ interface SpeechAnswer {
   readonly error?: string;
 }
 
-function callSpeech(o: SttOptions, path: string, body: Buffer, contentType: string): Promise<SpeechAnswer> {
+function callSpeech(o: SttOptions, path: string, body: Buffer, contentType: string, session: string = noSession): Promise<SpeechAnswer> {
   return new Promise((ok) => {
     const up = request(
       {
         socketPath: o.socket,
         path,
         method: "POST",
-        headers: { "Content-Type": contentType, "Content-Length": body.length },
+        headers: { "Content-Type": contentType, "Content-Length": body.length, ...(session !== noSession ? { [sessionHeader]: session } : {}) },
         timeout: o.timeoutMs ?? 60_000,
       },
       (r) => {
@@ -93,8 +94,8 @@ function callSpeech(o: SttOptions, path: string, body: Buffer, contentType: stri
 
 type Outcome = { status: number; body: Record<string, unknown> };
 
-export async function keyStored(o: SttOptions, key: string): Promise<boolean> {
-  const found = await callSpeech(o, "/audio/keys", Buffer.from(JSON.stringify({ keys: [key] })), "application/json");
+export async function keyStored(o: SttOptions, key: string, session: string = noSession): Promise<boolean> {
+  const found = await callSpeech(o, "/audio/keys", Buffer.from(JSON.stringify({ keys: [key] })), "application/json", session);
   return speechFailure(found) === undefined && typeof found.json![key] === "string";
 }
 
@@ -112,21 +113,21 @@ function transcription(j: Record<string, unknown>, audioId: unknown): Outcome {
   return { status: 200, body: { text: j.text, duration_ms: j.duration_ms, audio_id: audioId } };
 }
 
-async function transcribe(o: SttOptions, clip: Buffer, contentType: string): Promise<Outcome> {
-  const a = await callSpeech(o, "/stt", clip, contentType);
+async function transcribe(o: SttOptions, clip: Buffer, contentType: string, session: string): Promise<Outcome> {
+  const a = await callSpeech(o, "/stt", clip, contentType, session);
   return speechFailure(a) ?? transcription(a.json!, a.json!.audio_id);
 }
 
 const clipKey = /^([a-z0-9-]{1,63})\/[0-9a-f]{32}:\d{1,20}\/in$/;
 const audioId = /^[0-9]{6}-[0-9a-f]{16}$/;
 
-async function retranscribe(o: SttOptions, key: string): Promise<Outcome> {
-  const found = await callSpeech(o, "/audio/keys", Buffer.from(JSON.stringify({ keys: [key] })), "application/json");
+async function retranscribe(o: SttOptions, key: string, session: string): Promise<Outcome> {
+  const found = await callSpeech(o, "/audio/keys", Buffer.from(JSON.stringify({ keys: [key] })), "application/json", session);
   const lookupFailed = speechFailure(found);
   if (lookupFailed) return lookupFailed;
   const id = found.json![key];
   if (typeof id !== "string" || !audioId.test(id)) return { status: 404, body: { error: "no clip under that key" } };
-  const a = await callSpeech(o, `/stt/${encodeURIComponent(id)}`, Buffer.alloc(0), "application/octet-stream");
+  const a = await callSpeech(o, `/stt/${encodeURIComponent(id)}`, Buffer.alloc(0), "application/octet-stream", session);
   if (a.error === undefined && a.status === 404) return { status: 404, body: { error: "no clip under that key" } };
   if (a.error === undefined && a.status === 409) return { status: 409, body: { error: "the key names a reply, not a clip" } };
   return speechFailure(a) ?? transcription(a.json!, id);
@@ -154,7 +155,7 @@ function keyRoute(o: SttOptions, req: IncomingMessage, res: ServerResponse, raw:
     reply(req, res, 503, { error: "too many clips in flight" });
     return;
   }
-  void retranscribe(o, key)
+  void retranscribe(o, key, sessionOf(req, false))
     .then((r) => reply(req, res, r.status, r.body))
     .finally(done);
 }
@@ -218,7 +219,7 @@ export function stt(o: SttOptions): { routes: GatewayRoute; sockets: GatewaySock
         reply(req, res, 415, { error: `the body is not ${type}` });
         return;
       }
-      const r = await transcribe(o, clip, type);
+      const r = await transcribe(o, clip, type, sessionOf(req, false));
       reply(req, res, r.status, r.body);
     })().finally(done);
     return true;

@@ -1,9 +1,10 @@
 import type { Anchor, AppliedFrame, AriaClient, AriaStream, Node, TurnEnd } from "figaro-forms/aria";
 import { pcmFormat, type SpeechDial, type SpeechSession } from "./speech.js";
 import { takeSentences } from "./sentences.js";
-import { redact } from "./door.js";
+import { redact, sessionField, sessionList } from "./door.js";
 
 export interface AudioListener {
+  readonly session?: string;
   json(frame: Record<string, unknown>): void;
   binary(pcm: Buffer): void;
 }
@@ -13,7 +14,7 @@ export interface AudioHubOptions {
   readonly speech: SpeechDial;
   readonly store: string;
   readonly voiceOf?: (aria: string) => Promise<string | undefined>;
-  readonly stored?: (key: string) => Promise<boolean>;
+  readonly stored?: (key: string, session: string) => Promise<boolean>;
   readonly log?: (line: string) => void;
 }
 
@@ -104,7 +105,7 @@ class Follower {
   private halt(a: Active, why: CancelReason, tell: boolean): void {
     a.dead = true;
     a.speech?.cancel();
-    this.log(`${a.only ? "say" : "turn"} cancelled aria=${this.aria} turn=${a.turn} why=${why} chunks=${a.chunks} bytes=${a.offset}`);
+    this.log(`${a.only ? "say" : "turn"} cancelled aria=${this.aria} turn=${a.turn} why=${why} chunks=${a.chunks} bytes=${a.offset}`, this.heard(a));
     if (tell && (a.started || a.written.length > 0 || a.buf !== "")) this.tell(a, { type: "audio.cancel", turn: a.turn, key: a.key, why });
   }
 
@@ -118,7 +119,7 @@ class Follower {
 
   async say(client: AriaClient, listener: AudioListener, turn: unknown): Promise<void> {
     const refuse = (code: string, text: string, why?: string): void => {
-      this.log(`say refused aria=${this.aria} turn=${String(turn)} code=${code}${why ? " " + redact(why) : ""}`);
+      this.log(`say refused aria=${this.aria} turn=${String(turn)} code=${code}${why ? " " + redact(why) : ""}`, [listener]);
       listener.json({ type: "error", turn, code, text });
     };
     if (typeof turn !== "number" || !Number.isSafeInteger(turn) || turn < 1) return refuse("bad-turn", "turn must be a positive integer");
@@ -146,11 +147,11 @@ class Follower {
       return refuse("open", `turn ${turn} is still running`);
     }
     const key = audioKey(this.hub.options.store, this.aria, turn);
-    const have = await (this.hub.options.stored?.(key) ?? Promise.resolve(false)).catch(() => false);
+    const have = await (this.hub.options.stored?.(key, sessionField(this.sessions([listener]))) ?? Promise.resolve(false)).catch(() => false);
     if (s.cancelled) return;
     if (have) {
       drop();
-      this.log(`say stored aria=${this.aria} turn=${turn}`);
+      this.log(`say stored aria=${this.aria} turn=${turn}`, [listener]);
       listener.json({ type: "audio.stored", turn, key });
       return;
     }
@@ -194,8 +195,16 @@ class Follower {
     } else if (this.active === a) this.active = undefined;
   }
 
-  private log(line: string): void {
-    this.hub.options.log?.(line);
+  private log(line: string, from?: Iterable<AudioListener>): void {
+    this.hub.options.log?.(`${line} session=${sessionField(this.sessions(from))}`);
+  }
+
+  private sessions(from?: Iterable<AudioListener>): string[] {
+    return sessionList([...(from ?? this.listeners)].map((l) => l.session));
+  }
+
+  private heard(a: Active): AudioListener[] {
+    return a.only ? [a.only] : [...this.listeners];
   }
 
   private cursor(): number {
@@ -284,7 +293,7 @@ class Follower {
       dead: false,
     };
     if (!only) this.active = a;
-    this.log(`${only ? "say" : "turn"} seen aria=${this.aria} turn=${turn}`);
+    this.log(`${only ? "say" : "turn"} seen aria=${this.aria} turn=${turn}`, only ? [only] : undefined);
     return a;
   }
 
@@ -340,13 +349,13 @@ class Follower {
   private speechFailed(a: Active, text: string): void {
     this.settle(a);
     a.dead = true;
-    this.log(`${a.only ? "say failed code=speech" : "tts error"} aria=${this.aria} turn=${a.turn} chunks=${a.chunks} text=${redact(text)}`);
+    this.log(`${a.only ? "say failed code=speech" : "tts error"} aria=${this.aria} turn=${a.turn} chunks=${a.chunks} text=${redact(text)}`, this.heard(a));
     this.tell(a, { type: "error", turn: a.turn, code: "speech", text });
   }
 
   private openSpeech(a: Active, voice: string | undefined): void {
     let heard = false;
-    this.log(`tts open aria=${this.aria} turn=${a.turn} key=${a.key}${voice ? " voice=" + voice : ""}`);
+    this.log(`tts open aria=${this.aria} turn=${a.turn} key=${a.key}${voice ? " voice=" + voice : ""}`, this.heard(a));
     let session: SpeechSession;
     try {
       session = this.openSession(a, voice, () => (heard = true), () => heard);
@@ -361,7 +370,7 @@ class Follower {
 
   private openSession(a: Active, voice: string | undefined, hear: () => void, wasHeard: () => boolean): SpeechSession {
     return this.hub.options.speech(
-      { key: a.key, ...(voice ? { voice } : {}) },
+      { key: a.key, ...(voice ? { voice } : {}), sessions: this.sessions(this.heard(a)) },
       {
         audio: (pcm) => {
           if (a.dead) return;
@@ -371,14 +380,14 @@ class Follower {
         done: (audioId) => {
           if (a.dead) return;
           this.settle(a);
-          this.log(`${a.only ? "say" : "tts done"} aria=${this.aria} turn=${a.turn} chunks=${a.chunks} bytes=${a.offset}${audioId !== undefined ? " audio_id=" + audioId : ""}`);
+          this.log(`${a.only ? "say" : "tts done"} aria=${this.aria} turn=${a.turn} chunks=${a.chunks} bytes=${a.offset}${audioId !== undefined ? " audio_id=" + audioId : ""}`, this.heard(a));
           this.tell(a, { type: "audio.end", turn: a.turn, key: a.key, ...(audioId !== undefined ? { audio_id: audioId } : {}) });
         },
         error: (text) => {
           if (a.dead) return;
           if (voice && !wasHeard() && !a.retried) {
             a.retried = true;
-            this.log(`tts retry without voice aria=${this.aria} turn=${a.turn} text=${redact(text)}`);
+            this.log(`tts retry without voice aria=${this.aria} turn=${a.turn} text=${redact(text)}`, this.heard(a));
             this.openSpeech(a, undefined);
             return;
           }

@@ -36,6 +36,48 @@ function refuse(ws: WebSocket, id: unknown, message: string): void {
 
 export const onBehalfHeader = "X-Figaro-On-Behalf-Of";
 
+export const sessionHeader = "X-Figchat-Session";
+export const noSession = "-";
+const sessionPattern = /^[A-Za-z0-9_-]{8,64}$/;
+const loggedAria = /^@?[A-Za-z0-9_-]{1,64}$/;
+const maxSessions = 8;
+
+export function sessionOf(req: { readonly headers: { readonly [name: string]: string | string[] | undefined }; readonly url?: string | undefined }, upgrade: boolean): string {
+  const header = req.headers[sessionHeader.toLowerCase()];
+  let v = typeof header === "string" ? header : undefined;
+  if (v === undefined && upgrade) {
+    try {
+      v = new URL(req.url ?? "/", "http://gateway").searchParams.get("session") ?? undefined;
+    } catch {
+      v = undefined;
+    }
+  }
+  return v !== undefined && sessionPattern.test(v) ? v : noSession;
+}
+
+export function sessionList(ids: Iterable<string | undefined>): string[] {
+  const out: string[] = [];
+  for (const id of ids) {
+    if (id === undefined || id === noSession || out.includes(id)) continue;
+    out.push(id);
+    if (out.length === maxSessions) break;
+  }
+  return out;
+}
+
+export const sessionField = (ids: readonly string[]): string => (ids.length > 0 ? ids.join(",") : noSession);
+
+export function withSession(base: Credential | undefined, session: string): Credential | undefined {
+  if (session === noSession) return base;
+  return {
+    name: base ? `${base.name}+session` : "session",
+    upgrade: async () => {
+      const up = base ? await base.upgrade() : {};
+      return { ...up, headers: { ...(up.headers ?? {}), [sessionHeader]: session } };
+    },
+  };
+}
+
 export function onBehalfOf(base: Credential, user: string): Credential {
   return {
     name: `${base.name}+on-behalf-of`,
@@ -50,7 +92,7 @@ export function redact(text: string): string {
   return text.replace(/(\w+:\/\/)[^@/\s]*@/g, "$1").replace(/\?[^\s"')]*/g, "");
 }
 
-export function proxyDoor(ws: WebSocket, dial: Dial, hub: AudioHub | undefined, log: (line: string) => void = () => {}): void {
+export function proxyDoor(ws: WebSocket, dial: Dial, hub: AudioHub | undefined, log: (line: string) => void = () => {}, session: string = noSession): void {
   const queue: string[] = [];
   let up: Socket | undefined;
   let gone = false;
@@ -60,7 +102,7 @@ export function proxyDoor(ws: WebSocket, dial: Dial, hub: AudioHub | undefined, 
     },
     closed: (reason) => {
       gone = true;
-      log(`door closed: ${redact(reason)}`);
+      log(`door closed: ${redact(reason)} session=${session}`);
       ws.close(1011, "door closed");
     },
   }).then(
@@ -74,7 +116,7 @@ export function proxyDoor(ws: WebSocket, dial: Dial, hub: AudioHub | undefined, 
     },
     (e: unknown) => {
       gone = true;
-      log(`door unreachable: ${redact(e instanceof Error ? e.message : String(e))}`);
+      log(`door unreachable: ${redact(e instanceof Error ? e.message : String(e))} session=${session}`);
       ws.close(1011, "door unreachable");
     },
   );
@@ -108,10 +150,9 @@ export function proxyDoor(ws: WebSocket, dial: Dial, hub: AudioHub | undefined, 
       refuse(ws, frame.id ?? null, `gateway: ${frame.method} may not carry ${field}; the gateway passes no form patch, outfit, seat, study or abdication`);
       return;
     }
-    if (frame.method === "figaro.interrupt") {
-      const aria = (frame.params as { figaro_id?: unknown } | null | undefined)?.figaro_id;
-      if (typeof aria === "string") hub?.cancel(aria, "interrupt");
-    }
+    const aria = (frame.params as { figaro_id?: unknown } | null | undefined)?.figaro_id;
+    log(`door: call method=${frame.method} aria=${typeof aria === "string" && loggedAria.test(aria) ? aria : noSession} session=${session}`);
+    if (frame.method === "figaro.interrupt" && typeof aria === "string") hub?.cancel(aria, "interrupt");
     const text = JSON.stringify(frame);
     if (up) up.send(text);
     else queue.push(text);
