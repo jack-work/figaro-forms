@@ -124,11 +124,14 @@ Server to client, text (JSON):
   spoken. A turn already running when the follow starts is spoken **from the join
   point on**: the text its open message holds at that moment counts as heard, and
   what arrives after it is spoken (a sentence cut in half by the join is spoken
-  from its second half). A turn that starts after the follow is spoken whole. After a
+  from its second half), also when the aria's stream is still warm from an
+  earlier listener (a page that leaves and comes back). A turn that starts after the
+  follow is spoken whole. After a
   reconnect the stream re-reads the running turn and the gateway speaks what it
   gained while offline, once; a turn that ended while offline is spoken from where
   it had got to.
-- `{type:"audio.start", turn, key, format:"pcm", rate:24000, bits:16, channels:1, node, chars, cursor}`
+- `{type:"audio.start", turn, key, partial?, format:"pcm", rate:24000, bits:16, channels:1, node, chars, cursor}`;
+  `partial:true` when the follow joined the turn after it had begun.
 - `{type:"audio.chunk", turn, node, chars, cursor, offset, bytes}` followed at once
   by one binary frame of `bytes` PCM (s16le, even length). The tags are native
   coordinates: `turn` is the turn id, `node` the ordinal of the prose node
@@ -136,10 +139,13 @@ Server to client, text (JSON):
   `markdown` the speech service had been fed when this audio arrived; `cursor` is
   the stream's cursor (the highest sealed turn, `Client.Cursor`) at that moment. The
   audio is at or after that point in the text, never before. `offset` is the byte
-  position in the turn's audio.
-- `{type:"audio.end", turn, key, audio_id?}` after the last chunk. `key` is always
-  present: the A9 key `<store>/<aria>:<turn>/out`, replayable at
-  `/audio/key/<key>`. `audio_id` is present when the speech service reports one.
+  position in this audio of the turn (it starts at 0 on every audio.start); place and
+  deduplicate audio by `node` and `chars`, not by `offset`.
+- `{type:"audio.end", turn, key, partial?, audio_id?}` after the last chunk. `key` is
+  always present: the A9 key `<store>/<aria>:<turn>/out`. A whole turn is stored
+  under it and replayable at `/audio/key/<key>`, with `audio_id` when the speech
+  service reports one. A `partial` turn (joined after it began) is not stored: its
+  key answers 404 until something speaks the whole turn; ask with `say`.
 - `{type:"audio.cancel", turn, key, why}`; `why` is `new-turn`, `interrupt` or
   `client`. No `audio.end` follows.
 - `{type:"error", turn?, code, text}`: `code` is `speech` (that turn's audio is over),
