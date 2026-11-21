@@ -12,12 +12,16 @@ every request needs the edge secret in `X-Figaro-Edge` and the admin in
 ## Routes
 
 - `/door` (WebSocket): JSON-RPC to the door, one upstream connection per client.
-  Allowed: `angelus.hello`, `figaro.follow`, `figaro.unfollow`, `figaro.form`,
-  `figaro.read`, `figaro.qua`, `figaro.interrupt`, `figaro.fork`, `figaro.list`.
-  Everything else (set, form.create, kill) is refused. `figaro.qua` may carry only
-  `figaro_id`, `text` and `images`, and `figaro.fork` only `figaro_id`, `at_turn` and
-  `at_lt`: any other field (`form` with its patch, context or outfits; a fork's
-  `patch`, `outfits`, `seat`, `studies`, `abdicates`) is refused with an error naming
+  Allowed: `angelus.hello`, `angelus.outfits`, `figaro.follow`, `figaro.unfollow`,
+  `figaro.form`, `figaro.read`, `figaro.qua`, `figaro.interrupt`, `figaro.fork`,
+  `figaro.list`, `figaro.create`, `figaro.set`.
+  Everything else (form.create, kill) is refused. `figaro.qua` may carry only
+  `figaro_id`, `text` and `images`, `figaro.fork` only `figaro_id`, `at_turn` and
+  `at_lt`, `figaro.create` only `outfits` (no patch, no cwd), `angelus.outfits` only
+  `spec`, and `figaro.set` only `figaro_id`, `patch`, `client` and `seq`: any other
+  field (`form` with its patch, context or outfits on a qua; a fork's
+  `patch`, `outfits`, `seat`, `studies`, `abdicates`; a set's `outfits`, `assert`,
+  `if_version`) is refused with an error naming
   it, never dropped silently. A `figaro.interrupt` also cancels pending audio for
   that aria. Frames are limited to 1 MiB, so `qua` images (the daemon allows up to
   4 of 10 MiB) are out of scope here and close the socket with 1009. A failure to

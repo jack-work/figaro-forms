@@ -111,11 +111,11 @@ describe("figaro gateway", () => {
     expect((await a.list()).rows).toHaveLength(1);
   });
 
-  it("refuses methods outside the aria set and writes", async () => {
+  it("refuses methods outside the gateway set", async () => {
     const { port } = await rig();
     const ws = await open(`ws://127.0.0.1:${port}/door`);
     const got = collect(ws);
-    ws.send(JSON.stringify({ jsonrpc: "2.0", id: 7, method: "figaro.set", params: {} }));
+    ws.send(JSON.stringify({ jsonrpc: "2.0", id: 7, method: "figaro.form.create", params: {} }));
     ws.send(JSON.stringify({ jsonrpc: "2.0", id: 8, method: "figaro.kill", params: {} }));
     await until("both answers", () => got.length === 2);
     expect(got.map((g) => (g as { id: number }).id)).toEqual([7, 8]);
@@ -144,6 +144,37 @@ describe("figaro gateway", () => {
     });
     expect(fake.calls.map((c) => c.method)).not.toContain("figaro.qua");
     expect(fake.calls.map((c) => c.method)).not.toContain("figaro.fork");
+  });
+
+  it("passes create naming outfits, outfit spec lookups and a plain set, and refuses every other field, naming it", async () => {
+    const { fake, port } = await rig();
+    fake.answers.set("figaro.create", { figaro_id: "new" });
+    fake.answers.set("angelus.outfits", { outfits: [] });
+    const ws = await open(`ws://127.0.0.1:${port}/door`);
+    const got = collect(ws);
+    const calls: [string, Record<string, unknown>, string | undefined][] = [
+      ["figaro.create", { outfits: ["mock"] }, undefined],
+      ["figaro.create", {}, undefined],
+      ["figaro.create", { outfits: ["mock"], patch: { object: {} } }, "patch"],
+      ["figaro.create", { cwd: "/tmp" }, "cwd"],
+      ["angelus.outfits", { spec: "mock" }, undefined],
+      ["angelus.outfits", { spec: "mock", fold: true }, "fold"],
+      ["figaro.set", { figaro_id: id, patch: { object: {} }, client: "c", seq: 1 }, undefined],
+      ["figaro.set", { figaro_id: id, patch: { object: {} }, outfits: ["o"] }, "outfits"],
+      ["figaro.set", { figaro_id: id, patch: { object: {} }, assert: true }, "assert"],
+      ["figaro.set", { figaro_id: id, patch: { object: {} }, if_version: 3 }, "if_version"],
+    ];
+    calls.forEach(([method, params], i) => ws.send(JSON.stringify({ jsonrpc: "2.0", id: 200 + i, method, params })));
+    await until("every answer", () => got.length === calls.length);
+    calls.forEach(([method, , field], i) => {
+      const reply = got.find((g) => (g as { id: number }).id === 200 + i) as { result?: unknown; error?: { message: string } };
+      if (field === undefined) expect(reply.error?.message ?? "", method).not.toContain("gateway:");
+      else expect(reply.error?.message, `${method} ${field}`).toContain(`may not carry ${field}`);
+    });
+    const reached = fake.calls.map((c) => c.method);
+    expect(reached.filter((m) => m === "figaro.create")).toHaveLength(2);
+    expect(reached.filter((m) => m === "angelus.outfits")).toHaveLength(1);
+    expect(reached.filter((m) => m === "figaro.set")).toHaveLength(1);
   });
 
   it("still passes a plain qua with images and a fork at a turn", async () => {

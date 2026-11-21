@@ -5,6 +5,7 @@ import type { AudioHub } from "./audio.js";
 
 export const gatewayMethods = [
   "angelus.hello",
+  "angelus.outfits",
   "figaro.follow",
   "figaro.unfollow",
   "figaro.form",
@@ -13,6 +14,8 @@ export const gatewayMethods = [
   "figaro.interrupt",
   "figaro.fork",
   "figaro.list",
+  "figaro.create",
+  "figaro.set",
 ] as const;
 
 const allowed: ReadonlySet<string> = new Set(gatewayMethods);
@@ -20,6 +23,9 @@ const allowed: ReadonlySet<string> = new Set(gatewayMethods);
 const permitted: Readonly<Record<string, ReadonlySet<string>>> = {
   "figaro.qua": new Set(["figaro_id", "text", "images"]),
   "figaro.fork": new Set(["figaro_id", "at_turn", "at_lt"]),
+  "figaro.create": new Set(["outfits"]),
+  "angelus.outfits": new Set(["spec"]),
+  "figaro.set": new Set(["figaro_id", "patch", "client", "seq"]),
 };
 
 function forbiddenField(method: string, params: unknown): string | undefined {
@@ -147,7 +153,7 @@ export function proxyDoor(ws: WebSocket, dial: Dial, hub: AudioHub | undefined, 
     }
     const field = forbiddenField(frame.method, frame.params);
     if (field !== undefined) {
-      refuse(ws, frame.id ?? null, `gateway: ${frame.method} may not carry ${field}; the gateway passes no form patch, outfit, seat, study or abdication`);
+      refuse(ws, frame.id ?? null, `gateway: ${frame.method} may not carry ${field}; the gateway passes only the fields a plain call needs (no form patch on qua or fork, no outfit, seat, study or abdication)`);
       return;
     }
     const aria = (frame.params as { figaro_id?: unknown } | null | undefined)?.figaro_id;
