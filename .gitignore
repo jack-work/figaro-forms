@@ -2,3 +2,5 @@ node_modules
 dist
 *.tgz
 .vite
+go.work
+go.work.sum
