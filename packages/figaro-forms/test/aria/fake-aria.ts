@@ -50,6 +50,7 @@ export class FakeAria {
   holdReads = false;
   readonly forms = new Map<string, { value: JsonObject; version: number }>();
   refuseForm = new Map<string, { code: number; message: string }>();
+  refuseSet = new Map<string, { code: number; message: string }>();
   refuseFork = new Map<string, { code: number; message: string }>();
   refuseQua = new Map<string, { code: number; message: string }>();
   forkCount = 0;
@@ -282,6 +283,15 @@ export class FakeAria {
         const form = this.forms.get(id);
         if (!form) return err(`figaro.form: ${id} not found`);
         this.reply(c, f.id, { result: { snapshot: form.value, version: form.version, incarnation: 1 } });
+        return;
+      }
+      case "figaro.set": {
+        const refused = this.refuseSet.get(id);
+        if (refused) return err(refused.message, refused.code);
+        const form = this.forms.get(id);
+        if (!form) return err(`figaro.set: ${id} not found`);
+        this.formWrite(id, f.params.patch as unknown as ReturnType<typeof setAt>);
+        this.reply(c, f.id, { result: { ok: true, outcome: "applied", version: form.version } });
         return;
       }
       case "figaro.fork": {

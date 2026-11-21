@@ -22,6 +22,8 @@ export { spliceBytes, utf8Length } from "./utf8.js";
 export * from "./wire.js";
 export {
   boundFormWriter,
+  boundFormWriterOf,
+  type BoundFormWriter,
   foldAriasForm,
   foldRecent,
   foldTree,

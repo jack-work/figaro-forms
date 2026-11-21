@@ -299,16 +299,28 @@ export function boundFormFeed(forms: () => FormsClient, aria: string): Feed<Boun
   );
 }
 
-export function boundFormWriter(aria: string): {
+export interface BoundFormWriter {
   set(path: string, value: Json): Promise<EditResult>;
   unset(path: string): Promise<EditResult>;
-} {
-  const refusal = (key: string): EditResult => ({ ok: false, refusal: { key, kind: "unavailable", reason: `${aria}: the gateway does not carry form writes yet (gateway.writes)` } });
+}
+
+export function boundFormWriter(forms: () => FormsClient, aria: string): BoundFormWriter {
+  const through = async (edit: (r: Replica) => Promise<EditResult>): Promise<EditResult> => {
+    const client = forms();
+    const r = client.retain(aria);
+    try {
+      return await edit(r);
+    } finally {
+      client.release(aria);
+    }
+  };
   return {
-    set: (path) => Promise.resolve(refusal(path)),
-    unset: (path) => Promise.resolve(refusal(path)),
+    set: (path, value) => through((r) => r.set(path, value)),
+    unset: (path) => through((r) => r.unset(path)),
   };
 }
+
+export const boundFormWriterOf = (client: AriaClient, aria: string): BoundFormWriter => boundFormWriter(() => client.forms, aria);
 
 export class TreeFeed extends Feed<TreeState> {
   constructor(private readonly forms: () => FormsClient) {

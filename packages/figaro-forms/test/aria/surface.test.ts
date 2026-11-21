@@ -2,7 +2,7 @@ import { createStore } from "jotai/vanilla";
 import { describe, expect, it } from "vitest";
 import { AriaClient } from "../../src/aria/client.js";
 import { boundFormAtom, recentAtom, treeAtom } from "../../src/aria/jotai.js";
-import { boundFormWriter, foldRecent, parseRoleAddresses } from "../../src/aria/surface.js";
+import { boundFormWriterOf, foldRecent, parseRoleAddresses } from "../../src/aria/surface.js";
 import { FakeAria, settle, tick } from "./fake-aria.js";
 
 function world() {
@@ -269,7 +269,7 @@ describe("boundFormAtom", () => {
     client.close();
   });
 
-  it("reports a refused form, and refuses writes until the gateway carries them", async () => {
+  it("reports a refused form", async () => {
     const { fake, client, store } = world();
     fake.addForm("r1", {});
     fake.refuseForm.set("r1", { code: -32020, message: "r1 is not yours" });
@@ -279,8 +279,35 @@ describe("boundFormAtom", () => {
     expect(store.get(bound).error).toContain("not yours");
     off();
     client.close();
-    const r = await boundFormWriter("r1").set("mantra", "x");
-    expect(r).toMatchObject({ ok: false, refusal: { kind: "unavailable" } });
+  });
+
+  it("writes and unsets a key on the bound form through figaro.set, and the atom follows", async () => {
+    const { fake, client, store } = world();
+    fake.addForm("r1", {});
+    const bound = boundFormAtom(client, "r1");
+    const off = store.sub(bound, () => {});
+    await settle();
+    const writer = boundFormWriterOf(client, "r1");
+    const set = await writer.set("mantra", "new words");
+    expect(set).toMatchObject({ ok: true });
+    expect(fake.calls.filter((c) => c.method === "figaro.set" && c.params.figaro_id === "r1")).toHaveLength(1);
+    await settle();
+    expect(store.get(bound).root).toMatchObject({ mantra: "new words" });
+    const unset = await writer.unset("mantra");
+    expect(unset).toMatchObject({ ok: true });
+    await settle();
+    expect(store.get(bound).root).not.toHaveProperty("mantra");
+    off();
+    client.close();
+  });
+
+  it("reports a refused write as a refusal, not a throw", async () => {
+    const { fake, client } = world();
+    fake.addForm("r1", {});
+    fake.refuseSet.set("r1", { code: -32020, message: "system.ttl is daemon/owner-held" });
+    const r = await boundFormWriterOf(client, "r1").set("system.ttl", "1h");
+    expect(r).toMatchObject({ ok: false, refusal: { kind: "denied" } });
+    client.close();
   });
 });
 
