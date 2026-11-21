@@ -38,9 +38,14 @@ every request needs the edge secret in `X-Figaro-Edge` and the admin in
   and one speech session per reply however many sockets listen. It speaks the
   output-role prose nodes (`node.type === "prose"`, `node.role === "output"`) of
   the frames it is told. Its frames are the gateway's own side channel, not UI IR.
-- `GET /audio/key/<store>/<aria>:<turn>/out`: replay, passed to the speech socket
-  with `Range`. Only keys of the gateway's own store (404 otherwise); an unparsable
-  target or escape answers 400.
+- `GET /audio/key/<store>/<aria>:<turn>/<in|out>`: replay, passed to the speech socket
+  with `Range`. `out` is a reply's speech; `in` is the message's own dictation. Only
+  keys of the gateway's own store (404 otherwise); an unparsable target or escape
+  answers 400. A streamed dictation (`/stt/stream`) is stored before its turn exists,
+  so the gateway keys it: after the stream's `done` it remembers the clip for that
+  session and aria (10 minutes), and when the same session's next `figaro.qua` on the
+  aria opens a turn, it keys the clip `<store>/<aria>:<turn>/in` (speech's
+  `POST /audio/<id>/key`), logging `dictation keyed audio_id= key= session=`.
 - `POST /stt?aria=<store>/<aria>`: dictation. See below.
 - `POST /stt/key/<store>/<aria>:<turn>/in`: re-transcribe a stored clip. See below.
 - `/stt/stream?aria=<store>/<aria>&lang=<bcp47>` (WebSocket): live dictation. See below.

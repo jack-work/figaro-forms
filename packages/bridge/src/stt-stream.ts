@@ -2,6 +2,7 @@ import type { IncomingMessage } from "node:http";
 import WebSocket from "ws";
 import { noSession, sessionHeader, sessionOf } from "./door.js";
 import { parseTraceparent } from "./trace.js";
+import type { Dictations } from "./dictation.js";
 
 export interface SttStreamLimits {
   readonly idleMs?: number;
@@ -17,7 +18,7 @@ const maxHeldBytes = 64000;
 type Code = "bad-request" | "busy" | "idle" | "too-long" | "speech" | "unreachable";
 
 export function attendSttStream(
-  o: SttStreamLimits & { readonly socket: string; readonly store: string; readonly log?: (line: string) => void; readonly gate?: () => Promise<string | undefined> },
+  o: SttStreamLimits & { readonly socket: string; readonly store: string; readonly log?: (line: string) => void; readonly gate?: () => Promise<string | undefined>; readonly dictations?: Dictations },
   ws: WebSocket,
   req: IncomingMessage,
   admit: () => (() => void) | undefined,
@@ -105,7 +106,11 @@ export function attendSttStream(
       return;
     }
     if (type === "done" || type === "error") finished = true;
-    if (type === "done") stopTimers();
+    if (type === "done") {
+      stopTimers();
+      const id = (JSON.parse(text) as { audio_id?: unknown }).audio_id;
+      if (typeof id === "string" && aria) o.dictations?.done(session, aria[0].split("/")[1] ?? "", id);
+    }
     ws.send(text);
   });
   up.once("error", (e) => fail("unreachable", `speech unreachable: ${e.message}`));

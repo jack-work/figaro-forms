@@ -2,6 +2,7 @@ import { request, type IncomingMessage, type ServerResponse } from "node:http";
 import type { GatewayRoute, GatewaySocket } from "./gateway.js";
 import { noSession, sessionHeader, sessionOf } from "./door.js";
 import { parseTraceparent } from "./trace.js";
+import type { Dictations } from "./dictation.js";
 import { ariaParam, attendSttStream, type SttStreamLimits } from "./stt-stream.js";
 
 export const maxClipBytes = 10 * 1024 * 1024;
@@ -14,6 +15,7 @@ export interface SttOptions extends SttStreamLimits {
   readonly maxConcurrent?: number;
   readonly log?: (line: string) => void;
   readonly gate?: () => Promise<string | undefined>;
+  readonly dictations?: Dictations;
 }
 
 const clipTypes = new Set(["audio/webm", "audio/mp4"]);

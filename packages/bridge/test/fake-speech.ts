@@ -23,6 +23,8 @@ export interface FakeSpeech {
   readonly replays: { url: string; range: string | undefined; session?: string | undefined }[];
   readonly clips: { url: string; contentType: string | undefined; body: Buffer; session?: string | undefined; traceparent?: string | undefined }[];
   readonly lookups: (string | undefined)[];
+  streamAudioId: string;
+  readonly attached: { audioId: string; key: string }[];
   sttStatus: number;
   readonly keyed: Record<string, string>;
   sttReply: unknown;
@@ -50,9 +52,16 @@ export async function startFakeSpeech(): Promise<FakeSpeech> {
   const calls: SpeechCall[] = [];
   const server = createServer();
   const ws = new WebSocketServer({ noServer: true });
-  const fake: FakeSpeech = { path, calls, pcmPerText: 480, audioId: "a-1", rejectVoice: false, holdUrl: undefined, replays: [], clips: [], lookups: [], sttStatus: 200, keyed: {}, sttReply: { text: "hello figaro", duration_ms: 1200, audio_id: "clip-1" }, streams: [], streamReady: true, streamFailAfter: undefined, stop: () => new Promise((ok) => { for (const c of [...calls, ...fake.streams]) c.socket.terminate(); server.close(() => ok()); server.closeAllConnections(); }) };
+  const fake: FakeSpeech = { path, calls, pcmPerText: 480, audioId: "a-1", rejectVoice: false, holdUrl: undefined, replays: [], clips: [], lookups: [], streamAudioId: "clip-2", attached: [], sttStatus: 200, keyed: {}, sttReply: { text: "hello figaro", duration_ms: 1200, audio_id: "clip-1" }, streams: [], streamReady: true, streamFailAfter: undefined, stop: () => new Promise((ok) => { for (const c of [...calls, ...fake.streams]) c.socket.terminate(); server.close(() => ok()); server.closeAllConnections(); }) };
   server.on("request", (req, res) => {
     const session = typeof req.headers["x-figchat-session"] === "string" ? req.headers["x-figchat-session"] : undefined;
+    const attach = req.method === "POST" ? /^\/audio\/([^/?]+)\/key\?key=(.+)$/.exec(req.url ?? "") : null;
+    if (attach) {
+      fake.attached.push({ audioId: decodeURIComponent(attach[1]!), key: decodeURIComponent(attach[2]!) });
+      fake.keyed[decodeURIComponent(attach[2]!)] = decodeURIComponent(attach[1]!);
+      res.writeHead(200, { "Content-Type": "application/json" }).end("{}");
+      return;
+    }
     if (req.method === "POST" && req.url === "/audio/keys") {
       fake.lookups.push(session);
       const parts: Buffer[] = [];
@@ -132,7 +141,7 @@ function answerStream(fake: FakeSpeech, url: string, socket: WebSocket, session:
       const text = streamWords.slice(0, Math.min(call.audio.length, streamWords.length)).join(" ");
       const bytes = call.audio.reduce((a, b) => a + b.length, 0);
       send({ type: "final", text, offset_ms: 0, duration_ms: bytes / 32 });
-      send({ type: "done", audio_id: "clip-2", duration_ms: bytes / 32, text });
+      send({ type: "done", audio_id: fake.streamAudioId, duration_ms: bytes / 32, text });
       socket.close(1000);
     }
   });

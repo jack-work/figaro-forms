@@ -8,6 +8,7 @@ import { bearer, type Credential } from "figaro-forms/auth";
 import { onBehalfOf, redact, withSession } from "./door.js";
 import { otlpExporter } from "./trace.js";
 import { otlpMetrics } from "./metrics.js";
+import { Dictations } from "./dictation.js";
 import { AttachStore, systemTools } from "./attach.js";
 import { Faults, faultSocket, faultsRefusal } from "./faults.js";
 import { ClientCredentials, doorTokenPath, redialAfterRejection } from "./token.js";
@@ -138,6 +139,7 @@ try {
   }
   const exporter = values["otlp-endpoint"] ? otlpExporter({ endpoint: values["otlp-endpoint"], service: "figaro-gateway", log: (line) => process.stderr.write(`figaro-gateway: ${line}\n`) }) : undefined;
   const attachments = values["no-attach"] ? undefined : new AttachStore({ tools: systemTools() });
+  const dictations = new Dictations({ socket: values["speech-socket"], store: values.store, log: say });
   const meter = values["otlp-endpoint"] ? otlpMetrics({ endpoint: values["otlp-endpoint"], service: "figaro-gateway", log: say }) : undefined;
   const g = await startGateway({
     ...(meter ? { metrics: meter.metrics } : {}),
@@ -161,7 +163,8 @@ try {
     speech: speechOverSocket(values["speech-socket"]),
     speechSocket: values["speech-socket"],
     store: values.store,
-    ...stt({ socket: values["speech-socket"], store: values.store, log: (line) => process.stderr.write(`figaro-gateway: ${line}\n`), ...(faults ? { gate: () => (faults as Faults).speechGate() } : {}) }),
+    dictations,
+    ...stt({ socket: values["speech-socket"], store: values.store, dictations, log: (line) => process.stderr.write(`figaro-gateway: ${line}\n`), ...(faults ? { gate: () => (faults as Faults).speechGate() } : {}) }),
     ...(values.origin ? { origins: values.origin } : {}),
   });
   process.stderr.write(`figaro-gateway: listening on ${g.address}, door ${redact(url)}\n`);
