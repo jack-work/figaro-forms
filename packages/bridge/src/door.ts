@@ -150,7 +150,13 @@ export function proxyDoor(ws: WebSocket, dial: Dial, hub: AudioHub | undefined, 
         return;
       }
       up = socket;
-      for (const f of queue.splice(0)) socket.send(f);
+      try {
+        for (const f of queue.splice(0)) socket.send(f);
+      } catch (e) {
+        log(`door send failed: ${redact(e instanceof Error ? e.message : String(e))} session=${session}`);
+        gone = true;
+        ws.close(1011, "door closed");
+      }
     },
     (e: unknown) => {
       gone = true;
@@ -248,7 +254,16 @@ export function proxyDoor(ws: WebSocket, dial: Dial, hub: AudioHub | undefined, 
       if (frame.method === "figaro.qua" && typeof aria === "string") hub?.noteTrace(aria, sp.context);
     }
     const text = JSON.stringify(frame);
-    if (up) up.send(text);
-    else queue.push(text);
+    if (!up) {
+      queue.push(text);
+      return;
+    }
+    try {
+      up.send(text);
+    } catch (e) {
+      log(`door send failed: ${redact(e instanceof Error ? e.message : String(e))} session=${session}`);
+      gone = true;
+      ws.close(1011, "door closed");
+    }
   });
 }

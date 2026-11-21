@@ -24,7 +24,9 @@ every request needs the edge secret in `X-Figaro-Edge` and the admin in
   `if_version`) is refused with an error naming
   it, never dropped silently. A `figaro.interrupt` also cancels pending audio for
   that aria. Frames are limited to 1 MiB, so `qua` images (the daemon allows up to
-  4 of 10 MiB) are out of scope here and close the socket with 1009. A failure to
+  4 of 10 MiB) are out of scope here and close the socket with 1009. A door
+  connection that fails a send closes the page's socket with 1011 instead of taking
+  the gateway down. A failure to
   reach the door closes the socket with a fixed reason; the detail goes to the
   gateway's log with the query and userinfo removed.
 - `/audio/<aria>` or `/audio/<store>/<aria>` (WebSocket, aria is the 32-hex id; a
