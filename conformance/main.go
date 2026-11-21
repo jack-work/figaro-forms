@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/jack-work/figaro/api/command"
 	"github.com/jack-work/figaro/api/form"
 	"github.com/jack-work/figaro/api/glyph"
 )
@@ -327,6 +328,38 @@ func glyphsSource() string {
 		"export const glyphDocs: readonly GlyphDoc[] = " + docs.String() + ";\n"
 }
 
+func union[T ~string](name string, vals []T) string {
+	quoted := make([]string, len(vals))
+	for i, v := range vals {
+		b, err := json.Marshal(string(v))
+		if err != nil {
+			panic(err)
+		}
+		quoted[i] = string(b)
+	}
+	return "export type " + name + " = " + strings.Join(quoted, " | ") + ";\n"
+}
+
+func commandsSource() string {
+	doc, err := json.MarshalIndent(command.All(), "", "  ")
+	if err != nil {
+		panic(err)
+	}
+	var names []string
+	for _, c := range command.All() {
+		names = append(names, c.Name)
+	}
+	return union("CommandName", names) + "\n" +
+		union("CommandKind", command.Kinds()) + "\n" +
+		union("CompletionSource", command.Sources()) + "\n" +
+		union("PagerMode", command.Modes()) + "\n" +
+		"export interface CommandChoice {\n  readonly name: string;\n  readonly help: string;\n  readonly keyboard?: boolean;\n}\n\n" +
+		"export interface CommandArg {\n  readonly name: string;\n  readonly kind: CommandKind;\n  readonly optional?: boolean;\n  readonly repeats?: boolean;\n  readonly choices?: readonly CommandChoice[];\n}\n\n" +
+		"export interface CommandFlag {\n  readonly long: string;\n  readonly short?: string;\n  readonly value?: CommandKind;\n  readonly help: string;\n  readonly default?: string;\n  readonly subwords?: readonly string[];\n  readonly repeats?: boolean;\n}\n\n" +
+		"export interface CommandDoc {\n  readonly name: CommandName;\n  readonly aliases?: readonly string[];\n  readonly pagerAliases?: readonly string[];\n  readonly group?: string;\n  readonly help: string;\n  readonly usage?: string;\n  readonly args?: readonly CommandArg[];\n  readonly flags?: readonly CommandFlag[];\n  readonly raw?: boolean;\n  readonly hidden?: boolean;\n  readonly pagerOnly?: boolean;\n  readonly complete?: CompletionSource;\n  readonly pager: PagerMode;\n  readonly refusal?: string;\n  readonly switches?: boolean;\n}\n\n" +
+		"export const commandDocs: readonly CommandDoc[] = " + string(doc) + ";\n"
+}
+
 func writeFile(path, src string) {
 	if err := os.WriteFile(path, []byte(src), 0o644); err != nil {
 		panic(err)
@@ -361,11 +394,12 @@ func main() {
 	n := flag.Int("n", 400, "cases per file")
 	keysOut := flag.String("keys", "../packages/figaro-forms/src/semantics/known-keys.gen.ts", "generated key catalog")
 	glyphsOut := flag.String("glyphs", "../packages/figaro-forms/src/glyphs.gen.ts", "generated glyph table")
-	check := flag.Bool("check", false, "write nothing; exit 1 when the glyph table differs from what the figaro in the build would produce")
+	commandsOut := flag.String("commands", "../packages/figaro-forms/src/commands.gen.ts", "generated command catalog")
+	check := flag.Bool("check", false, "write nothing; exit 1 when the glyph table or command catalog differs from what the figaro in the build would produce")
 	flag.Parse()
-	generated := map[string]string{*keysOut: keysSource(), *glyphsOut: glyphsSource()}
+	generated := map[string]string{*keysOut: keysSource(), *glyphsOut: glyphsSource(), *commandsOut: commandsSource()}
 	if *check {
-		stale := drifted(map[string]string{*glyphsOut: generated[*glyphsOut]})
+		stale := drifted(map[string]string{*glyphsOut: generated[*glyphsOut], *commandsOut: generated[*commandsOut]})
 		for _, path := range stale {
 			fmt.Fprintf(os.Stderr, "stale: %s\n", path)
 		}

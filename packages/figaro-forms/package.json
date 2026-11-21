@@ -21,6 +21,10 @@
       "types": "./dist/glyphs.d.ts",
       "default": "./dist/glyphs.js"
     },
+    "./commands": {
+      "types": "./dist/commands.d.ts",
+      "default": "./dist/commands.js"
+    },
     "./semantics": {
       "types": "./dist/semantics/index.d.ts",
       "default": "./dist/semantics/index.js"
