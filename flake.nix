@@ -19,7 +19,7 @@
             !(builtins.elem base [ "node_modules" "dist" ".git" "result" ]) && !(pkgs.lib.hasSuffix ".tgz" base);
         };
         nodejs = pkgs.nodejs_24;
-        npmDepsHash = "sha256-2VnKVeMajqm5J8ToHVd1o5wU4B88qwxPH/36qsnw+pU=";
+        npmDepsHash = "sha256-NycVy3uL+iQA8DOZTvf2kXzyQ2I3ALOMn98Av/XLDD0=";
         npmBuildScript = "build:all";
         doCheck = true;
         checkPhase = ''
