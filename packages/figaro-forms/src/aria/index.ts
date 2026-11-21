@@ -21,6 +21,9 @@ export { ariaRefusal, AriaUnavailable, type AriaRefusal, type RefusalKind } from
 export { spliceBytes, utf8Length } from "./utf8.js";
 export * from "./wire.js";
 export {
+  AriaFactsFeed,
+  ariaFactsFeedOf,
+  type AriaFacts,
   boundFormWriter,
   boundFormWriterOf,
   type BoundFormWriter,

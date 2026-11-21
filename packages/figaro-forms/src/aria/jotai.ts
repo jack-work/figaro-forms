@@ -2,7 +2,7 @@ import { atom, type Atom, type WritableAtom } from "jotai/vanilla";
 import type { ConnectionState } from "../rpc.js";
 import type { AriaClient, AriaList, ListOptions } from "./client.js";
 import type { AriaRow } from "./wire.js";
-import { boundFormFeedOf, recentFeedOf, treeFeedOf, type BoundFormState, type Feed, type RecentState, type TreeState } from "./surface.js";
+import { ariaFactsFeedOf, boundFormFeedOf, recentFeedOf, treeFeedOf, type AriaFacts, type BoundFormState, type Feed, type RecentState, type TreeState } from "./surface.js";
 import type { AppliedFrame, AriaSnapshot, AriaStream, Phase } from "./stream.js";
 
 const families = new WeakMap<AriaClient, Map<string, unknown>>();
@@ -176,4 +176,8 @@ export function recentAtom(client: AriaClient): Atom<RecentState> {
 
 export function boundFormAtom(client: AriaClient, aria: string): Atom<BoundFormState> {
   return memo(client, `bound\0${aria}`, () => feedAtom(boundFormFeedOf(client, aria)));
+}
+
+export function ariaFactsAtom(client: AriaClient, aria: string): Atom<AriaFacts> {
+  return memo(client, `facts\0${aria}`, () => feedAtom(ariaFactsFeedOf(client, aria)));
 }

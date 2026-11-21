@@ -1,7 +1,7 @@
 import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import type { ConnectionState } from "../rpc.js";
 import type { AriaClient, AriaList, ListOptions } from "./client.js";
-import { boundFormFeedOf, recentFeedOf, treeFeedOf, type BoundFormState, type Feed, type RecentState, type TreeState } from "./surface.js";
+import { ariaFactsFeedOf, boundFormFeedOf, recentFeedOf, treeFeedOf, type AriaFacts, type BoundFormState, type Feed, type RecentState, type TreeState } from "./surface.js";
 import type { AppliedFrame, AriaSnapshot, AriaStream, Phase } from "./stream.js";
 
 const Context = createContext<AriaClient | null>(null);
@@ -103,4 +103,8 @@ export function useRecent(): RecentState {
 
 export function useBoundForm(aria: string): BoundFormState {
   return useFeed(boundFormFeedOf(useAriaClient(), aria));
+}
+
+export function useAriaFacts(aria: string): AriaFacts {
+  return useFeed(ariaFactsFeedOf(useAriaClient(), aria));
 }

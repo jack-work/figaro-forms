@@ -1,7 +1,7 @@
 import { createStore } from "jotai/vanilla";
 import { describe, expect, it } from "vitest";
 import { AriaClient } from "../../src/aria/client.js";
-import { boundFormAtom, recentAtom, treeAtom } from "../../src/aria/jotai.js";
+import { ariaFactsAtom, boundFormAtom, recentAtom, treeAtom } from "../../src/aria/jotai.js";
 import { boundFormWriterOf, foldRecent, parseRoleAddresses } from "../../src/aria/surface.js";
 import { FakeAria, settle, tick } from "./fake-aria.js";
 
@@ -342,6 +342,59 @@ describe("boundFormAtom", () => {
     fake.refuseSet.set("r1", { code: -32020, message: "system.ttl is daemon/owner-held" });
     const r = await boundFormWriterOf(client, "r1").set("system.ttl", "1h");
     expect(r).toMatchObject({ ok: false, refusal: { kind: "denied" } });
+    client.close();
+  });
+});
+
+describe("ariaFactsAtom", () => {
+  const reads = (fake: FakeAria, id: string): number => fake.reads.filter((r) => r.figaro_id === id).length;
+
+  function offRoster() {
+    const w = world();
+    w.fake.rows = [{ id: "r1", state: "idle", mantra: "the trunk", message_count: 9 }];
+    w.fake.addAria("l1");
+    for (const n of [1, 2, 3]) w.fake.finishedTurn("l1", n, `q${n}`, []);
+    w.fake.formSet("@arias", ["arias", "lone", "mantra"], "far from the first page");
+    return w;
+  }
+
+  it("gives the mantra and turn count of an aria the roster page never listed", async () => {
+    const { client, store } = offRoster();
+    const facts = ariaFactsAtom(client, "l1");
+    expect(ariaFactsAtom(client, "l1")).toBe(facts);
+    const off = store.sub(facts, () => {});
+    await settle();
+    expect(store.get(facts)).toEqual({ aria: "l1", ready: true, mantra: "far from the first page", turns: 3, error: undefined });
+    off();
+    client.close();
+  });
+
+  it("recounts when the aria's @arias row shows activity, and takes a new mantra without a read", async () => {
+    const { fake, client, store } = offRoster();
+    const facts = ariaFactsAtom(client, "l1");
+    const off = store.sub(facts, () => {});
+    await settle();
+    fake.finishedTurn("l1", 4, "q4", []);
+    fake.formSet("@arias", ["arias", "lone", "active_at"], 50);
+    await settle();
+    expect(store.get(facts).turns).toBe(4);
+    const before = reads(fake, "l1");
+    fake.formSet("@arias", ["arias", "lone", "mantra"], "renamed");
+    await settle();
+    expect(store.get(facts).mantra).toBe("renamed");
+    expect(reads(fake, "l1")).toBe(before);
+    off();
+    client.close();
+  });
+
+  it("reports a refused read as an error and keeps the mantra", async () => {
+    const { fake, client, store } = offRoster();
+    fake.refuseRead.set("l1", { code: -32020, message: "not yours" });
+    const facts = ariaFactsAtom(client, "l1");
+    const off = store.sub(facts, () => {});
+    await settle();
+    expect(store.get(facts)).toMatchObject({ ready: false, turns: undefined, error: "not yours", mantra: "far from the first page" });
+    off();
     client.close();
   });
 });
