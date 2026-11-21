@@ -60,6 +60,22 @@ describe("paced fake speech", () => {
     expect(fake!.paced[0]!.sends.map((s) => s.offset)).toEqual([0, 100 * pcmBytesPerMs, 200 * pcmBytesPerMs]);
   });
 
+  it("records the time its text source left it with nothing to play", async () => {
+    fake = await startFakeSpeech();
+    fake.pace = { seed: 1 };
+    fake.pcmPerText = Math.round(40 * pcmBytesPerMs);
+    const ws = new WebSocket(`ws+unix://${fake.path}:/speak`);
+    await new Promise<void>((ok) => ws.on("open", ok));
+    ws.send(JSON.stringify({ text: "one" }));
+    await new Promise((ok) => setTimeout(ok, 200));
+    ws.send(JSON.stringify({ text: "two" }));
+    ws.send(JSON.stringify({ end: true }));
+    await new Promise<void>((ok) => ws.on("close", () => ok()));
+    const starves = fake.paced[0]!.starves;
+    expect(starves.length).toBe(1);
+    expect(starves[0]!.ms).toBeGreaterThan(100);
+  });
+
   it("repeats a seed", async () => {
     const opts = { seed: 9, stallProbability: 0.5, stallMs: [10, 20] as [number, number], jitterMs: 5, sliceMs: 20 };
     await speak(opts, 400);

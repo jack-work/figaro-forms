@@ -37,6 +37,7 @@ export interface PacedStall {
 export interface PacedLog {
   readonly sends: PacedSend[];
   readonly stalls: PacedStall[];
+  readonly starves: PacedStall[];
   startedAt: number;
 }
 
@@ -201,7 +202,7 @@ function answerStream(fake: FakeSpeech, url: string, socket: WebSocket, session:
 function startPacer(fake: FakeSpeech, socket: WebSocket, opts: PaceOptions): { push(pcm: Buffer): void; finish(done: () => void): void } {
   const rand = seeded(opts.seed ?? 1);
   const sliceBytes = Math.round((opts.sliceMs ?? 20) * pcmBytesPerMs);
-  const log: PacedLog = { sends: [], stalls: [], startedAt: Date.now() };
+  const log: PacedLog = { sends: [], stalls: [], starves: [], startedAt: Date.now() };
   fake.paced.push(log);
   let queue = Buffer.alloc(0);
   let offset = 0;
@@ -239,7 +240,11 @@ function startPacer(fake: FakeSpeech, socket: WebSocket, opts: PaceOptions): { p
   };
   return {
     push(pcm) {
-      if (queue.length === 0 && !running) idealMs = Math.max(idealMs, Date.now() - log.startedAt);
+      if (queue.length === 0 && !running) {
+        const now = Date.now() - log.startedAt;
+        if (!first && now > idealMs) log.starves.push({ at: now, ms: now - idealMs, offset });
+        idealMs = Math.max(idealMs, now);
+      }
       if (first) { first = false; idealMs += opts.slowStartMs ?? 0; }
       queue = Buffer.concat([queue, pcm]);
       if (!running) { running = true; pump(); }
