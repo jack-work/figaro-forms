@@ -75,6 +75,7 @@ export const glyphs = {
   "pit.login": "⚷",
   "pit.login.mark": "▸",
   "pit.answer": "⚷",
+  "voice": "♫",
 } as const;
 
 export type GlyphName = keyof typeof glyphs;
@@ -429,5 +430,10 @@ export const glyphDocs: readonly GlyphDoc[] = [
     "name": "pit.answer",
     "symbol": "⚷",
     "marks": "the answer box"
+  },
+  {
+    "name": "voice",
+    "symbol": "♫",
+    "marks": "spoken input: the mic toggle and a composer filling from speech"
   }
 ];
