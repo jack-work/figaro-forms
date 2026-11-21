@@ -30,6 +30,7 @@ export interface Message {
   readonly inquirySegments?: readonly InquirySegment[];
   readonly inquiryLT?: number;
   readonly formDeltas?: { readonly [key: string]: FormDelta };
+  readonly forkedFrom?: string;
   readonly role: "input" | "output";
   readonly nodes: readonly Node[];
 }
@@ -102,6 +103,7 @@ function sliceNodes(m: Message, lo: number, hi: number): Message {
     if (m.inquiry !== undefined) out.inquiry = m.inquiry;
     if (m.inquirySegments !== undefined) out.inquirySegments = m.inquirySegments;
     if (m.inquiryLT !== undefined) out.inquiryLT = m.inquiryLT;
+    if (m.forkedFrom !== undefined) out.forkedFrom = m.forkedFrom;
   }
   return out;
 }

@@ -19,6 +19,7 @@ export interface Inquiry {
   readonly text: string;
   readonly segments?: readonly InquirySegment[];
   readonly formDeltas?: { readonly [key: string]: FormDelta };
+  readonly forkedFrom?: string;
   readonly lt?: number;
 }
 
@@ -288,7 +289,7 @@ export class Transcript {
       const id = part.turn;
       const staged = this.claimsOpen(part);
 
-      if ((part.inquiry ?? "") !== "" || Object.keys(part.formDeltas ?? {}).length > 0) {
+      if ((part.inquiry ?? "") !== "" || Object.keys(part.formDeltas ?? {}).length > 0 || (part.forked_from ?? "") !== "") {
         const q: Mutable<Inquiry> = { ...(this.inquiry.get(id) ?? { text: "" }) };
         if ((part.inquiry ?? "") !== "") {
           q.text = part.inquiry as string;
@@ -296,6 +297,7 @@ export class Transcript {
           else delete q.segments;
         }
         if (part.formDeltas && Object.keys(part.formDeltas).length > 0) q.formDeltas = part.formDeltas;
+        if ((part.forked_from ?? "") !== "") q.forkedFrom = part.forked_from as string;
         if (part.lts && part.lts.length > 0) q.lt = part.lts[0] as number;
         this.inquiry.set(id, q);
         if (staged && !part.clipped_head) this.store.claimOpen(id);
@@ -427,6 +429,7 @@ export class Transcript {
         if (q.text !== "") m.inquiry = q.text;
         if (q.segments && q.segments.length > 0) m.inquirySegments = q.segments;
         if (q.lt) m.inquiryLT = q.lt;
+        if (q.forkedFrom) m.forkedFrom = q.forkedFrom;
         if (q.formDeltas && Object.keys(q.formDeltas).length > 0) m.formDeltas = q.formDeltas;
       }
     }

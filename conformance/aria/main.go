@@ -25,6 +25,7 @@ type jsonMessage struct {
 	InquirySegments []wire.InquirySegment        `json:"inquirySegments,omitempty"`
 	InquiryLT       uint64                       `json:"inquiryLT,omitempty"`
 	FormDeltas      map[string]livedoc.FormDelta `json:"formDeltas,omitempty"`
+	ForkedFrom      string                       `json:"forkedFrom,omitempty"`
 	Role            string                       `json:"role"`
 	Nodes           []livedoc.Node               `json:"nodes"`
 }
@@ -34,7 +35,7 @@ func msg(m aria.Message) jsonMessage {
 	if nodes == nil {
 		nodes = []livedoc.Node{}
 	}
-	return jsonMessage{m.Turn, m.From, m.Inquiry, m.InquirySegments, m.InquiryLT, m.FormDeltas, m.Role, nodes}
+	return jsonMessage{m.Turn, m.From, m.Inquiry, m.InquirySegments, m.InquiryLT, m.FormDeltas, m.ForkedFrom, m.Role, nodes}
 }
 
 func msgs(in []aria.Message) []jsonMessage {
@@ -119,6 +120,7 @@ type jsonInquiry struct {
 	Text       string                       `json:"text"`
 	Segments   []wire.InquirySegment        `json:"segments,omitempty"`
 	FormDeltas map[string]livedoc.FormDelta `json:"formDeltas,omitempty"`
+	ForkedFrom string                       `json:"forkedFrom,omitempty"`
 	LT         uint64                       `json:"lt,omitempty"`
 }
 
@@ -231,7 +233,7 @@ func (r *runner) run(s step) result {
 		q, ok := r.c.InquiryOf(s.N)
 		res.Flag = flag_(ok)
 		if ok {
-			res.Inquiry = &jsonInquiry{q.Text, q.Segments, q.FormDeltas, q.LT}
+			res.Inquiry = &jsonInquiry{q.Text, q.Segments, q.FormDeltas, q.ForkedFrom, q.LT}
 		}
 	case "setTurnLen":
 		r.c.Store().SetTurnLen(uint64(s.N), s.Len)
@@ -567,6 +569,32 @@ func utf8Deltas() fixture {
 
 func ptr[T any](v T) *T { return &v }
 
+func forkBirth() fixture {
+	birth := map[string]livedoc.FormDelta{
+		"a1.runtime.forked_from": {Value: json.RawMessage(`"90ec658474d50c8a"`), Kind: livedoc.FormBound, Event: livedoc.FormSet, Form: "a1"},
+		"a1.mantra":              {Value: json.RawMessage(`"forked"`), Prev: json.RawMessage(`"trunk"`), Kind: livedoc.FormBound, Event: livedoc.FormSet, Form: "a1"},
+	}
+	opened := aria.Page{Parts: []aria.TurnPart{{Turn: wire.Turn{ID: 2, Inquiry: "first question on the branch", FormDeltas: birth, ForkedFrom: "90ec658474d50c8a"}}}}
+	sealed := sealedPage(2, "first question on the branch", 3)
+	sealed.Parts[0].ForkedFrom = "90ec658474d50c8a"
+	sealed.Parts[0].FormDeltas = birth
+	plain := sealedPage(3, "an ordinary turn", 1)
+	steps := []step{
+		{Op: "apply", Page: &opened},
+		{Op: "view"},
+		{Op: "apply", Page: ptr(liveDelta(2, 0, 1, 0, "streaming"))},
+		{Op: "view"},
+		{Op: "apply", Page: &sealed},
+		{Op: "apply", Page: &plain},
+		{Op: "view"},
+		{Op: "inquiryOf", N: 2},
+		{Op: "inquiryOf", N: 3},
+		{Op: "query", From: anchor(2, 1), To: anchor(2, 2)},
+		{Op: "query", From: anchor(2, 0), To: anchor(2, 0)},
+	}
+	return play("synthetic/fork-birth", "a turn that opens a branch names its parent on the open and the sealed message, survives a slice at offset 0, and an ordinary turn names none", steps)
+}
+
 func synthetic() []fixture {
 	var out []fixture
 	{
@@ -618,6 +646,7 @@ func synthetic() []fixture {
 		}
 		out = append(out, play("synthetic/inquiry-only", "turns with no nodes occupy one anchor; an empty turn bridges two ranges", s))
 	}
+	out = append(out, forkBirth())
 	out = append(out, utf8Deltas())
 	return out
 }

@@ -136,7 +136,7 @@ async function run(box: { t: Transcript }, s: Step): Promise<Record<string, unkn
     case "inquiryOf": {
       const q = t.inquiryOf(s.n ?? 0);
       res.flag = q !== undefined;
-      if (q) res.inquiry = strip({ text: q.text, segments: q.segments, formDeltas: q.formDeltas, lt: q.lt });
+      if (q) res.inquiry = strip({ text: q.text, segments: q.segments, formDeltas: q.formDeltas, forkedFrom: q.forkedFrom, lt: q.lt });
       break;
     }
     case "setTurnLen":

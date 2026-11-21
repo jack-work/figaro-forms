@@ -103,6 +103,7 @@ export interface Turn {
   readonly inquiry_segments?: readonly InquirySegment[];
   readonly at?: number;
   readonly formDeltas?: { readonly [key: string]: FormDelta };
+  readonly forked_from?: string;
   readonly lts?: readonly number[];
   readonly sealed: boolean;
   readonly nodes?: readonly Node[];

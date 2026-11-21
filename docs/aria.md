@@ -23,7 +23,7 @@ v0.78.1 daemon (`npm run test:daemon`, see the end).
 | `aria.InquirySegment`, `aria.Metrics`, `aria.More`, `aria.Anchor` | same names | |
 | `rpc.DoneEntry` | `DoneEntry` (`TurnDone` adds `figaro_id`) | the `turn.done` notification |
 | `rpc.ReadRequest` | `ReadRequest` | `at`, `backward`, `limit` (bytes), `floor` |
-| `aria.Message` | `Message` | client-side, not a wire type: `turn`, `from`, `inquiry`, `inquirySegments`, `inquiryLT`, `formDeltas`, `role`, `nodes` |
+| `aria.Message` | `Message` | client-side, not a wire type: `turn`, `from`, `inquiry`, `inquirySegments`, `inquiryLT`, `formDeltas`, `forkedFrom`, `role`, `nodes` |
 | `sdk/aria.Client` | `Transcript` | `apply(page)`, `view()`, `cursor()`, `query`, `ensure` |
 | `sdk/aria.Store` | `Store` | ranges, holes, the open tail |
 | `Client.OnClosed/OnLive/OnDesync/OnMetrics` | `Transcript.hooks`, `AppliedFrame` | see "What a subscriber is told" |
@@ -105,8 +105,8 @@ never sends one: to ask for "past the last turn" send a large safe turn number.
 
 ```
 Page      { parts: TurnPart[], more: {before?, after?}, next?: Anchor, prev?: Anchor, metrics? }
-TurnPart  { turn, from, sealed, inquiry?, inquiry_segments?, at?, lts?, nodes?, live?,
-            clipped_head?, clipped_tail? }
+TurnPart  { turn, from, sealed, inquiry?, inquiry_segments?, at?, formDeltas?, forked_from?,
+            lts?, nodes?, live?, clipped_head?, clipped_tail? }
 Live      { from, v, nodes?: NodeDelta[] }
 NodeDelta { id, set?: {field: value}, unset?: [field], patch?: {field: {at, del, ins}} }
 ```
@@ -129,6 +129,25 @@ A push is one of five things, told apart by shape:
 carries `type`). `unset` removes fields. `patch` splices a streamed string field
 (`markdown`, `output`, `input`) by **UTF-8 byte offsets**, not UTF-16 units, so a
 JS client converts before it splices (`spliceBytes`).
+
+### Fields a client draws without knowing figaro
+
+Things the pager paints are carried as fields so that no client has to
+know a key name or a tool name to draw them.
+
+- `forked_from` on a turn (`forkedFrom` on the `Message`): the figaro id this
+  figaro was forked from, present on the turn that opens the branch and on no
+  other. The birth stamp is also among that turn's `formDeltas` (the bound form's
+  `runtime.forked_from`, or `system.forked_from` on a figaro born before the
+  rename); the field is the parent, so a client reads it instead of searching the
+  deltas, and drops the stamp's own row if it draws the deltas. It is the id, not a
+  handle: resolve it with `figaro.list`. Like `inquiry`, it rides only the message
+  that starts the turn and survives a slice at node 0.
+- A question that quotes a passage of the conversation starts with a block the
+  daemon does not parse: `> quoting <412.0:23-1180>! · aria 90ec6584 · turn 9 · 1157 chars`
+  followed by `> ` lines of the passage and a blank line. The grammar (the
+  `<lt.block:from-to>!` coordinate and the heading) is `api/quote` in figaro and is
+  stable; `inquiry` carries it verbatim.
 
 ### Versions and rounds
 
@@ -167,7 +186,7 @@ age limit; reconnect.
 
 `Transcript.apply(page)` is `sdk/aria` `Client.Apply`. It turns pages into
 **messages**: `Message {turn, from, inquiry?, inquirySegments?, inquiryLT?,
-formDeltas?, role, nodes}`.
+formDeltas?, forkedFrom?, role, nodes}`.
 
 - A message is one slice of a turn's nodes: `nodes[i]` is node `from + i`. The
   question rides only the slice that starts the turn (`from === 0`). A turn with
