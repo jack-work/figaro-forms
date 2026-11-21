@@ -198,6 +198,29 @@ describe("audio hub", () => {
     expect(second.types()).toEqual(tap.types());
   });
 
+  it("gives a listener that joins after the audio started its own audio.start before its first chunk", async () => {
+    const { fake, hub, tap } = await rig();
+    fake.openTurn(id, 1, "hi");
+    fake.update(id, 1, [prose(0, "One. Two. ")]);
+    await until("first audio", () => tap.of("audio.chunk").length > 0);
+    const late = new Tap();
+    await hub.join(id, late);
+    fake.update(id, 1, [more(0, 10, "Three. Four. Five")]);
+    fake.seal(id, 1);
+    fake.done(id);
+    await until("both end", () => tap.of("audio.end").length > 0 && late.of("audio.end").length > 0);
+    expect(tap.of("audio.start")).toHaveLength(1);
+    expect(late.of("audio.start")).toHaveLength(1);
+    const types = late.types();
+    expect(types[0]).toBe("audio.start");
+    expect(types.at(-1)).toBe("audio.end");
+    const start = late.of("audio.start")[0]!;
+    const first = late.of("audio.chunk")[0]!;
+    expect(start).toMatchObject({ turn: 1, node: first.node, chars: first.chars });
+    expect(first.offset).toBe(0);
+    expect(late.of("audio.chunk").length).toBeLessThan(tap.of("audio.chunk").length);
+  });
+
   it("asks speech for the aria's voice and retries without it when the voice is refused", async () => {
     const { fake, speech, tap } = await rig({ voiceOf: async () => "en-GB-RyanNeural" });
     speech.rejectVoice = true;

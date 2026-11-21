@@ -33,7 +33,7 @@ function open(port: number, aria = id) {
 }
 
 describe("an audio listener that comes back mid-turn", () => {
-  it("hears only what comes after it joins, and stores no partial reply under the turn's key", async () => {
+  it("after the leave grace, a listener hears only what comes after it joins, and no partial reply is stored under the turn's key", async () => {
     const fake = new FakeAria();
     fake.addAria(id);
     const speech = await startFakeSpeech();
@@ -47,6 +47,7 @@ describe("an audio listener that comes back mid-turn", () => {
       speechSocket: speech.path,
       store: "gluck",
       log: (l) => lines.push(l),
+      audioLeaveGraceMs: 0,
     });
     cleanups.push(() => gw.close());
     const port = (gw.server.address() as { port: number }).port;
@@ -86,5 +87,44 @@ describe("an audio listener that comes back mid-turn", () => {
     expect(end).not.toHaveProperty("audio_id");
     expect(a.got.some((f) => f.type === "audio.chunk")).toBe(true);
     expect(keep.got.some((f) => f.type === "ready")).toBe(true);
+  });
+  it("a page that reloads within the grace gets its own audio.start at the current position, no replay, and the reply is stored whole", async () => {
+    const fake = new FakeAria();
+    fake.addAria(id);
+    const speech = await startFakeSpeech();
+    cleanups.push(() => speech.stop());
+    const gw = await startGateway({
+      listen: { port: 0 },
+      edge: { secret, admin: "gluck", peers: ["127.0.0.1"] },
+      door: () => fake.dial,
+      speech: speechOverSocket(speech.path),
+      speechSocket: speech.path,
+      store: "gluck",
+    });
+    cleanups.push(() => gw.close());
+    const port = (gw.server.address() as { port: number }).port;
+    const a = await open(port);
+    await tick(100);
+    fake.openTurn(id, 1, "q");
+    fake.update(id, 1, [prose(0, "One. Two. ")]);
+    await tick(200);
+    a.ws.close();
+    await tick(10);
+    const b = await open(port);
+    await tick(100);
+    fake.update(id, 1, [{ id: 0, patch: { markdown: { at: 10, del: 0, ins: "Three. Four. " } } }]);
+    fake.seal(id, 1);
+    fake.done(id);
+    await tick(400);
+    expect(speech.calls.map((c) => c.frames.map((f) => f.text).join(""))).toEqual(["One. Two. Three. Four. "]);
+    expect(speech.calls.map((c) => new URL(c.url, "http://s").searchParams.get("key"))).toEqual([`gluck/${id}:1/out`]);
+    const types = b.got.map((f) => f.type).filter((x) => typeof x === "string" && x.startsWith("audio."));
+    expect(types[0]).toBe("audio.start");
+    expect(types.at(-1)).toBe("audio.end");
+    expect(b.got.find((f) => f.type === "audio.start")).not.toHaveProperty("partial");
+    const said = (g: Record<string, unknown>[]) => g.filter((f) => f.type === "audio.chunk").map((f) => `${f.node}:${f.chars}`);
+    expect(said(b.got)[0]).toBeDefined();
+    for (const at of said(b.got)) expect(said(a.got)).not.toContain(at);
+    expect(b.got.filter((f) => f.type === "audio.chunk")[0]).toMatchObject({ offset: 0 });
   });
 });

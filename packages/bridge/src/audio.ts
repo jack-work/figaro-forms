@@ -20,6 +20,7 @@ export interface AudioHubOptions {
   readonly log?: (line: string) => void;
   readonly tracer?: Tracer;
   readonly metrics?: Metrics;
+  readonly leaveGraceMs?: number;
 }
 
 const traceJoinMs = 120_000;
@@ -51,6 +52,7 @@ interface Active {
   ended: boolean;
   retried: boolean;
   started: boolean;
+  readonly told: Map<AudioListener, number>;
   offset: number;
   chunks: number;
   carry: Buffer;
@@ -127,7 +129,8 @@ class Follower {
     a.span?.set("tts.cancelled", why);
     a.span?.end();
     this.log(`${a.only ? "say" : "turn"} cancelled aria=${this.aria} turn=${a.turn} why=${why} chunks=${a.chunks} bytes=${a.offset}`, this.heard(a));
-    if (tell && (a.started || a.written.length > 0 || a.buf !== "")) this.tell(a, { type: "audio.cancel", turn: a.turn, key: a.key, why });
+    if (tell && a.started) this.tellStarted(a, { type: "audio.cancel", turn: a.turn, key: a.key, why });
+    else if (tell && (a.written.length > 0 || a.buf !== "")) this.tell(a, { type: "audio.cancel", turn: a.turn, key: a.key, why });
   }
 
   cancelSay(listener: AudioListener, why: CancelReason, tell = true): void {
@@ -208,6 +211,10 @@ class Follower {
   private tell(a: Active, frame: Record<string, unknown>): void {
     if (a.only) a.only.json(frame);
     else this.send(frame);
+  }
+
+  private tellStarted(a: Active, frame: Record<string, unknown>): void {
+    for (const l of a.told.keys()) if (l === a.only || this.listeners.has(l)) l.json(frame);
   }
 
   private settle(a: Active): void {
@@ -312,6 +319,7 @@ class Follower {
       ended: false,
       retried: false,
       started: false,
+      told: new Map(),
       offset: 0,
       chunks: 0,
       carry: Buffer.alloc(0),
@@ -417,7 +425,7 @@ class Follower {
           a.span?.set("tts.bytes", a.offset);
           a.span?.end();
           this.log(`${a.only ? "say" : "tts done"} aria=${this.aria} turn=${a.turn} chunks=${a.chunks} bytes=${a.offset}${audioId !== undefined ? " audio_id=" + audioId : ""}`, this.heard(a));
-          this.tell(a, { type: "audio.end", turn: a.turn, key: a.key, ...(a.partial ? { partial: true } : audioId !== undefined ? { audio_id: audioId } : {}) });
+          this.tellStarted(a, { type: "audio.end", turn: a.turn, key: a.key, ...(a.partial ? { partial: true } : audioId !== undefined ? { audio_id: audioId } : {}) });
         },
         error: (text) => {
           if (a.dead) return;
@@ -442,15 +450,20 @@ class Follower {
     if (!a.started) {
       a.started = true;
       if (!a.only) this.hub.options.metrics?.ms("figchat.gateway.audio.first_byte_ms", Date.now() - a.seen, { "figchat.session": sessionField(this.sessions(this.heard(a))), "figaro.aria": this.aria });
-      this.tell(a, { type: "audio.start", turn: a.turn, key: a.key, ...(a.only ? { say: true } : {}), ...(a.partial ? { partial: true } : {}), ...pcmFormat, node: a.fedNode, chars: a.fedChars, cursor: this.cursor() });
     }
-    const header = { type: "audio.chunk", turn: a.turn, node: a.fedNode, chars: a.fedChars, cursor: this.cursor(), offset: a.offset, bytes: out.length };
-    a.offset += out.length;
-    a.chunks += 1;
-    for (const l of a.only ? [a.only] : this.listeners) {
-      l.json(header);
+    const start = { type: "audio.start", turn: a.turn, key: a.key, ...(a.only ? { say: true } : {}), ...(a.partial ? { partial: true } : {}), ...pcmFormat, node: a.fedNode, chars: a.fedChars, cursor: this.cursor() };
+    const header = { type: "audio.chunk", turn: a.turn, node: a.fedNode, chars: a.fedChars, cursor: this.cursor(), bytes: out.length };
+    for (const l of this.heard(a)) {
+      let base = a.told.get(l);
+      if (base === undefined) {
+        a.told.set(l, (base = a.offset));
+        l.json(start);
+      }
+      l.json({ ...header, offset: a.offset - base });
       l.binary(out);
     }
+    a.offset += out.length;
+    a.chunks += 1;
   }
 }
 
@@ -458,6 +471,7 @@ export class AudioHub {
   private client: AriaClient | undefined;
   private readonly followers = new Map<string, Follower>();
   private readonly pending = new Map<string, Promise<void>>();
+  private readonly reaping = new Map<string, ReturnType<typeof setTimeout>>();
   private readonly traces = new Map<string, { context: SpanContext; at: number }>();
 
   constructor(readonly options: AudioHubOptions) {}
@@ -479,6 +493,8 @@ export class AudioHub {
   }
 
   async join(aria: string, listener: AudioListener): Promise<() => void> {
+    clearTimeout(this.reaping.get(aria));
+    this.reaping.delete(aria);
     let f = this.followers.get(aria);
     if (!f) {
       f = new Follower(aria, this);
@@ -503,10 +519,19 @@ export class AudioHub {
       follower.cancelSay(listener, "left", false);
       follower.listeners.delete(listener);
       if (follower.listeners.size > 0 || this.followers.get(aria) !== follower) return;
-      this.followers.delete(aria);
-      this.pending.delete(aria);
-      if (this.client) follower.detach(this.client);
-      this.release();
+      const reap = (): void => {
+        this.reaping.delete(aria);
+        if (follower.listeners.size > 0 || this.followers.get(aria) !== follower) return;
+        this.followers.delete(aria);
+        this.pending.delete(aria);
+        if (this.client) follower.detach(this.client);
+        this.release();
+      };
+      const grace = this.options.leaveGraceMs ?? 15_000;
+      if (grace <= 0) return reap();
+      const t = setTimeout(reap, grace);
+      t.unref?.();
+      this.reaping.set(aria, t);
     };
   }
 
@@ -523,6 +548,8 @@ export class AudioHub {
   }
 
   close(): void {
+    for (const t of this.reaping.values()) clearTimeout(t);
+    this.reaping.clear();
     for (const f of this.followers.values()) if (this.client) f.detach(this.client);
     this.followers.clear();
     this.client?.close();
