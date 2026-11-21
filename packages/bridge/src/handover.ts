@@ -12,7 +12,7 @@ export interface HandoverOptions {
   readonly catchUpMs?: number;
 }
 
-const internalPrefix = "\u0000gw-handover-";
+const reserved = (id: unknown): boolean => typeof id === "number" && id < 0;
 const lapsed = "door.lapsed";
 
 interface Leg {
@@ -83,7 +83,7 @@ class Handover {
     } catch {
       f = undefined;
     }
-    if (f && typeof f.method === "string" && typeof f.id === "string" && f.id.startsWith(internalPrefix)) {
+    if (f && typeof f.method === "string" && reserved(f.id)) {
       this.events.message(JSON.stringify({ jsonrpc: "2.0", id: f.id, error: { code: -32600, message: "gateway: that request id is reserved" } }));
       return;
     }
@@ -227,7 +227,7 @@ class Handover {
   }
 
   private internal(leg: Leg, method: string, params: string): Promise<boolean> {
-    const id = `${internalPrefix}${++this.seq}`;
+    const id = -++this.seq;
     return new Promise((ok) => {
       const key = idKey(id);
       const t = setTimeout(() => {

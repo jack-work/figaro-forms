@@ -44,7 +44,7 @@ function lapsingDoor(fake: FakeAria, ttlMs: number, notice = true, o: { followAc
             setTimeout(() => !dead && outer.message(f), o.holdReply.ms);
             return;
           }
-          if (o.followAckMs && f.includes("gw-handover")) {
+          if (o.followAckMs && (JSON.parse(f) as { id?: unknown }).id !== undefined && ((JSON.parse(f) as { id: number }).id < 0)) {
             setTimeout(() => !dead && outer.message(f), o.followAckMs);
             return;
           }
@@ -86,6 +86,14 @@ function lapsingDoor(fake: FakeAria, ttlMs: number, notice = true, o: { followAc
       const socket: Socket = {
         send: (f) => {
           if (dead) throw new Error("socket closed");
+          const sent = JSON.parse(f) as { id?: unknown };
+          if (sent.id !== undefined && !Number.isSafeInteger(sent.id)) {
+            dead = true;
+            clearTimeout(lapse);
+            inner.close();
+            queueMicrotask(() => outer.closed("recv: json: cannot unmarshal string into Go struct field Message.id of type int64"));
+            return;
+          }
           inner.send(f);
         },
         close: () => {
@@ -393,9 +401,9 @@ describe("door handover", () => {
     sock.send(JSON.stringify({ jsonrpc: "2.0", id: 9, method: "figaro.read", params: { figaro_id: id } }));
     await until("an error for the read", () => p.replies.some((r) => r.id === 9), 5_000);
     expect(JSON.stringify(p.replies.find((r) => r.id === 9))).toContain("ended before answering");
-    sock.send(JSON.stringify({ jsonrpc: "2.0", id: "\u0000gw-handover-1", method: "figaro.follow", params: { figaro_id: id } }));
-    await until("reserved id refused", () => p.replies.some((r) => r.id === "\u0000gw-handover-1"));
-    expect(JSON.stringify(p.replies.find((r) => r.id === "\u0000gw-handover-1"))).toContain("reserved");
+    sock.send(JSON.stringify({ jsonrpc: "2.0", id: -1, method: "figaro.follow", params: { figaro_id: id } }));
+    await until("reserved id refused", () => p.replies.some((r) => r.id === -1));
+    expect(JSON.stringify(p.replies.find((r) => r.id === -1))).toContain("reserved");
     expect(p.closed).toEqual([]);
   }, 10_000);
 

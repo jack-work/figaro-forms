@@ -209,7 +209,9 @@ followed (and every aria a `figaro.qua` followed), then switches.
 - Requests already sent on the old leg are answered from it; the old leg closes
   once they are and the overlap is matched (2 s at most when no frame comes). If
   it closes first, each unanswered request gets a JSON-RPC error, never silence.
-  Request ids that start with the gateway's own prefix are refused.
+  The gateway's own requests use negative integer ids (figaro's door takes
+  integer ids only and drops a connection that sends any other), so a page request
+  with a negative id is refused.
 - Logged: `door handover done (between turns|deadline|lapse notice): N follows
   moved in M ms`, `door handover skipped`, `abandoned` or `failed` with why. If no
   bearer outlasting the current one can be had, or the new leg fails, the old
