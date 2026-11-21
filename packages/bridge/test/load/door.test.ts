@@ -28,7 +28,7 @@ class Page {
   }
   static open(port: number): Promise<Page> {
     return new Promise((ok, fail) => {
-      const ws = new WebSocket(`ws://127.0.0.1:${port}/door`, { headers, perMessageDeflate: true, maxPayload: 256 << 20 });
+      const ws = new WebSocket(`ws://127.0.0.1:${port}/door`, { headers, perMessageDeflate: process.env.LOAD_DEFLATE !== "0", maxPayload: 256 << 20 });
       const p = new Page(ws);
       ws.once("open", () => ok(p));
       ws.once("error", fail);
