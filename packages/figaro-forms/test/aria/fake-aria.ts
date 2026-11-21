@@ -48,7 +48,7 @@ export class FakeAria {
   listRefused = 0;
   answers = new Map<string, Json>();
   holdReads = false;
-  readonly forms = new Map<string, { value: JsonObject; version: number }>();
+  readonly forms = new Map<string, { value: JsonObject; version: number; incarnation: number }>();
   refuseForm = new Map<string, { code: number; message: string }>();
   refuseSet = new Map<string, { code: number; message: string }>();
   refuseFork = new Map<string, { code: number; message: string }>();
@@ -66,7 +66,7 @@ export class FakeAria {
   }
 
   addForm(id: string, value: JsonObject = {}): void {
-    this.forms.set(id, { value, version: 1 });
+    this.forms.set(id, { value, version: 1, incarnation: 1 });
   }
 
   formSet(id: string, path: readonly string[], value: Json): void {
@@ -79,6 +79,14 @@ export class FakeAria {
     this.formWrite(id, deleteAt(f.value, path));
   }
 
+  formReincarnate(id: string, value: JsonObject, schema = 2): void {
+    const f = this.mustForm(id);
+    f.value = value;
+    f.version = 1;
+    f.incarnation++;
+    this.pushRaw(id, "form.delta", { schema, aria_id: id, version: 1, incarnation: f.incarnation, patch: {}, at: Date.now() }, true);
+  }
+
   formCalls(id: string): number {
     return this.calls.filter((c) => c.method === "figaro.form" && c.params.figaro_id === id).length;
   }
@@ -87,10 +95,10 @@ export class FakeAria {
     const f = this.mustForm(id);
     f.value = applyRoot(patch, f.value);
     f.version++;
-    this.pushRaw(id, "form.delta", { schema: 2, aria_id: id, version: f.version, incarnation: 1, patch: patch as unknown as Json, at: Date.now() }, true);
+    this.pushRaw(id, "form.delta", { schema: 2, aria_id: id, version: f.version, incarnation: f.incarnation, patch: patch as unknown as Json, at: Date.now() }, true);
   }
 
-  private mustForm(id: string): { value: JsonObject; version: number } {
+  private mustForm(id: string): { value: JsonObject; version: number; incarnation: number } {
     const f = this.forms.get(id);
     if (!f) throw new Error(`no form ${id}`);
     return f;
@@ -282,7 +290,7 @@ export class FakeAria {
         if (refused) return err(refused.message, refused.code);
         const form = this.forms.get(id);
         if (!form) return err(`figaro.form: ${id} not found`);
-        this.reply(c, f.id, { result: { snapshot: form.value, version: form.version, incarnation: 1 } });
+        this.reply(c, f.id, { result: { snapshot: form.value, version: form.version, incarnation: form.incarnation } });
         return;
       }
       case "figaro.set": {

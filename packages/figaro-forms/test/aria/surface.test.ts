@@ -57,6 +57,41 @@ describe("treeAtom", () => {
     client.close();
   });
 
+  it("re-reads @arias when it comes back as a new incarnation", async () => {
+    const { fake, client, store } = world();
+    const tree = treeAtom(client);
+    const off = store.sub(tree, () => {});
+    await settle();
+    const reads = fake.formCalls("@arias");
+    fake.formReincarnate("@arias", {
+      arias: {
+        root: { id: "r1", state: "idle", active_at: 30, forks: { kid: { id: "k1", state: "idle", parent: "r1", active_at: 40 } } },
+        lone: { id: "l1", state: "dormant", active_at: 10 },
+      },
+    });
+    await settle();
+    expect(fake.formCalls("@arias")).toBe(reads + 1);
+    const t = store.get(tree);
+    expect(t.ready).toBe(true);
+    expect(t.nodes.get("r1")?.children).toEqual(["k1"]);
+    off();
+    client.close();
+  });
+
+  it("refuses a schema 1 delta instead of reloading: the daemon speaks schema 2", async () => {
+    const { fake, client, store } = world();
+    const tree = treeAtom(client);
+    const off = store.sub(tree, () => {});
+    await settle();
+    const reads = fake.formCalls("@arias");
+    fake.formReincarnate("@arias", { arias: {} }, 1);
+    await settle();
+    expect(fake.formCalls("@arias")).toBe(reads);
+    expect(store.get(tree).daemons[0]?.phase).toBe("incompatible");
+    off();
+    client.close();
+  });
+
   it("trusts nesting for the parent when the row carries no parent key", async () => {
     const { fake, client, store } = world();
     const tree = treeAtom(client);
