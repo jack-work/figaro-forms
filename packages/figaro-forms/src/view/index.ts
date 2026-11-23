@@ -138,34 +138,6 @@ function rowInfo(view: FormView, segs: Path, n: Json, group: string, o: ViewOpti
   };
 }
 
-export function overlaid(root: JsonObject, view: FormView | undefined, overlay: JsonObject | undefined): JsonObject {
-  if (!view?.overlay || !overlay || !view.row_aria) return root;
-  const key = view.overlay.key;
-  const walk = (n: Json, segs: string[]): Json => {
-    if (!isObject(n)) return n;
-    let out: Record<string, Json> | undefined;
-    for (const k of Object.keys(n)) {
-      const kid = n[k] as Json;
-      segs.push(k);
-      let next = walk(kid, segs);
-      if (isObject(next) && matchPath(view.rows, segs)) {
-        const id = childText(next, view.row_aria as string);
-        if (id && Object.hasOwn(overlay, id)) {
-          const v = member(overlay, id) as Json;
-          next = { ...next, [key]: v };
-        }
-      }
-      segs.pop();
-      if (next !== kid) {
-        out ??= { ...n };
-        Object.defineProperty(out, k, { value: next, enumerable: true, writable: true, configurable: true });
-      }
-    }
-    return out ?? n;
-  };
-  return walk(root, []) as JsonObject;
-}
-
 export function flatten(root: JsonObject, o: ViewOptions = {}): ViewNode[] {
   const view = o.view;
   const out: ViewNode[] = [];

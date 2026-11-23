@@ -4,7 +4,6 @@ import { ariaRefusal, AriaUnavailable, type AriaRefusal } from "./errors.js";
 import { Transcript, type Changed, type View } from "./fold.js";
 import type { Fetcher, Message } from "./store.js";
 import {
-  ariaMethod,
   type Anchor,
   type AriaFrame,
   type DoneEntry,

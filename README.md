@@ -18,7 +18,7 @@ DOM. `apps/demo` is the one place anything is drawn.
 | `figaro-forms` | `FormsClient`, `Replica` (one form: tree, status, optimistic edits), `webSocketDial`, the patch algebra, wire types |
 | `figaro-forms/auth` | credentials (`edgeSession`, `bearer`, `apiKey`), `doorUrl`, `bridgeDoor`, access checks (`refusalOf`, `writable`) |
 | `figaro-forms/view` | headless view model: `flatten(root, {view, isOpen, subject, overlay})`, `matchPath`, `resolveAction`, `OpenState` (UI open paths, synced across tabs over BroadcastChannel, memory only) |
-| `figaro-forms/semantics` | known form ids, intrinsics, the daemon's key catalog, typed readers for runtime/queue/aria system keys |
+| `figaro-forms/semantics` | the well-known form ids and the daemon's key catalog |
 | `figaro-forms/hierarchy` | server-authorized role/figaro hierarchy: `readHierarchy` (server side, as the caller), `hierarchyHttp`, `HierarchyFeed` (client side) |
 | `figaro-forms/react` | `FormsProvider`, `useFormValue`, `useForm`, `useFormStatus`, `useFormEditor`, `useFormView`, `useConnectionState` |
 | `figaro-forms/jotai` | `formValueAtom`, `formAtom`, `formStatusAtom` |

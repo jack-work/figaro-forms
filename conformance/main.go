@@ -290,21 +290,12 @@ func docs(in []form.KeyDoc) []keyDoc {
 }
 
 func keysSource() string {
-	intrinsics := map[string][]keyDoc{}
-	for _, name := range form.IntrinsicNames() {
-		intrinsics[name] = docs(form.IntrinsicKeys(name))
-	}
 	known, err := json.MarshalIndent(docs(form.WellKnownKeys()), "", "  ")
 	if err != nil {
 		panic(err)
 	}
-	intr, err := json.MarshalIndent(intrinsics, "", "  ")
-	if err != nil {
-		panic(err)
-	}
 	return "import type { KeyDoc } from \"./keys.js\";\n\n" +
-		"export const wellKnownKeys: readonly KeyDoc[] = " + string(known) + ";\n\n" +
-		"export const intrinsicKeys: { readonly [name: string]: readonly KeyDoc[] } = " + string(intr) + ";\n"
+		"export const wellKnownKeys: readonly KeyDoc[] = " + string(known) + ";\n"
 }
 
 func glyphsSource() string {

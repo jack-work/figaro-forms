@@ -1,4 +1,4 @@
-export { denies, keyUnder, refusalOf, writable, type Refusal } from "../access.js";
+export { refusalOf, writable, type Refusal } from "../access.js";
 
 export interface Upgrade {
   readonly protocols?: readonly string[];

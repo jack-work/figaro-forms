@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Connection, RpcError } from "../src/rpc.js";
-import { HierarchyFeed, hierarchyHttp, readHierarchy, stateOf, type HierarchyReply, type HierarchyState } from "../src/hierarchy/index.js";
+import { stateOf } from "../src/hierarchy/feed.js";
+import { HierarchyFeed, hierarchyHttp, readHierarchy, type HierarchyReply, type HierarchyState } from "../src/hierarchy/index.js";
 import { FakeDoor } from "./fake-door.js";
 
 function door(): FakeDoor {

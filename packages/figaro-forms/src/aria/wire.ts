@@ -36,10 +36,6 @@ export interface Src {
 export const roleInput = "input";
 export const roleOutput = "output";
 
-export const statusRunning = "running";
-export const statusOK = "ok";
-export const statusError = "error";
-
 export type NodeType = "prose" | "thinking" | "tool" | "steering" | (string & {});
 
 export type FormKind = "bound" | "studied" | "role" | (string & {});
@@ -167,12 +163,6 @@ export interface ReadRequest {
 export interface QuaImage {
   readonly mime_type?: string;
   readonly data: string;
-}
-
-export interface QuaRequest {
-  readonly figaro_id: string;
-  readonly text: string;
-  readonly images?: readonly QuaImage[];
 }
 
 export interface QuaResponse {

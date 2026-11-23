@@ -147,7 +147,7 @@ function rowsOf(level: Json | undefined): [string, JsonObject][] {
   return out;
 }
 
-export function foldAriasForm(daemon: string, root: JsonObject, into: Map<string, TreeNode>): string[] {
+function foldAriasForm(daemon: string, root: JsonObject, into: Map<string, TreeNode>): string[] {
   const walk = (level: Json | undefined, parent: string | undefined): string[] => {
     const entries = rowsOf(level)
       .map(([label, row]) => ({ label, row, id: text(row.id), activeAt: num(row.active_at) }))

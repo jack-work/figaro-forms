@@ -3,7 +3,7 @@ import type { EditResult } from "../replica.js";
 import { formatQuote, parseQuote, type QuoteCoord, type QuoteRange } from "./quote.js";
 import type { BoundFormWriter } from "./surface.js";
 
-export const commentsKey = "comments";
+const commentsKey = "comments";
 
 export interface CommentEntry {
   readonly key: string;

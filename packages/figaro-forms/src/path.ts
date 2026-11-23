@@ -40,7 +40,3 @@ export function getAt(root: Json | undefined, path: Path): Json | undefined {
   }
   return cur;
 }
-
-export function dotted(path: Path): string {
-  return path.join(".");
-}

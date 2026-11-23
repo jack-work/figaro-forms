@@ -65,18 +65,6 @@ export class StalledError extends Error {
   }
 }
 
-export function gapTurns(g: Gap): number {
-  let lo = g.from.turn;
-  let hi = g.to.turn;
-  if (g.from.node > 0) lo++;
-  if (g.to.node !== maxNode) {
-    if (hi === 0) return 0;
-    hi--;
-  }
-  if (hi < lo) return 0;
-  return hi - lo + 1;
-}
-
 export function spanEnd(m: Message): number {
   return m.nodes.length === 0 ? m.from : m.from + m.nodes.length - 1;
 }

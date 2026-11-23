@@ -42,13 +42,6 @@ export interface HelloResponse {
   readonly principal: Principal;
 }
 
-export interface FormRequest {
-  readonly figaro_id: string;
-  readonly intrinsic?: string;
-  readonly since?: number;
-  readonly client?: string;
-}
-
 export type KeyDenyKind = "system-managed" | "owner-held" | "box-held" | "box-unlisted" | (string & {});
 
 export interface KeyDeny {
@@ -158,11 +151,6 @@ export interface FormDelta {
 export interface FormCreateResponse {
   readonly form_id: string;
   readonly version: number;
-}
-
-export interface DoorLapsed {
-  readonly reason: string;
-  readonly after_ms: number;
 }
 
 export interface ListRequest {
