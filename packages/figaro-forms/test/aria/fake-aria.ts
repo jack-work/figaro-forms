@@ -53,6 +53,7 @@ export class FakeAria {
   refuseSet = new Map<string, { code: number; message: string }>();
   refuseFork = new Map<string, { code: number; message: string }>();
   refuseQua = new Map<string, { code: number; message: string }>();
+  refuseMethod = new Map<string, { code: number; message: string }>();
   forkCount = 0;
   private held: (() => void)[] = [];
 
@@ -87,8 +88,17 @@ export class FakeAria {
     this.pushRaw(id, "form.delta", { schema, aria_id: id, version: 1, incarnation: f.incarnation, patch: {}, at: Date.now() }, true);
   }
 
-  formCalls(id: string): number {
-    return this.calls.filter((c) => c.method === "figaro.form" && c.params.figaro_id === id).length;
+  formCalls(id: string, intrinsic?: string): number {
+    return this.calls.filter((c) => c.method === "figaro.form" && c.params.figaro_id === id && c.params.intrinsic === intrinsic).length;
+  }
+
+  formReplace(key: string, value: JsonObject, version: number, incarnation: number): void {
+    this.forms.set(key, { value, version, incarnation });
+  }
+
+  deltaFrame(params: Record<string, unknown>): void {
+    const id = params.aria_id as string;
+    this.pushRaw(id, "form.delta", params, true);
   }
 
   private formWrite(id: string, patch: ReturnType<typeof setAt>): void {
@@ -290,11 +300,24 @@ export class FakeAria {
         else this.reply(c, f.id, { result: read() });
         return;
       }
+      case "figaro.queue.delete":
+      case "figaro.queue.update": {
+        const refused = this.refuseMethod.get(f.method);
+        if (refused) return err(refused.message, refused.code);
+        this.reply(c, f.id, { result: this.answers.get(f.method) ?? { ok: true } });
+        return;
+      }
+      case "figaro.interrupt": {
+        if (!this.answers.has(f.method)) return err("unknown method: figaro.interrupt", -32601);
+        this.reply(c, f.id, { result: this.answers.get(f.method) });
+        return;
+      }
       case "figaro.form": {
         const refused = this.refuseForm.get(id);
         if (refused) return err(refused.message, refused.code);
-        const form = this.forms.get(id);
-        if (!form) return err(`figaro.form: ${id} not found`);
+        const key = typeof f.params.intrinsic === "string" ? `${id}/${f.params.intrinsic}` : id;
+        const form = this.forms.get(key);
+        if (!form) return err(`figaro.form: ${key} not found`);
         this.reply(c, f.id, { result: { snapshot: form.value, version: form.version, incarnation: form.incarnation } });
         return;
       }

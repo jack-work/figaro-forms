@@ -1,0 +1,462 @@
+{
+ "source": {
+  "tape": "figaro listen --record, pager on an aria with one turn in flight and three queued messages",
+  "binary": "64885a8d4aa9",
+  "aria": "q1",
+  "steps": [
+   "pager Q, j, x (drop 3)",
+   "figaro send from another shell (5)",
+   "figaro queue edit 2 from another shell",
+   "pager H (hang-up keep)"
+  ]
+ },
+ "form": {
+  "snapshot": {
+   "epoch": "12a74936692e7ab9",
+   "items": {
+    "1": {
+     "at": 1795462699830,
+     "state": "committed",
+     "text": "first question, in flight",
+     "turn": 1
+    },
+    "2": {
+     "at": 1795462700446,
+     "state": "queued",
+     "text": "second: a short queued message"
+    },
+    "3": {
+     "at": 1795462701062,
+     "state": "queued",
+     "text": "third: a longer queued message that should wrap across several rows when the queue row is opened in the pit, to show the body indent and wrapping behaviour"
+    },
+    "4": {
+     "at": 1795462701680,
+     "state": "queued",
+     "text": "fourth: two lines\nsecond line of the fourth"
+    }
+   },
+   "len": 4,
+   "order": [
+    2,
+    3,
+    4
+   ]
+  },
+  "version": 8,
+  "incarnation": 1795462699808496869
+ },
+ "deltas": [
+  {
+   "figaro_id": "q1",
+   "schema": 2,
+   "aria_id": "q1",
+   "intrinsic": "queue",
+   "incarnation": 1795462699808496869,
+   "version": 9,
+   "patch": {
+    "object": {
+     "Update": {
+      "items": {
+       "object": {
+        "Update": {
+         "3": {
+          "object": {
+           "Update": {
+            "state": {
+             "scalar": {
+              "Before": "queued",
+              "After": "dropped"
+             }
+            }
+           }
+          }
+         }
+        }
+       }
+      },
+      "order": {
+       "scalar": {
+        "Before": [
+         2,
+         3,
+         4
+        ],
+        "After": [
+         2,
+         4
+        ]
+       }
+      }
+     }
+    }
+   },
+   "at": 1795462706502
+  },
+  {
+   "figaro_id": "q1",
+   "schema": 2,
+   "aria_id": "q1",
+   "intrinsic": "queue",
+   "incarnation": 1795462699808496869,
+   "version": 10,
+   "patch": {
+    "object": {
+     "Update": {
+      "items": {
+       "object": {
+        "Update": {
+         "5": {
+          "object": {
+           "Set": {
+            "at": 1795462707518,
+            "state": "queued",
+            "text": "fifth: sent from outside while the pit is open"
+           }
+          }
+         }
+        },
+        "New": {
+         "5": true
+        }
+       }
+      },
+      "len": {
+       "scalar": {
+        "Before": 4,
+        "After": 5
+       }
+      },
+      "order": {
+       "scalar": {
+        "Before": [
+         2,
+         4
+        ],
+        "After": [
+         2,
+         4,
+         5
+        ]
+       }
+      }
+     }
+    }
+   },
+   "at": 1795462707518
+  },
+  {
+   "figaro_id": "q1",
+   "schema": 2,
+   "aria_id": "q1",
+   "intrinsic": "queue",
+   "incarnation": 1795462699808496869,
+   "version": 11,
+   "patch": {
+    "object": {
+     "Update": {
+      "items": {
+       "object": {
+        "Update": {
+         "2": {
+          "object": {
+           "Update": {
+            "text": {
+             "scalar": {
+              "Before": "second: a short queued message",
+              "After": "second, edited from the CLI"
+             }
+            }
+           }
+          }
+         }
+        }
+       }
+      }
+     }
+    }
+   },
+   "at": 1795462709256
+  },
+  {
+   "figaro_id": "q1",
+   "schema": 2,
+   "aria_id": "q1",
+   "intrinsic": "queue",
+   "incarnation": 1795462699808496869,
+   "version": 12,
+   "patch": {
+    "object": {
+     "Update": {
+      "items": {
+       "object": {
+        "Update": {
+         "2": {
+          "object": {
+           "Set": {
+            "merged": [
+             4,
+             5
+            ]
+           },
+           "Update": {
+            "text": {
+             "scalar": {
+              "Before": "second, edited from the CLI",
+              "After": "second, edited from the CLI\n\nfourth: two lines\nsecond line of the fourth\n\nfifth: sent from outside while the pit is open"
+             }
+            }
+           }
+          }
+         },
+         "4": {
+          "object": {
+           "Set": {
+            "into": 2
+           },
+           "Update": {
+            "at": {
+             "scalar": {
+              "Before": 1795462701680,
+              "After": 1795462700446
+             }
+            },
+            "state": {
+             "scalar": {
+              "Before": "queued",
+              "After": "merged"
+             }
+            }
+           }
+          }
+         },
+         "5": {
+          "object": {
+           "Set": {
+            "into": 2
+           },
+           "Update": {
+            "at": {
+             "scalar": {
+              "Before": 1795462707518,
+              "After": 1795462700446
+             }
+            },
+            "state": {
+             "scalar": {
+              "Before": "queued",
+              "After": "merged"
+             }
+            }
+           }
+          }
+         }
+        }
+       }
+      },
+      "order": {
+       "scalar": {
+        "Before": [
+         2,
+         4,
+         5
+        ],
+        "After": [
+         2
+        ]
+       }
+      }
+     }
+    }
+   },
+   "at": 1795462715899
+  },
+  {
+   "figaro_id": "q1",
+   "schema": 2,
+   "aria_id": "q1",
+   "intrinsic": "queue",
+   "incarnation": 1795462699808496869,
+   "version": 13,
+   "patch": {
+    "object": {
+     "Update": {
+      "items": {
+       "object": {
+        "Update": {
+         "2": {
+          "object": {
+           "Update": {
+            "state": {
+             "scalar": {
+              "Before": "queued",
+              "After": "committing"
+             }
+            }
+           }
+          }
+         }
+        }
+       }
+      },
+      "order": {
+       "scalar": {
+        "Before": [
+         2
+        ],
+        "After": null
+       }
+      }
+     }
+    }
+   },
+   "at": 1795462715900
+  },
+  {
+   "figaro_id": "q1",
+   "schema": 2,
+   "aria_id": "q1",
+   "intrinsic": "queue",
+   "incarnation": 1795462699808496869,
+   "version": 14,
+   "patch": {
+    "object": {
+     "Update": {
+      "items": {
+       "object": {
+        "Update": {
+         "2": {
+          "object": {
+           "Update": {
+            "state": {
+             "scalar": {
+              "Before": "committing",
+              "After": "committed"
+             }
+            }
+           }
+          }
+         }
+        }
+       }
+      }
+     }
+    }
+   },
+   "at": 1795462715965
+  },
+  {
+   "figaro_id": "q1",
+   "schema": 2,
+   "aria_id": "q1",
+   "intrinsic": "queue",
+   "incarnation": 1795462699808496869,
+   "version": 15,
+   "patch": {
+    "object": {
+     "Update": {
+      "items": {
+       "object": {
+        "Update": {
+         "2": {
+          "object": {
+           "Set": {
+            "turn": 2
+           }
+          }
+         }
+        }
+       }
+      }
+     }
+    }
+   },
+   "at": 1795462715965
+  }
+ ],
+ "calls": {
+  "delete": {
+   "out": {
+    "jsonrpc": "2.0",
+    "id": 9,
+    "method": "figaro.queue.delete",
+    "params": {
+     "figaro_id": "q1",
+     "epoch": "12a74936692e7ab9",
+     "ids": [
+      3
+     ]
+    }
+   },
+   "in": {
+    "jsonrpc": "2.0",
+    "id": 9,
+    "result": {
+     "epoch": "12a74936692e7ab9",
+     "results": [
+      {
+       "id": 3,
+       "outcome": "deleted"
+      }
+     ]
+    }
+   }
+  },
+  "interrupt": {
+   "out": {
+    "jsonrpc": "2.0",
+    "id": 16,
+    "method": "figaro.interrupt",
+    "params": {
+     "figaro_id": "q1",
+     "queue": "keep"
+    }
+   },
+   "in": {
+    "jsonrpc": "2.0",
+    "id": 16,
+    "result": {
+     "ok": true,
+     "stopped": true,
+     "epoch": "12a74936692e7ab9",
+     "queue": [
+      {
+       "id": 2,
+       "text": "second, edited from the CLI\n\nfourth: two lines\nsecond line of the fourth\n\nfifth: sent from outside while the pit is open",
+       "state": "queued",
+       "at": 1795462700446,
+       "merged": [
+        4,
+        5
+       ]
+      }
+     ]
+    }
+   }
+  },
+  "update": {
+   "out": {
+    "jsonrpc": "2.0",
+    "id": 0,
+    "method": "figaro.queue.update",
+    "params": {
+     "figaro_id": "q1",
+     "epoch": "12a74936692e7ab9",
+     "id": 2,
+     "text": "second, edited from the CLI"
+    }
+   },
+   "in": {
+    "jsonrpc": "2.0",
+    "id": 0,
+    "result": {
+     "epoch": "12a74936692e7ab9",
+     "result": {
+      "id": 2,
+      "outcome": "updated"
+     }
+    }
+   }
+  }
+ }
+}

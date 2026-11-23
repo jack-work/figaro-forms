@@ -7,6 +7,7 @@ import type { EditResult } from "../replica.js";
 import type { FormAccess } from "../wire.js";
 import { ConnectionLost } from "../rpc.js";
 import type { Page } from "./wire.js";
+import { emptyQueue, foldQueue, queueRef, type QueueView } from "./queue.js";
 
 export const troupeFormID = "@troupe";
 export const recentFormID = "@recent";
@@ -78,6 +79,13 @@ export interface BoundFormState {
   readonly access: FormAccess | undefined;
   readonly version: number;
   readonly root: JsonObject;
+}
+
+export interface QueueState extends QueueView {
+  readonly aria: string;
+  readonly ready: boolean;
+  readonly freshness: Freshness;
+  readonly error: string | undefined;
 }
 
 export interface AriaFacts {
@@ -301,6 +309,15 @@ export function recentFeed(forms: () => FormsClient): Feed<RecentState> {
   );
 }
 
+export function queueFeed(forms: () => FormsClient, aria: string): Feed<QueueState> {
+  return new ReplicaFeed<QueueState>(
+    forms,
+    queueRef(aria),
+    (r) => ({ aria, ready: readyOf(r), freshness: r.status.freshness, error: errorOf(r), ...foldQueue(r.root) }),
+    { aria, ...idle, ...emptyQueue },
+  );
+}
+
 export function boundFormFeed(forms: () => FormsClient, aria: string): Feed<BoundFormState> {
   return new ReplicaFeed<BoundFormState>(
     forms,
@@ -512,5 +529,6 @@ function feedOf<T>(client: AriaClient, key: string, make: () => Feed<T>): Feed<T
 export const treeFeedOf = (client: AriaClient): Feed<TreeState> => feedOf(client, "tree", () => new TreeFeed(() => client.forms));
 export const recentFeedOf = (client: AriaClient): Feed<RecentState> => feedOf(client, "recent", () => recentFeed(() => client.forms));
 export const ariaFactsFeedOf = (client: AriaClient, aria: string): Feed<AriaFacts> => feedOf(client, `facts\0${aria}`, () => new AriaFactsFeed(client, aria));
+export const queueFeedOf = (client: AriaClient, aria: string): Feed<QueueState> => feedOf(client, `queue\0${aria}`, () => queueFeed(() => client.forms, aria));
 export const boundFormFeedOf = (client: AriaClient, aria: string): Feed<BoundFormState> =>
   feedOf(client, `bound\0${aria}`, () => boundFormFeed(() => client.forms, aria));
