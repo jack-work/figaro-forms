@@ -53,7 +53,7 @@ export abstract class Link {
     const generation = conn.epoch;
     const hello = await conn.send<HelloResponse>(method.hello, { version: protocolVersion });
     if (generation !== conn.epoch) return;
-    this.greeted();
     this.helloValue = hello;
+    this.greeted();
   }
 }
