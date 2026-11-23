@@ -36,6 +36,7 @@ export interface TreeDaemon {
   readonly form: string;
   readonly phase: Phase;
   readonly error: string | undefined;
+  readonly more: number;
 }
 
 export interface TreeState {
@@ -44,6 +45,7 @@ export interface TreeState {
   readonly error: string | undefined;
   readonly daemons: readonly TreeDaemon[];
   readonly roots: readonly string[];
+  readonly more: number;
   readonly nodes: ReadonlyMap<string, TreeNode>;
   readonly reaped: ReadonlyMap<string, TreeNode>;
 }
@@ -63,6 +65,7 @@ export interface RecentState {
   readonly freshness: Freshness;
   readonly error: string | undefined;
   readonly rows: readonly RecentRow[];
+  readonly more: number;
 }
 
 export interface BoundFormState {
@@ -84,6 +87,11 @@ export interface AriaFacts {
   readonly turns: number | undefined;
   readonly error: string | undefined;
 }
+
+const moreOf = (root: JsonObject): number => {
+  const n = root.more;
+  return typeof n === "number" && n > 0 ? n : 0;
+};
 
 const text = (v: Json | undefined): string | undefined => (typeof v === "string" && v !== "" ? v : undefined);
 const num = (v: Json | undefined): number | undefined => (typeof v === "number" ? v : undefined);
@@ -171,10 +179,11 @@ export function foldTree(
   troupe: JsonObject,
   arias: ReadonlyMap<string, { readonly root: JsonObject; readonly phase: Phase; readonly error: string | undefined }>,
   prev?: Pick<TreeState, "nodes" | "reaped">,
-): Pick<TreeState, "daemons" | "roots" | "nodes" | "reaped"> {
+): Pick<TreeState, "daemons" | "roots" | "more" | "nodes" | "reaped"> {
   const daemons: TreeDaemon[] = [];
   const nodes = new Map<string, TreeNode>();
   const roots: string[] = [];
+  const windowed = new Set<string>();
   const isSelf = (id: string): boolean => {
     const row = troupe[id];
     return isObject(row) && row.self === true;
@@ -187,18 +196,20 @@ export function foldTree(
     const form = text(row.form);
     if (!form) continue;
     const got = arias.get(id);
-    daemons.push({ id, self: row.self === true, form, phase: got?.phase ?? "loading", error: got?.error });
+    const more = got ? moreOf(got.root) : 0;
+    daemons.push({ id, self: row.self === true, form, phase: got?.phase ?? "loading", error: got?.error, more });
+    if (more > 0) windowed.add(id);
     if (got) roots.push(...foldAriasForm(id, got.root, nodes));
   }
   const reaped = new Map<string, TreeNode>();
   if (prev) {
     const present = new Set(daemons.filter((d) => d.phase === "ready").map((d) => d.id));
     for (const [id, n] of [...prev.nodes, ...prev.reaped]) {
-      if (nodes.has(id) || !present.has(n.daemon)) continue;
+      if (nodes.has(id) || !present.has(n.daemon) || windowed.has(n.daemon)) continue;
       reaped.set(id, { ...n, children: [], status: "reaped" });
     }
   }
-  return { daemons, roots, nodes, reaped };
+  return { daemons, roots, more: daemons.reduce((n, d) => n + d.more, 0), nodes, reaped };
 }
 
 export function foldRecent(root: JsonObject): RecentRow[] {
@@ -285,8 +296,8 @@ export function recentFeed(forms: () => FormsClient): Feed<RecentState> {
   return new ReplicaFeed<RecentState>(
     forms,
     recentFormID,
-    (r) => ({ ready: readyOf(r), freshness: r.status.freshness, error: errorOf(r), rows: foldRecent(r.root) }),
-    { ...idle, rows: [] },
+    (r) => ({ ready: readyOf(r), freshness: r.status.freshness, error: errorOf(r), rows: foldRecent(r.root), more: moreOf(r.root) }),
+    { ...idle, rows: [], more: 0 },
   );
 }
 
@@ -334,7 +345,7 @@ export const boundFormWriterOf = (client: AriaClient, aria: string): BoundFormWr
 
 export class TreeFeed extends Feed<TreeState> {
   constructor(private readonly forms: () => FormsClient) {
-    super({ ...idle, daemons: [], roots: [], nodes: new Map(), reaped: new Map() });
+    super({ ...idle, daemons: [], roots: [], more: 0, nodes: new Map(), reaped: new Map() });
   }
 
   protected open(): () => void {

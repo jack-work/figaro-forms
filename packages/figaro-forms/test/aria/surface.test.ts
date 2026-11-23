@@ -172,6 +172,41 @@ describe("treeAtom", () => {
     client.close();
   });
 
+  it("treats a row leaving a windowed @arias as gone, not reaped", async () => {
+    const { fake, client, store } = world();
+    fake.formSet("@arias", ["more"], 7);
+    const tree = treeAtom(client);
+    const off = store.sub(tree, () => {});
+    await settle();
+    expect(store.get(tree).more).toBe(7);
+    expect(store.get(tree).daemons[0]?.more).toBe(7);
+    expect(store.get(tree).nodes.has("l1")).toBe(true);
+    fake.formDelete("@arias", ["arias", "lone"]);
+    await settle();
+    const t = store.get(tree);
+    expect(t.nodes.has("l1")).toBe(false);
+    expect(t.reaped.size).toBe(0);
+    expect(t.roots).toEqual(["r1"]);
+    off();
+    client.close();
+  });
+
+  it("reaps again once the window closes", async () => {
+    const { fake, client, store } = world();
+    fake.formSet("@arias", ["more"], 2);
+    const tree = treeAtom(client);
+    const off = store.sub(tree, () => {});
+    await settle();
+    fake.formDelete("@arias", ["more"]);
+    await settle();
+    expect(store.get(tree).more).toBe(0);
+    fake.formDelete("@arias", ["arias", "lone"]);
+    await settle();
+    expect(store.get(tree).reaped.get("l1")).toMatchObject({ status: "reaped" });
+    off();
+    client.close();
+  });
+
   it("follows a second daemon that joins the troupe", async () => {
     const { fake, client, store } = world();
     fake.addForm("n2/@arias", { arias: { far: { id: "f1", state: "idle", active_at: 1 } } });
@@ -240,6 +275,20 @@ describe("treeAtom", () => {
 });
 
 describe("recentAtom", () => {
+  it("surfaces the root more count and keeps rows keyed by id", async () => {
+    const { fake, client, store } = world();
+    const recent = recentAtom(client);
+    const off = store.sub(recent, () => {});
+    await settle();
+    expect(store.get(recent).more).toBe(0);
+    fake.formSet("@recent", ["more"], 12);
+    await settle();
+    expect(store.get(recent).more).toBe(12);
+    expect(store.get(recent).rows.map((r) => r.id)).toEqual(["t1", "m1", "o1"]);
+    off();
+    client.close();
+  });
+
   it("lists newest first and reorders when a row is used", async () => {
     const { fake, client, store } = world();
     const recent = recentAtom(client);
