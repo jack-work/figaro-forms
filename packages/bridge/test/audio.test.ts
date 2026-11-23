@@ -221,6 +221,31 @@ describe("audio hub", () => {
     expect(late.of("audio.chunk").length).toBeLessThan(tap.of("audio.chunk").length);
   });
 
+  it("keeps no finished turns in the follower's transcript however many turns it speaks", async () => {
+    let client: AriaClient | undefined;
+    const fake = new FakeAria();
+    fake.addAria(id);
+    const speech = await startFakeSpeech();
+    cleanups.push(() => speech.stop());
+    const hub = new AudioHub({
+      connect: () => (client = new AriaClient({ dial: fake.dial, retryMinMs: 5, releaseGraceMs: 0 })),
+      speech: speechOverSocket(speech.path),
+      store: "gluck",
+    });
+    cleanups.push(() => hub.close());
+    const tap = new Tap();
+    await hub.join(id, tap);
+    const long = "A sentence that takes some room. ".repeat(200);
+    for (let t = 1; t <= 40; t++) {
+      fake.openTurn(id, t, "q");
+      fake.update(id, t, [prose(0, long)]);
+      fake.seal(id, t);
+      fake.done(id);
+      await until(`turn ${t} ends`, () => tap.of("audio.end").length === t);
+    }
+    expect(client!.peek(id).transcript.count()).toBeLessThanOrEqual(1);
+  });
+
   it("asks speech for the aria's voice and retries without it when the voice is refused", async () => {
     const { fake, speech, tap } = await rig({ voiceOf: async () => "en-GB-RyanNeural" });
     speech.rejectVoice = true;
