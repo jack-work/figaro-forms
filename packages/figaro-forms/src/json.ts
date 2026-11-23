@@ -2,11 +2,19 @@ export type Json = null | boolean | number | string | readonly Json[] | JsonObje
 export type JsonObject = { readonly [key: string]: Json };
 
 export function isObject(v: Json | undefined): v is JsonObject {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
+  return isRecord(v);
 }
 
 export function nullish(v: Json | undefined): boolean {
   return v === undefined || v === null;
+}
+
+export function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+export function compareStrings(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
 }
 
 export function has(o: JsonObject, key: string): boolean {
@@ -17,7 +25,7 @@ export function member(o: JsonObject, key: string): Json | undefined {
   return Object.hasOwn(o, key) ? o[key] : undefined;
 }
 
-export function put(o: Record<string, Json>, key: string, value: Json): void {
+export function put<T>(o: Record<string, T>, key: string, value: T): void {
   Object.defineProperty(o, key, { value, enumerable: true, writable: true, configurable: true });
 }
 

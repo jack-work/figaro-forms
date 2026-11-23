@@ -1,4 +1,4 @@
-import type { Json } from "../json.js";
+import { isRecord, type Json } from "../json.js";
 import {
   anchorLess,
   anchorPrev,
@@ -538,14 +538,13 @@ function asSrcs(v: unknown): readonly Src[] | undefined {
   if (!Array.isArray(v)) return undefined;
   const out: Src[] = [];
   for (const e of v) {
-    if (typeof e !== "object" || e === null || Array.isArray(e)) continue;
-    const m = e as Record<string, unknown>;
-    out.push({ lt: asInt(m.lt), block: asInt(m.block) });
+    if (!isRecord(e)) continue;
+    out.push({ lt: asInt(e.lt), block: asInt(e.block) });
   }
   return out;
 }
 
 function asFormDeltas(v: unknown): { readonly [key: string]: FormDelta } | undefined {
-  if (typeof v !== "object" || v === null || Array.isArray(v)) return undefined;
+  if (!isRecord(v)) return undefined;
   return Object.keys(v).length === 0 ? undefined : (v as { [key: string]: FormDelta });
 }

@@ -1,3 +1,4 @@
+import { isRecord } from "../json.js";
 import type { HierarchyOrder, HierarchyReply } from "./project.js";
 
 export type HierarchyStatus = "loading" | "resyncing" | "current" | "empty" | "denied" | "signedout" | "unavailable" | "closed";
@@ -91,10 +92,6 @@ export function stateOf(code: number, body: unknown): HierarchyState {
     return { status: "current", orders: r.orders as HierarchyOrder[], observedAt: r.observed_at };
   }
   return { status: "unavailable", orders: none, reason: "malformed hierarchy reply" };
-}
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
 function wellFormed(o: unknown): boolean {

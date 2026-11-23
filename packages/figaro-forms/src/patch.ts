@@ -50,10 +50,6 @@ function own<T>(m: { readonly [key: string]: T } | undefined, k: string): T | un
   return m && Object.hasOwn(m, k) ? m[k] : undefined;
 }
 
-function define<T>(m: Record<string, T>, k: string, v: T): void {
-  Object.defineProperty(m, k, { value: v, enumerable: true, writable: true, configurable: true });
-}
-
 function size(m: object | undefined): number {
   return m ? Object.keys(m).length : 0;
 }
@@ -222,7 +218,7 @@ export function inverse(p: Patch): Patch {
         continue;
       }
       update ??= {};
-      define(update, k, inverse(c));
+      put(update, k, inverse(c));
     }
     return { object: objectPatch(set, del, update) };
   }
@@ -233,7 +229,7 @@ export function inverse(p: Patch): Patch {
     if (l.Create?.length) out.Delete = l.Create;
     if (size(l.Update) > 0) {
       const u: Record<string, Patch> = {};
-      for (const [k, c] of entries(l.Update)) define(u, k, inverse(c));
+      for (const [k, c] of entries(l.Update)) put(u, k, inverse(c));
       out.Update = u;
     }
     const r = reversed(l.Order);
@@ -329,8 +325,8 @@ function copyOp(out: Building, from: ObjectPatch, k: string): void {
 }
 
 function putUpdate(out: Building, k: string, c: Patch, isNew: boolean): void {
-  define(out.update, k, c);
-  if (isNew) define(out.isNew, k, true);
+  put(out.update, k, c);
+  if (isNew) put(out.isNew, k, true);
 }
 
 export function setAt(base: Json | undefined, path: readonly string[], value: Json): Patch {
@@ -361,7 +357,7 @@ export function deleteAt(base: Json | undefined, path: readonly string[]): Patch
 
 function single<T>(key: string, value: T): Record<string, T> {
   const out: Record<string, T> = {};
-  define(out, key, value);
+  put(out, key, value);
   return out;
 }
 

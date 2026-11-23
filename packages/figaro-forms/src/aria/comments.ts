@@ -1,4 +1,4 @@
-import { isObject, type Json, type JsonObject } from "../json.js";
+import { compareStrings, isObject, type Json, type JsonObject } from "../json.js";
 import type { EditResult } from "../replica.js";
 import { formatQuote, parseQuote, type QuoteCoord, type QuoteRange } from "./quote.js";
 import type { BoundFormWriter } from "./surface.js";
@@ -29,7 +29,7 @@ function entriesOf(v: Json | undefined): CommentEntry[] {
   for (const [key, e] of Object.entries(v)) {
     if (isObject(e)) out.push({ key, by: str(e.by), text: str(e.text) });
   }
-  return out.sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+  return out.sort((a, b) => compareStrings(a.key, b.key));
 }
 
 export function foldComments(root: JsonObject): TranscriptComment[] {
@@ -48,7 +48,7 @@ export function foldComments(root: JsonObject): TranscriptComment[] {
     const turn = typeof rec.turn === "number" && Number.isInteger(rec.turn) ? rec.turn : 0;
     out.push({ id, token: formatQuote(parsed.range), at: parsed.range, turn, thread: entriesOf(rec.thread) });
   }
-  return out.sort((a, b) => coordLess(a.at.start, b.at.start) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  return out.sort((a, b) => coordLess(a.at.start, b.at.start) || compareStrings(a.id, b.id));
 }
 
 export function endBlockOf(r: QuoteRange): { readonly lt: number; readonly block: number } {

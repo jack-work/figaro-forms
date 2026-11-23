@@ -1,5 +1,5 @@
-import { isObject, member, type Json, type JsonObject } from "../json.js";
-import type { Path } from "../path.js";
+import { compareStrings, isObject, member, type Json, type JsonObject } from "../json.js";
+import { getAt, type Path } from "../path.js";
 import type { FormView, ViewAction } from "../wire.js";
 
 export { OpenState, type OpenStateOptions } from "./open-state.js";
@@ -46,29 +46,19 @@ export function leafText(v: Json | undefined): string {
   return JSON.stringify(v);
 }
 
-function childText(n: Json | undefined, dotted: string): string {
-  let cur = n;
-  for (const seg of dotted.split(".")) {
-    if (!isObject(cur)) return "";
-    cur = member(cur, seg);
-  }
-  return isObject(cur) ? "" : leafText(cur);
+function childValue(n: Json | undefined, dotted: string): Json | undefined {
+  return getAt(n, dotted.split("."));
 }
 
-function childValue(n: Json | undefined, dotted: string): Json | undefined {
-  let cur = n;
-  for (const seg of dotted.split(".")) {
-    if (!isObject(cur)) return undefined;
-    cur = member(cur, seg);
-  }
-  return cur;
+function childText(n: Json | undefined, dotted: string): string {
+  return leafText(childValue(n, dotted));
 }
 
 function shapeLess(a: string, b: string): number {
   const x = Number(a);
   const y = Number(b);
   if (a !== "" && b !== "" && Number.isFinite(x) && Number.isFinite(y)) return x - y;
-  return a < b ? -1 : a > b ? 1 : 0;
+  return compareStrings(a, b);
 }
 
 export interface RowInfo {

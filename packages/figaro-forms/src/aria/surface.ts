@@ -1,6 +1,6 @@
 import type { FormsClient } from "../client.js";
 import type { AriaClient } from "./client.js";
-import { isObject, type Json, type JsonObject } from "../json.js";
+import { compareStrings, isObject, type Json, type JsonObject } from "../json.js";
 import type { Freshness, Phase, Replica } from "../replica.js";
 import type { Refusal } from "../access.js";
 import type { EditResult } from "../replica.js";
@@ -134,7 +134,7 @@ export function parseRoleAddresses(s: string | undefined): string[] {
 
 const byRecent = (a: { activeAt: number | undefined; sortKey: string }, b: { activeAt: number | undefined; sortKey: string }): number => {
   const d = (b.activeAt ?? 0) - (a.activeAt ?? 0);
-  return d !== 0 ? d : a.sortKey < b.sortKey ? -1 : a.sortKey > b.sortKey ? 1 : 0;
+  return d !== 0 ? d : compareStrings(a.sortKey, b.sortKey);
 };
 
 function rowsOf(level: Json | undefined): [string, JsonObject][] {
@@ -198,7 +198,7 @@ export function foldTree(
   };
   const ids = Object.keys(troupe)
     .filter((k) => isObject(troupe[k]))
-    .sort((a, b) => Number(isSelf(b)) - Number(isSelf(a)) || (a < b ? -1 : a > b ? 1 : 0));
+    .sort((a, b) => Number(isSelf(b)) - Number(isSelf(a)) || compareStrings(a, b));
   for (const id of ids) {
     const row = troupe[id] as JsonObject;
     const form = text(row.form);
