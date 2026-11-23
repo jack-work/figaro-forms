@@ -41,3 +41,4 @@ export {
   type TreeNode,
   type TreeState,
 } from "./surface.js";
+export { foldReview, type Review, type ReviewComment, type ReviewThread } from "./review.js";
