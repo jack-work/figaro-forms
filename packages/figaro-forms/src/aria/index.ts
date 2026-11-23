@@ -42,3 +42,18 @@ export {
   type TreeState,
 } from "./surface.js";
 export { foldReview, type Review, type ReviewComment, type ReviewThread } from "./review.js";
+export {
+  addComment,
+  commentsByTurn,
+  deleteComment,
+  endBlockOf,
+  foldComments,
+  replyToComment,
+  systemEnv,
+  type CommentEntry,
+  type CommentEnv,
+  type CommentWrite,
+  type NewComment,
+  type TranscriptComment,
+} from "./comments.js";
+export { formatQuote, parseQuote, QuoteError, spans, type QuoteCoord, type QuoteRange } from "./quote.js";
