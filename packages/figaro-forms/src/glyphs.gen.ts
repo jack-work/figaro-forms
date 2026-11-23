@@ -77,6 +77,7 @@ export const glyphs = {
   "pit.answer": "⚷",
   "voice": "",
   "attach": "",
+  "audio.play": "",
 } as const;
 
 export type GlyphName = keyof typeof glyphs;
@@ -441,5 +442,10 @@ export const glyphDocs: readonly GlyphDoc[] = [
     "name": "attach",
     "symbol": "",
     "marks": "a file or photo added to the draft, and the control that adds one"
+  },
+  {
+    "name": "audio.play",
+    "symbol": "",
+    "marks": "a reply read aloud: the speaker that plays a message"
   }
 ];
