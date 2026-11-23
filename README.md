@@ -26,6 +26,8 @@ DOM. `apps/demo` is the one place anything is drawn.
 | `figaro-forms/aria/react` | `AriaProvider`, `useAria`, `useAriaFrames`, `useAriaPhase`, `useAriaList`, `useAriaStream` |
 | `figaro-forms/aria/jotai` | `ariaAtom`, `ariaPhaseAtom`, `ariaFrameAtom`, `ariaListAtom`, `ariaConnectionAtom`, `ariaRosterAtom` (paged list, written with `"more"` or `"refresh"`, refetched when the connection reopens) |
 
+Source layout, the generation contract and how an edit travels: [docs/architecture.md](docs/architecture.md).
+
 ```ts
 import { FormsClient, webSocketDial } from "figaro-forms";
 import { doorUrl, edgeSession } from "figaro-forms/auth";
