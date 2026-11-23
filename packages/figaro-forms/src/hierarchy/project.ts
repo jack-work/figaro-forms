@@ -1,7 +1,8 @@
 import type { Json, JsonObject } from "../json.js";
 import { isObject } from "../json.js";
 import { RpcError } from "../rpc.js";
-import { errDenied, method, type FormResponse, type ListResponse, type ListRow } from "../wire.js";
+import type { AriaRow, ListResponse } from "../aria/wire.js";
+import { errDenied, method, type FormResponse } from "../wire.js";
 
 export interface HierarchyForm {
   readonly id: string;
@@ -63,9 +64,9 @@ export function hierarchyHttp(reply: HierarchyReply): { readonly code: number; r
   }
 }
 
-const live = (r: ListRow): boolean => !r.reaped_at && !r.retired_at;
-const isFormRow = (r: ListRow): boolean => r.kind === "form" || (r.kind === undefined && r.state === "form");
-const isAriaRow = (r: ListRow): boolean => r.kind === "conversation" || (r.kind === undefined && r.state !== "form" && r.state !== "anchor");
+const live = (r: AriaRow): boolean => !r.reaped_at && !r.retired_at;
+const isFormRow = (r: AriaRow): boolean => r.kind === "form" || (r.kind === undefined && r.state === "form");
+const isAriaRow = (r: AriaRow): boolean => r.kind === "conversation" || (r.kind === undefined && r.state !== "form" && r.state !== "anchor");
 
 async function project(call: CallerCall, o: ReadHierarchyOptions): Promise<HierarchyReply> {
   const now = o.now ?? Date.now;
@@ -129,15 +130,15 @@ function subtree(root: string, children: ReadonlyMap<string, readonly string[]>,
   return out;
 }
 
-function placedUnder(f: ListRow, forms: ReadonlyMap<string, ListRow>): string {
+function placedUnder(f: AriaRow, forms: ReadonlyMap<string, AriaRow>): string {
   return [f.present, f.parent].find((p) => p && forms.has(p)) ?? "";
 }
 
 function order(
   root: string,
   children: ReadonlyMap<string, readonly string[]>,
-  forms: ReadonlyMap<string, ListRow>,
-  arias: ReadonlyMap<string, ListRow>,
+  forms: ReadonlyMap<string, AriaRow>,
+  arias: ReadonlyMap<string, AriaRow>,
   states: ReadonlyMap<string, JsonObject>,
 ): HierarchyOrder {
   const ids = subtree(root, children, (id) => states.has(id)).sort();
@@ -160,7 +161,7 @@ function order(
     });
   }
 
-  const drawn = (a: ListRow): string => a.present || a.parent || "";
+  const drawn = (a: AriaRow): string => a.present || a.parent || "";
   const shown = new Set<string>(seats);
   for (let grew = true; grew; ) {
     grew = false;

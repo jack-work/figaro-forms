@@ -4,7 +4,9 @@ import type { Patch } from "./patch.js";
 export const protocolVersion = 1;
 export const formDeltaSchema = 2;
 export const errFormUnavailable = -32041;
+export const errDormant = -32042;
 export const errDenied = -32020;
+export const errMoved = -32030;
 
 export const method = {
   hello: "angelus.hello",
@@ -151,27 +153,4 @@ export interface FormDelta {
 export interface FormCreateResponse {
   readonly form_id: string;
   readonly version: number;
-}
-
-export interface ListRequest {
-  readonly global?: boolean;
-}
-
-export interface ListRow {
-  readonly id: string;
-  readonly handle?: string;
-  readonly state: string;
-  readonly mantra?: string;
-  readonly parent?: string;
-  readonly present?: string;
-  readonly kind?: string;
-  readonly name?: string;
-  readonly target_aria?: string;
-  readonly retired_at?: number;
-  readonly reaped_at?: number;
-}
-
-export interface ListResponse {
-  readonly figaros: readonly ListRow[];
-  readonly refused?: number;
 }

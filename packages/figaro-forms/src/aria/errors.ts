@@ -1,5 +1,5 @@
 import { RpcError } from "../rpc.js";
-import { errDeniedCode, errDormantCode, errMovedCode } from "./wire.js";
+import { errDenied, errDormant, errFormUnavailable, errMoved } from "../wire.js";
 
 export type RefusalKind = "denied" | "not_found" | "dormant" | "moved" | "unavailable";
 
@@ -16,10 +16,10 @@ export function ariaRefusal(err: unknown): AriaRefusal | undefined {
 }
 
 function classify(err: RpcError): RefusalKind | undefined {
-  if (err.code === errDeniedCode) return "denied";
-  if (err.code === errDormantCode) return "dormant";
-  if (err.code === errMovedCode) return "moved";
-  if (err.code === -32041) return "unavailable";
+  if (err.code === errDenied) return "denied";
+  if (err.code === errDormant) return "dormant";
+  if (err.code === errMoved) return "moved";
+  if (err.code === errFormUnavailable) return "unavailable";
   if (/\bnot found\b/i.test(err.message)) return "not_found";
   return undefined;
 }

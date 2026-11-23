@@ -1,4 +1,4 @@
-import type { Anchor, FormDelta, InquirySegment, Node, Page } from "./wire.js";
+import type { Anchor, TranscriptFormDelta, InquirySegment, Node, Page } from "./wire.js";
 
 export const maxNode = Number.MAX_SAFE_INTEGER;
 const maxTurn = Number.MAX_SAFE_INTEGER;
@@ -29,7 +29,7 @@ export interface Message {
   readonly inquiry?: string;
   readonly inquirySegments?: readonly InquirySegment[];
   readonly inquiryLT?: number;
-  readonly formDeltas?: { readonly [key: string]: FormDelta };
+  readonly formDeltas?: { readonly [key: string]: TranscriptFormDelta };
   readonly forkedFrom?: string;
   readonly role: "input" | "output";
   readonly nodes: readonly Node[];

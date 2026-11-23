@@ -1,21 +1,18 @@
 import type { Json } from "../json.js";
+import { method } from "../wire.js";
 
 export const ariaMethod = {
   frame: "figaro.aria",
   turnDone: "turn.done",
-  closed: "figaro.closed",
+  closed: method.closed,
   read: "figaro.read",
-  follow: "figaro.follow",
-  unfollow: "figaro.unfollow",
+  follow: method.follow,
+  unfollow: method.unfollow,
   qua: "figaro.qua",
   interrupt: "figaro.interrupt",
   fork: "figaro.fork",
-  list: "figaro.list",
+  list: method.list,
 } as const;
-
-export const errDeniedCode = -32020;
-export const errDormantCode = -32042;
-export const errMovedCode = -32030;
 
 export interface Anchor {
   readonly turn: number;
@@ -41,7 +38,7 @@ export type NodeType = "prose" | "thinking" | "tool" | "steering" | (string & {}
 export type FormKind = "bound" | "studied" | "role" | (string & {});
 export type FormEvent = "set" | "removed" | "deleted" | (string & {});
 
-export interface FormDelta {
+export interface TranscriptFormDelta {
   readonly value?: Json;
   readonly prev?: Json;
   readonly kind: FormKind;
@@ -75,7 +72,7 @@ export interface Node {
   readonly opened_at?: number;
   readonly started_at?: number;
   readonly finished_at?: number;
-  readonly formDeltas?: { readonly [key: string]: FormDelta };
+  readonly formDeltas?: { readonly [key: string]: TranscriptFormDelta };
 }
 
 export interface NodeDelta {
@@ -102,7 +99,7 @@ export interface Turn {
   readonly inquiry?: string;
   readonly inquiry_segments?: readonly InquirySegment[];
   readonly at?: number;
-  readonly formDeltas?: { readonly [key: string]: FormDelta };
+  readonly formDeltas?: { readonly [key: string]: TranscriptFormDelta };
   readonly forked_from?: string;
   readonly lts?: readonly number[];
   readonly sealed: boolean;
@@ -220,6 +217,8 @@ export interface AriaRow {
   readonly message_count?: number;
   readonly retired_at?: number;
   readonly reaped_at?: number;
+  readonly name?: string;
+  readonly target_aria?: string;
   readonly outfit_name?: string;
   readonly provider?: string;
   readonly model?: string;

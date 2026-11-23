@@ -13,12 +13,12 @@ import {
   type Segment,
 } from "./store.js";
 import { spliceBytes, utf8Length } from "./utf8.js";
-import { roleInput, roleOutput, type Anchor, type FormDelta, type InquirySegment, type Metrics, type Node, type NodeDelta, type Page, type Src, type TurnPart } from "./wire.js";
+import { roleInput, roleOutput, type Anchor, type TranscriptFormDelta, type InquirySegment, type Metrics, type Node, type NodeDelta, type Page, type Src, type TurnPart } from "./wire.js";
 
 export interface Inquiry {
   readonly text: string;
   readonly segments?: readonly InquirySegment[];
-  readonly formDeltas?: { readonly [key: string]: FormDelta };
+  readonly formDeltas?: { readonly [key: string]: TranscriptFormDelta };
   readonly forkedFrom?: string;
   readonly lt?: number;
 }
@@ -544,7 +544,7 @@ function asSrcs(v: unknown): readonly Src[] | undefined {
   return out;
 }
 
-function asFormDeltas(v: unknown): { readonly [key: string]: FormDelta } | undefined {
+function asFormDeltas(v: unknown): { readonly [key: string]: TranscriptFormDelta } | undefined {
   if (!isRecord(v)) return undefined;
-  return Object.keys(v).length === 0 ? undefined : (v as { [key: string]: FormDelta });
+  return Object.keys(v).length === 0 ? undefined : (v as { [key: string]: TranscriptFormDelta });
 }
