@@ -15,6 +15,9 @@ export const gatewayMethods = [
   "figaro.read",
   "figaro.qua",
   "figaro.interrupt",
+  "figaro.queued",
+  "figaro.queue.delete",
+  "figaro.queue.update",
   "figaro.fork",
   "figaro.list",
   "figaro.create",
@@ -30,6 +33,9 @@ const permitted: Readonly<Record<string, ReadonlySet<string>>> = {
   "angelus.outfits": new Set(["spec"]),
   "figaro.set": new Set(["figaro_id", "patch", "client", "seq"]),
   "figaro.interrupt": new Set(["figaro_id", "queue", "traceparent"]),
+  "figaro.queued": new Set(["figaro_id"]),
+  "figaro.queue.delete": new Set(["figaro_id", "epoch", "ids"]),
+  "figaro.queue.update": new Set(["figaro_id", "epoch", "id", "text"]),
 };
 
 const queueDispositions: ReadonlySet<unknown> = new Set([undefined, "keep", "clear"]);

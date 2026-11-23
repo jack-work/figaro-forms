@@ -13,13 +13,16 @@ every request needs the edge secret in `X-Figaro-Edge` and the admin in
 
 - `/door` (WebSocket): JSON-RPC to the door, one upstream connection per client.
   Allowed: `angelus.hello`, `angelus.outfits`, `figaro.follow`, `figaro.unfollow`,
-  `figaro.form`, `figaro.read`, `figaro.qua`, `figaro.interrupt`, `figaro.fork`,
+  `figaro.form`, `figaro.read`, `figaro.qua`, `figaro.interrupt`, `figaro.queued`,
+  `figaro.queue.delete`, `figaro.queue.update`, `figaro.fork`,
   `figaro.list`, `figaro.create`, `figaro.set`.
   Everything else (form.create, kill) is refused. `figaro.qua` may carry only
   `figaro_id`, `text`, `images`, `traceparent` (W3C only, else refused), `attachments` and
   `dictation` (an `audio_id`, else refused; the gateway keeps it), `figaro.fork` only `figaro_id`, `at_turn` and
   `at_lt`, `figaro.create` only `outfits` (no patch, no cwd), `angelus.outfits` only
-  `spec`, and `figaro.set` only `figaro_id`, `patch`, `client` and `seq`: any other
+  `spec`, `figaro.set` only `figaro_id`, `patch`, `client` and `seq`, `figaro.queued` only
+  `figaro_id`, `figaro.queue.delete` only `figaro_id`, `epoch` and `ids`, and `figaro.queue.update`
+  only `figaro_id`, `epoch`, `id` and `text`: any other
   field (`form` with its patch, context or outfits on a qua; a fork's
   `patch`, `outfits`, `seat`, `studies`, `abdicates`; a set's `outfits`, `assert`,
   `if_version`) is refused with an error naming

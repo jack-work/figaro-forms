@@ -122,10 +122,13 @@ describe("figaro gateway", () => {
     expect(JSON.stringify(got[0])).toContain("not allowed");
   });
 
-  it("reads a queue through figaro.form and passes the hang-up, but refuses to delete, edit or list queued messages", async () => {
+  it("passes the queue form, the hang-up, and queued, queue.delete and queue.update with their own fields only", async () => {
     const { fake, port } = await rig();
     fake.formReplace(`${id}/queue`, { epoch: "e1", items: {}, len: 0 }, 1, 1);
     fake.answers.set("figaro.interrupt", { ok: true, stopped: true });
+    fake.answers.set("figaro.queued", { epoch: "e1", queue: [] });
+    fake.answers.set("figaro.queue.delete", { epoch: "e1", results: [{ id: 2, outcome: "deleted" }] });
+    fake.answers.set("figaro.queue.update", { epoch: "e1", result: { id: 2, outcome: "updated" } });
     const ws = await open(`ws://127.0.0.1:${port}/door`);
     const got = collect(ws);
     const calls: [string, Record<string, unknown>][] = [
@@ -134,16 +137,25 @@ describe("figaro gateway", () => {
       ["figaro.queue.delete", { figaro_id: id, epoch: "e1", ids: [2] }],
       ["figaro.queue.update", { figaro_id: id, epoch: "e1", id: 2, text: "x" }],
       ["figaro.queued", { figaro_id: id }],
+      ["figaro.queue.delete", { figaro_id: id, epoch: "e1", ids: [2], sender: "someone" }],
+      ["figaro.queue.update", { figaro_id: id, epoch: "e1", id: 2, text: "x", form: { patch: {} } }],
+      ["figaro.queued", { figaro_id: id, all: true }],
     ];
     calls.forEach(([method, params], i) => ws.send(JSON.stringify({ jsonrpc: "2.0", id: 200 + i, method, params })));
     await until("every answer", () => got.length === calls.length);
     const reply = (i: number): { result?: unknown; error?: { message: string } } => got.find((g) => (g as { id: number }).id === 200 + i) as never;
     expect(reply(0).result).toMatchObject({ snapshot: { epoch: "e1" } });
     expect(reply(1).result).toMatchObject({ ok: true });
-    for (const i of [2, 3, 4]) expect(reply(i).error?.message, calls[i]?.[0]).toContain(`gateway: ${calls[i]?.[0]} is not allowed`);
-    const reached = fake.calls.map((c) => c.method);
-    expect(reached).toEqual(expect.arrayContaining(["figaro.form", "figaro.interrupt"]));
-    for (const m of ["figaro.queue.delete", "figaro.queue.update", "figaro.queued"]) expect(reached).not.toContain(m);
+    expect(reply(2).result).toMatchObject({ results: [{ id: 2, outcome: "deleted" }] });
+    expect(reply(3).result).toMatchObject({ result: { id: 2, outcome: "updated" } });
+    expect(reply(4).result).toMatchObject({ epoch: "e1" });
+    for (const [i, field] of [[5, "sender"], [6, "form"], [7, "all"]] as const) expect(reply(i).error?.message, calls[i]?.[0]).toContain(`may not carry ${field}`);
+    const reached = fake.calls.filter((c) => c.method.startsWith("figaro.queue")).map((c) => [c.method, c.params]);
+    expect(reached).toEqual([
+      ["figaro.queue.delete", { figaro_id: id, epoch: "e1", ids: [2] }],
+      ["figaro.queue.update", { figaro_id: id, epoch: "e1", id: 2, text: "x" }],
+      ["figaro.queued", { figaro_id: id }],
+    ]);
   });
 
   it("refuses a qua or fork that carries a form patch, outfits, seat, studies or abdication, naming the field", async () => {

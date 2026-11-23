@@ -8,6 +8,9 @@ export type DoorMethod =
   | "figaro.read"
   | "figaro.qua"
   | "figaro.interrupt"
+  | "figaro.queued"
+  | "figaro.queue.delete"
+  | "figaro.queue.update"
   | "figaro.fork"
   | "figaro.list"
   | "figaro.create"
@@ -38,7 +41,7 @@ export const webCommands: { readonly [name in CommandName]: WebRoute } = {
   fork: door(["figaro.fork", "figaro.follow", "figaro.qua"], { limits: "at a turn or node only; -O, -S and -D are refused (the gateway passes no patch or outfit), --stay means do not follow, and a prompt goes as a following figaro.qua" }),
   hup: door(["figaro.interrupt"], { limits: "queue: keep; -d sends queue: clear, as :cut (see hangupQueue)" }),
   cut: door(["figaro.interrupt"], { limits: "queue: clear (see hangupQueue)" }),
-  queue: nowhere(gatewayLacks("deletes or edits a queued message (figaro.queue.delete, figaro.queue.update); the queue can be read as the <aria>/queue form")),
+  queue: door(["figaro.queued", "figaro.queue.delete", "figaro.queue.update"]),
   list: door(["figaro.form"], { form: "@troupe" }),
   lsh: door(["figaro.form"], { form: "@troupe" }),
   recent: door(["figaro.form"], { form: "@recent" }),
