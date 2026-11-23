@@ -2,7 +2,7 @@
 
 Two layouts live on forms. Transcript comments (layout B) are the contract for
 the web and the pager. The keel review mirror (layout A) is written by
-`paperd notify` only; figaro-forms reads it and never writes it.
+`paperd notify` only; figaro-forms neither reads nor writes it.
 
 ## Transcript comments (layout B, the contract)
 
@@ -43,11 +43,11 @@ Deliberate differences from the pager: it drops every comment when one record
 has a mistyped field, the fold drops only that record; new ids avoid every
 existing key, not only those that parse.
 
-## Review mirror (layout A, keel, read-only here)
+## Review mirror (layout A, keel only)
 
 Written only by `paperd notify` (keel `viewer/notify.go`), the sidecar that mirrors
 a keel review into a form and wakes the seat the form points at. Read by the
-seat (and by figaro-forms through `foldReview`). Flat top-level keys, always
+seat. Flat top-level keys, always
 written whole.
 
 ### Keys
@@ -100,13 +100,12 @@ figaro core reads or writes them.
   every changed thread, deliverable or not. A comment key is written only for
   events that are deliverable, so a comment the seat itself wrote has a `n`
   count but no `comment_` key. Scalars are rewritten after the threads.
-- `figaro-forms`: reads only (`foldReview`). It never writes these keys.
+- `figaro-forms`: does not touch these keys.
 
 ### Ordering
 
-Not specified by the writer. `foldReview` uses: threads by file, line,
-then id; comments inside a thread by `at`, then id. `at` has second precision,
-so replies within one second tie and fall back to id.
+Not specified by the writer. `at` has second precision, so replies within one
+second tie.
 
 ### Write semantics that shape the layout
 
@@ -137,18 +136,17 @@ The layout question is settled: transcript comments are B and the web writes B. 
 2. `threads_open` on the real role form disagrees with its thread keys: the
    scalar says 2, nine thread keys are unresolved. The notifier counts the live
    threads of one scoped monitor; thread keys from an earlier or wider scope
-   are never removed. The helpers recompute the scalar from the keys they see,
-   so their first write corrects it to 9. Which is authoritative is open.
-3. A comment the seat itself wrote has no `comment_` key, so a folded thread
-   can hold fewer comments than `n`. The fold reports both.
+   are never removed. Which is authoritative is open.
+3. A comment the seat itself wrote has no `comment_` key, so a thread can
+   show fewer comments than `n`.
 4. `kind` values: the notifier's event kinds are `thread`, `comment`, `edit`,
    `resolved`, `reopened`, but only the first three reach a comment key. `edit`
    writes a new `comment_<id>` under the same comment id as the original, which
    replaces it in place; the form then holds the edited text and nothing marks
    it as edited.
 5. Unread is a count of the notifier's debt, which clears on a successful send,
-   not on the seat reading. Whether `markRead` from a reader should be a
-   distinct state from "woken" is open.
+   not on the seat reading. Whether a reader marking a
+   thread read should be a distinct state from "woken" is open.
 6. `at` is second precision, so ordering inside one second falls back to the
    comment id, which is random. Replies in the same second can fold out of
    order.

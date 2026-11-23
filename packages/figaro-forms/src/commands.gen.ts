@@ -265,7 +265,7 @@ export const commandDocs: readonly CommandDoc[] = [
     "name": "read",
     "group": "Prompt",
     "help": "Print an aria log's entries exactly as they were sent",
-    "usage": "read [\u003cid\u003e] [--from N] [--until M] [-j]",
+    "usage": "read [\u003cid\u003e] [--from N] [--until M | --follow] [-j]",
     "args": [
       {
         "name": "aria",
@@ -283,6 +283,10 @@ export const commandDocs: readonly CommandDoc[] = [
         "long": "until",
         "value": "count",
         "help": "Stop before this turn (default the end)"
+      },
+      {
+        "long": "follow",
+        "help": "Stay attached after the last entry and print each new one (logs only)"
       },
       {
         "long": "json",
