@@ -1,27 +1,21 @@
-import { Connection, ConnectionLost, RpcError, type ConnectionState, type Dial } from "./rpc.js";
+import { Connection, ConnectionLost, RpcError, type ConnectionState } from "./rpc.js";
+import { Link, type LinkOptions } from "./link.js";
+import { Registry } from "./registry.js";
 import { Replica, type ReplicaOptions } from "./replica.js";
 import type { Json } from "./json.js";
 import type { Patch } from "./patch.js";
 import {
   errFormUnavailable,
   method,
-  protocolVersion,
   type FormCreateResponse,
   type FormDelta,
-  type Capability,
   type FormResponse,
-  type HelloResponse,
   type SetResponse,
 } from "./wire.js";
 
-export interface ClientOptions {
-  readonly dial: Dial;
+export interface ClientOptions extends LinkOptions {
   readonly client?: string;
   readonly replica?: ReplicaOptions;
-  readonly callTimeoutMs?: number;
-  readonly retryMinMs?: number;
-  readonly retryMaxMs?: number;
-  readonly releaseGraceMs?: number;
 }
 
 export interface FormRef {
@@ -32,8 +26,6 @@ export interface FormRef {
 interface Entry {
   readonly ref: FormRef;
   readonly replica: Replica;
-  refs: number;
-  reap: ReturnType<typeof setTimeout> | undefined;
 }
 
 const keyOf = (id: string, intrinsic: string | undefined): string =>
@@ -51,102 +43,44 @@ export function isFinal(err: unknown): boolean {
   return err instanceof RpcError && err.code !== errFormUnavailable;
 }
 
-export class FormsClient {
-  readonly connection: Connection;
+export class FormsClient extends Link {
   readonly client: string;
-  private helloValue: HelloResponse | undefined;
-  private readonly forms = new Map<string, Entry>();
+  private readonly forms: Registry<Entry>;
   private readonly followed = new Set<string>();
   private readonly opts: ClientOptions;
 
   constructor(opts: ClientOptions) {
+    super(opts);
     this.opts = opts;
     this.client = opts.client ?? randomClient();
-    this.connection = new Connection({
-      dial: opts.dial,
-      ...(opts.callTimeoutMs !== undefined ? { callTimeoutMs: opts.callTimeoutMs } : {}),
-      ...(opts.retryMinMs !== undefined ? { retryMinMs: opts.retryMinMs } : {}),
-      ...(opts.retryMaxMs !== undefined ? { retryMaxMs: opts.retryMaxMs } : {}),
-      onOpen: (conn) => this.opened(conn),
-    });
+    this.forms = new Registry(
+      (_, e) => {
+        e.replica.close();
+        this.unfollowIfUnused(e.ref.id);
+      },
+      opts.releaseGraceMs ?? 1000,
+    );
     this.connection.on(method.formDelta, (p, generation) => this.delta(p as unknown as FormDelta, generation));
     this.connection.on(method.closed, (p) => this.closedForm(p));
-    this.connection.on(method.doorLapsed, () => this.connection.reconnectNow());
-    this.connection.onState((state) => {
-      if (state === "open") {
-        const generation = this.connection.epoch;
-        for (const e of this.forms.values()) void this.attach(e, generation);
-      } else {
-        this.helloValue = undefined;
-        for (const e of this.forms.values()) e.replica.stale();
-      }
-    });
-  }
-
-  get hello(): HelloResponse | undefined {
-    return this.helloValue;
-  }
-
-  get state(): ConnectionState {
-    return this.connection.state;
-  }
-
-  form(ref: string | FormRef): Replica {
-    const e = this.entry(ref);
-    this.retainEntry(e);
-    return e.replica;
   }
 
   peek(ref: string | FormRef): Replica {
-    const e = this.entry(ref);
-    if (e.refs === 0) this.scheduleReap(e);
-    return e.replica;
+    const r = parseRef(ref);
+    return this.forms.peek(keyOf(r.id, r.intrinsic), () => this.entry(r)).replica;
   }
 
   retain(ref: string | FormRef): Replica {
-    return this.form(ref);
+    const r = parseRef(ref);
+    return this.forms.retain(keyOf(r.id, r.intrinsic), () => this.entry(r)).replica;
   }
 
   release(ref: string | FormRef): void {
     const r = parseRef(ref);
-    const e = this.forms.get(keyOf(r.id, r.intrinsic));
-    if (!e || e.refs === 0) return;
-    if (--e.refs === 0) this.scheduleReap(e);
+    this.forms.release(keyOf(r.id, r.intrinsic));
   }
 
   get open(): number {
     return this.forms.size;
-  }
-
-  private entry(ref: string | FormRef): Entry {
-    const r = parseRef(ref);
-    const key = keyOf(r.id, r.intrinsic);
-    let e = this.forms.get(key);
-    if (!e) {
-      e = { ref: r, replica: this.replicaFor(r), refs: 0, reap: undefined };
-      this.forms.set(key, e);
-      if (this.connection.state === "open") void this.attach(e, this.connection.epoch);
-    }
-    return e;
-  }
-
-  private retainEntry(e: Entry): void {
-    e.refs++;
-    if (e.reap) clearTimeout(e.reap);
-    e.reap = undefined;
-  }
-
-  private scheduleReap(e: Entry): void {
-    if (e.reap) clearTimeout(e.reap);
-    e.reap = setTimeout(() => {
-      e.reap = undefined;
-      if (e.refs > 0) return;
-      const key = keyOf(e.ref.id, e.ref.intrinsic);
-      if (this.forms.get(key) !== e) return;
-      this.forms.delete(key);
-      e.replica.close();
-      this.unfollowIfUnused(e.ref.id);
-    }, this.opts.releaseGraceMs ?? 1000);
   }
 
   async create(patch?: Patch, outfits?: readonly string[]): Promise<string> {
@@ -162,10 +96,7 @@ export class FormsClient {
   }
 
   close(): void {
-    for (const e of this.forms.values()) {
-      if (e.reap) clearTimeout(e.reap);
-      e.replica.close();
-    }
+    for (const e of this.forms.values()) e.replica.close();
     this.forms.clear();
     this.connection.close();
   }
@@ -190,12 +121,22 @@ export class FormsClient {
     );
   }
 
-  private async opened(conn: Connection): Promise<void> {
-    const generation = conn.epoch;
-    const hello = await conn.send<HelloResponse>(method.hello, { version: protocolVersion });
-    if (generation !== conn.epoch) return;
+  protected override greeted(): void {
     this.followed.clear();
-    this.helloValue = hello;
+  }
+
+  protected connected(generation: number): void {
+    for (const e of this.forms.values()) void this.attach(e, generation);
+  }
+
+  protected disconnected(): void {
+    for (const e of this.forms.values()) e.replica.stale();
+  }
+
+  private entry(ref: FormRef): Entry {
+    const e = { ref, replica: this.replicaFor(ref) };
+    if (this.connection.state === "open") void this.attach(e, this.connection.epoch);
+    return e;
   }
 
   private async attach(e: Entry, generation: number): Promise<void> {
@@ -209,10 +150,6 @@ export class FormsClient {
     if (generation !== this.connection.epoch || this.connection.state !== "open") return;
     const key = keyOf(e.ref.id, e.ref.intrinsic);
     if (this.forms.get(key) === e) e.replica.reload();
-  }
-
-  private offers(cap: Capability): boolean {
-    return this.helloValue?.capabilities?.includes(cap) ?? false;
   }
 
   private unfollowIfUnused(id: string): void {

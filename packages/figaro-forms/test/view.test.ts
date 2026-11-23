@@ -98,7 +98,7 @@ describe("OpenState", () => {
     const door = new FakeDoor();
     door.add("@f1", { a: { b: 1 } });
     const client = new FormsClient({ dial: door.dial, client: "v1" });
-    const f = client.form("@f1");
+    const f = client.retain("@f1");
     await f.ready();
     const open = new OpenState();
     open.set(["a"], true);

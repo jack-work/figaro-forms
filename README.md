@@ -33,7 +33,7 @@ import { FormsClient, webSocketDial } from "figaro-forms";
 import { doorUrl, edgeSession } from "figaro-forms/auth";
 
 const client = new FormsClient({ dial: webSocketDial({ url: doorUrl("/door"), credential: edgeSession() }) });
-const form = client.form("@619b8925...");
+const form = client.retain("@619b8925...");
 await form.ready();
 form.subscribe("a.b", () => console.log(form.get("a.b")));
 await form.set("a.b", 2);

@@ -88,7 +88,7 @@ describe("figaro-forms-bridge", () => {
     const b = await bridge(door);
     const client = new FormsClient({ dial: webSocketDial({ url: b.doorUrl }), client: "b1", retryMinMs: 5 });
     cleanups.push(() => client.close());
-    const f = client.form("@f1");
+    const f = client.retain("@f1");
     await f.ready();
     expect(f.root).toEqual({ title: "demo" });
     expect(client.hello?.principal.id).toBe("gluck");
@@ -109,7 +109,7 @@ describe("figaro-forms-bridge", () => {
     const b = await bridge(door, { write: true });
     const client = new FormsClient({ dial: webSocketDial({ url: b.doorUrl }), client: "b2" });
     cleanups.push(() => client.close());
-    const f = client.form("@f1");
+    const f = client.retain("@f1");
     await f.ready();
     await expect(f.set("title", "edited")).resolves.toMatchObject({ ok: true });
     expect(door.forms.get("@f1")!.value).toEqual({ title: "edited" });

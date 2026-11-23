@@ -313,7 +313,7 @@ function client() {
 describe("FormsClient refresh generations over JSON-RPC", () => {
   it("keeps open transport separate from a current projection, then accepts a lower seed", async () => {
     const { c, door } = client();
-    const form = c.form("@topology");
+    const form = c.retain("@topology");
     await door.open(0);
     await door.follow(0);
     door.answer(0, "figaro.form", { result: seed(100, "old") });
@@ -337,7 +337,7 @@ describe("FormsClient refresh generations over JSON-RPC", () => {
 
   it("fails closed when re-follow is denied, without requesting or retaining the old form", async () => {
     const { c, door } = client();
-    const form = c.form("@topology");
+    const form = c.retain("@topology");
     await door.open(0);
     await door.follow(0);
     door.answer(0, "figaro.form", { result: seed(100, "private") });
@@ -355,7 +355,7 @@ describe("FormsClient refresh generations over JSON-RPC", () => {
 
   it("clears prior role authority on a denied read after follow succeeds", async () => {
     const { c, door } = client();
-    const form = c.form("@topology");
+    const form = c.retain("@topology");
     await door.open(0);
     await door.follow(0);
     door.answer(0, "figaro.form", { result: seed(100, "private") });
@@ -374,7 +374,7 @@ describe("FormsClient refresh generations over JSON-RPC", () => {
 
   it("does not let a failed old hello tear down the replacement connection", async () => {
     const { c, door } = client();
-    const form = c.form("@topology");
+    const form = c.retain("@topology");
     await vi.advanceTimersByTimeAsync(0);
     door.sockets[0]!.events.closed("before hello replied");
     await vi.advanceTimersByTimeAsync(20);
@@ -391,7 +391,7 @@ describe("FormsClient refresh generations over JSON-RPC", () => {
 
   it("does not accept an old follow completion as current after reconnect", async () => {
     const { c, door } = client();
-    const form = c.form("@topology");
+    const form = c.retain("@topology");
     await door.open(0);
     door.sockets[0]!.events.closed("before follow replied");
     await vi.advanceTimersByTimeAsync(20);

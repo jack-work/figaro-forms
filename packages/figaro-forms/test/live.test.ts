@@ -62,8 +62,8 @@ describe.skipIf(!runDir || !formId)("live: a dev daemon", () => {
     const a = new FormsClient({ dial: webSocketDial({ url }), client: "live-a" });
     const b = new FormsClient({ dial: webSocketDial({ url }), client: "live-b" });
     cleanups.push(() => a.close(), () => b.close());
-    const fa = a.form(formId);
-    const fb = b.form(formId);
+    const fa = a.retain(formId);
+    const fb = b.retain(formId);
     await Promise.all([fa.ready(), fb.ready()]);
     expect(a.hello?.principal).toMatchObject({ kind: "user" });
     const stamp = `t${Date.now()}`;
@@ -83,7 +83,7 @@ describe.skipIf(!runDir || !formId)("live: a dev daemon", () => {
     const url = await edge(join(runDir as string, "web.sock"), "reader");
     const c = new FormsClient({ dial: webSocketDial({ url }), client: "live-r" });
     cleanups.push(() => c.close());
-    const f = c.form(formId);
+    const f = c.retain(formId);
     await f.ready();
     const before = f.get("title");
     const res = await f.set("title", "should not land");
@@ -97,8 +97,8 @@ describe.skipIf(!runDir || !formId)("live: a dev daemon", () => {
     const a = new FormsClient({ dial: webSocketDial({ url }), releaseGraceMs: 5 });
     const w = new FormsClient({ dial: webSocketDial({ url }) });
     cleanups.push(() => a.close(), () => w.close());
-    const fa = a.form(formId);
-    const fw = w.form(formId);
+    const fa = a.retain(formId);
+    const fw = w.retain(formId);
     await Promise.all([fa.ready(), fw.ready()]);
     const caps = a.hello?.capabilities ?? [];
     let heard = 0;
@@ -111,7 +111,7 @@ describe.skipIf(!runDir || !formId)("live: a dev daemon", () => {
     await fw.set("live.unfollow", `after-${Date.now()}`);
     await new Promise((r) => setTimeout(r, 300));
     if (caps.includes("unfollow")) expect(heard).toBe(was);
-    const again = a.form(formId);
+    const again = a.retain(formId);
     await again.ready();
     expect(again.get("live.unfollow")).toBe(fw.get("live.unfollow"));
   });
@@ -120,8 +120,8 @@ describe.skipIf(!runDir || !formId)("live: a dev daemon", () => {
     const url = await edge(join(runDir as string, "web.sock"), "tester");
     const c = new FormsClient({ dial: webSocketDial({ url }), client: "live-c" });
     cleanups.push(() => c.close());
-    const recent = c.form("@recent");
-    const models = c.form("@models");
+    const recent = c.retain("@recent");
+    const models = c.retain("@models");
     await Promise.all([recent.ready(), models.ready()]);
     expect(recent.status.view?.rows).toEqual(["*"]);
     expect(models.status.view?.rows).toEqual(["*.models.*"]);

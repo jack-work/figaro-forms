@@ -1,6 +1,7 @@
-import { Connection, type ConnectionState, type Dial } from "../rpc.js";
+import type { ConnectionState } from "../rpc.js";
 import { FormsClient } from "../client.js";
-import { method, protocolVersion, type Capability, type HelloResponse } from "../wire.js";
+import { Link, type LinkOptions } from "../link.js";
+import { Registry } from "../registry.js";
 import type { Json } from "../json.js";
 import { AriaStream, type AttachOptions } from "./stream.js";
 import {
@@ -20,12 +21,7 @@ import {
   type TurnDone,
 } from "./wire.js";
 
-export interface AriaClientOptions {
-  readonly dial: Dial;
-  readonly callTimeoutMs?: number;
-  readonly retryMinMs?: number;
-  readonly retryMaxMs?: number;
-  readonly releaseGraceMs?: number;
+export interface AriaClientOptions extends LinkOptions {
   readonly pageBytes?: number;
 }
 
@@ -74,29 +70,16 @@ export class ForkedButUnsent extends Error {
   }
 }
 
-interface Shared {
-  readonly stream: AriaStream;
-  refs: number;
-  reap: ReturnType<typeof setTimeout> | undefined;
-}
-
-export class AriaClient {
-  readonly connection: Connection;
-  private helloValue: HelloResponse | undefined;
+export class AriaClient extends Link {
   private readonly streams = new Map<string, Set<AriaStream>>();
-  private readonly shared = new Map<string, Shared>();
+  private readonly shared: Registry<AriaStream>;
   private readonly opts: AriaClientOptions;
   private formsClient: FormsClient | undefined;
 
   constructor(opts: AriaClientOptions) {
+    super(opts);
     this.opts = opts;
-    this.connection = new Connection({
-      dial: opts.dial,
-      ...(opts.callTimeoutMs !== undefined ? { callTimeoutMs: opts.callTimeoutMs } : {}),
-      ...(opts.retryMinMs !== undefined ? { retryMinMs: opts.retryMinMs } : {}),
-      ...(opts.retryMaxMs !== undefined ? { retryMaxMs: opts.retryMaxMs } : {}),
-      onOpen: (conn) => this.opened(conn),
-    });
+    this.shared = new Registry((_, stream) => stream.close(), opts.releaseGraceMs ?? 1000);
     this.connection.on(ariaMethod.frame, (p, generation) => {
       const frame = p as unknown as AriaFrame;
       for (const s of this.streams.get(frame.figaro_id) ?? []) s.push(frame, generation);
@@ -109,26 +92,10 @@ export class AriaClient {
       const id = (p as { figaro_id?: string } | null)?.figaro_id;
       if (id) for (const s of this.streams.get(id) ?? []) s.ariaClosed();
     });
-    this.connection.on(method.doorLapsed, () => this.connection.reconnectNow());
-    this.connection.onState((state) => this.moved(state));
-  }
-
-  get hello(): HelloResponse | undefined {
-    return this.helloValue;
-  }
-
-  get state(): ConnectionState {
-    return this.connection.state;
   }
 
   get forms(): FormsClient {
-    this.formsClient ??= new FormsClient({
-      dial: this.opts.dial,
-      ...(this.opts.callTimeoutMs !== undefined ? { callTimeoutMs: this.opts.callTimeoutMs } : {}),
-      ...(this.opts.retryMinMs !== undefined ? { retryMinMs: this.opts.retryMinMs } : {}),
-      ...(this.opts.retryMaxMs !== undefined ? { retryMaxMs: this.opts.retryMaxMs } : {}),
-      ...(this.opts.releaseGraceMs !== undefined ? { releaseGraceMs: this.opts.releaseGraceMs } : {}),
-    });
+    this.formsClient ??= new FormsClient(this.opts);
     return this.formsClient;
   }
 
@@ -145,38 +112,15 @@ export class AriaClient {
   }
 
   peek(aria: string): AriaStream {
-    let e = this.shared.get(aria);
-    if (!e) {
-      e = { stream: this.attach(aria), refs: 0, reap: undefined };
-      this.shared.set(aria, e);
-    }
-    if (e.refs === 0) this.scheduleReap(aria, e);
-    return e.stream;
+    return this.shared.peek(aria, () => this.attach(aria));
   }
 
   retain(aria: string): AriaStream {
-    const stream = this.peek(aria);
-    const e = this.shared.get(aria) as Shared;
-    e.refs++;
-    if (e.reap) clearTimeout(e.reap);
-    e.reap = undefined;
-    return stream;
+    return this.shared.retain(aria, () => this.attach(aria));
   }
 
   release(aria: string): void {
-    const e = this.shared.get(aria);
-    if (!e || e.refs === 0) return;
-    if (--e.refs === 0) this.scheduleReap(aria, e);
-  }
-
-  private scheduleReap(aria: string, e: Shared): void {
-    if (e.reap) clearTimeout(e.reap);
-    e.reap = setTimeout(() => {
-      e.reap = undefined;
-      if (e.refs > 0 || this.shared.get(aria) !== e) return;
-      this.shared.delete(aria);
-      e.stream.close();
-    }, this.opts.releaseGraceMs ?? 1000);
+    this.shared.release(aria);
   }
 
   async follow(aria: string): Promise<void> {
@@ -190,7 +134,7 @@ export class AriaClient {
     set.delete(stream);
     if (set.size > 0) return;
     this.streams.delete(stream.aria);
-    if (this.shared.get(stream.aria)?.stream === stream) this.shared.delete(stream.aria);
+    this.shared.forget(stream.aria, stream);
     if (this.offers("unfollow") && this.connection.live) this.connection.send(ariaMethod.unfollow, { figaro_id: stream.aria }).catch(() => {});
   }
 
@@ -252,31 +196,17 @@ export class AriaClient {
   close(): void {
     this.formsClient?.close();
     this.formsClient = undefined;
-    for (const e of this.shared.values()) if (e.reap) clearTimeout(e.reap);
     this.shared.clear();
     for (const set of [...this.streams.values()]) for (const s of [...set]) s.close();
     this.streams.clear();
     this.connection.close();
   }
 
-  private offers(cap: Capability): boolean {
-    return this.helloValue?.capabilities?.includes(cap) ?? false;
+  protected connected(generation: number): void {
+    for (const set of this.streams.values()) for (const s of set) s.connected(generation);
   }
 
-  private async opened(conn: Connection): Promise<void> {
-    const generation = conn.epoch;
-    const hello = await conn.send<HelloResponse>(method.hello, { version: protocolVersion });
-    if (generation !== conn.epoch) return;
-    this.helloValue = hello;
-  }
-
-  private moved(state: ConnectionState): void {
-    if (state === "open") {
-      const generation = this.connection.epoch;
-      for (const set of this.streams.values()) for (const s of set) s.connected(generation);
-      return;
-    }
-    this.helloValue = undefined;
+  protected disconnected(state: ConnectionState): void {
     for (const set of this.streams.values()) for (const s of set) s.disconnected(this.connection.error || state);
   }
 }

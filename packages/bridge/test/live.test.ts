@@ -16,7 +16,7 @@ describe.skipIf(!runDir || !formId)("live: the bridge on a dev daemon's CLI sock
     cleanups.push(() => br.close());
     const c = new FormsClient({ dial: webSocketDial({ url: br.doorUrl }), client: "live-br" });
     cleanups.push(() => c.close());
-    const f = c.form(formId);
+    const f = c.retain(formId);
     await f.ready();
     expect(f.get("title")).toBe("demo");
     const res = await f.set("title", "nope");

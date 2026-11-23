@@ -16,11 +16,15 @@ Imports point down the list. Nothing in a lower layer knows a higher one exists.
    implementation; `conformance/` generates the vectors in `test/vectors`
    from it, and the TypeScript is correct when those pass.
 2. Transport. `rpc.ts` is one JSON-RPC connection over an injected `Dial`,
-   with reconnect and backoff. `wire.ts` is the form protocol,
+   with reconnect and backoff. `link.ts` is the base of both clients: it owns
+   the connection options, the hello and capability check, the reconnect on
+   `door.lapsed` and the state fan-out. `wire.ts` is the form protocol,
    `websocket.ts` the only `Dial`, `auth/` the credentials and endpoint URLs,
    `access.ts` the client-side copy of the daemon's refusal rules.
 3. Form state. `replica.ts` is one form, `client.ts` (`FormsClient`) is one
-   connection plus a reference-counted map of replicas.
+   connection plus a map of replicas held in a `registry.ts` `Registry`, the
+   peek, retain, release and delayed-reap refcount that `AriaClient` also uses
+   for its shared streams.
 4. Pure readers of a form. `view/` flattens a form into rows, `semantics/`
    holds the well-known form ids and key catalog, `hierarchy/` projects the
    role forms for the bridge and polls them for the page, `commands*.ts` and
