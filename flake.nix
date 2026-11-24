@@ -30,7 +30,7 @@
                         then .value |= with_entries(if (.key | IN($ws[])) then .value = "0.0.0" else . end)
                         else . end))
                   else . end)
-            ' ${src}/package-lock.json > $out/package-lock.json
+            ' ${./package-lock.json} > $out/package-lock.json
           '';
           fetched = pkgs.fetchNpmDeps {
             name = "figaro-forms-workspace-npm-deps";
@@ -40,7 +40,7 @@
           npmDeps = pkgs.runCommand "figaro-forms-workspace-npm-deps-${version}" { } ''
             cp -r ${fetched} $out
             chmod -R u+w $out
-            cp ${src}/package-lock.json $out/package-lock.json
+            cp ${./package-lock.json} $out/package-lock.json
           '';
         in
         pkgs.buildNpmPackage {
