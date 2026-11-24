@@ -1,117 +1,24 @@
 import type { Dial, Socket } from "figaro-forms";
-import type { Credential } from "figaro-forms/auth";
 import type { WebSocket } from "ws";
 import type { AudioHub } from "./audio.js";
 import { noTracer, parseTraceparent, type Span, type Tracer } from "./trace.js";
 import { fold, type AttachStore } from "./attach.js";
 import { audioIdPattern } from "./dictation.js";
+import { allowed, forbiddenField, queueDispositions } from "./methods.js";
+import { noSession } from "./session.js";
 
-export const gatewayMethods = [
-  "angelus.hello",
-  "angelus.outfits",
-  "figaro.follow",
-  "figaro.unfollow",
-  "figaro.form",
-  "figaro.read",
-  "figaro.qua",
-  "figaro.interrupt",
-  "figaro.queued",
-  "figaro.queue.delete",
-  "figaro.queue.update",
-  "figaro.fork",
-  "figaro.list",
-  "figaro.create",
-  "figaro.set",
-] as const;
-
-const allowed: ReadonlySet<string> = new Set(gatewayMethods);
-
-const permitted: Readonly<Record<string, ReadonlySet<string>>> = {
-  "figaro.qua": new Set(["figaro_id", "text", "images", "traceparent", "attachments", "dictation"]),
-  "figaro.fork": new Set(["figaro_id", "at_turn", "at_lt"]),
-  "figaro.create": new Set(["outfits"]),
-  "angelus.outfits": new Set(["spec"]),
-  "figaro.set": new Set(["figaro_id", "patch", "client", "seq"]),
-  "figaro.interrupt": new Set(["figaro_id", "queue", "traceparent"]),
-  "figaro.queued": new Set(["figaro_id"]),
-  "figaro.queue.delete": new Set(["figaro_id", "epoch", "ids"]),
-  "figaro.queue.update": new Set(["figaro_id", "epoch", "id", "text"]),
-};
-
-const queueDispositions: ReadonlySet<unknown> = new Set([undefined, "keep", "clear"]);
-
-function forbiddenField(method: string, params: unknown): string | undefined {
-  const keys = permitted[method];
-  if (!keys) return undefined;
-  if (typeof params !== "object" || params === null || Array.isArray(params)) return undefined;
-  for (const k of Object.keys(params)) if (!keys.has(k)) return k;
-  return undefined;
-}
+const loggedAria = /^@?[A-Za-z0-9_-]{1,64}$/;
+const maxPending = 1024;
 
 function refuse(ws: WebSocket, id: unknown, message: string): void {
   ws.send(JSON.stringify({ jsonrpc: "2.0", id, error: { code: -32020, message } }));
-}
-
-export const onBehalfHeader = "X-Figaro-On-Behalf-Of";
-
-export const sessionHeader = "X-Figchat-Session";
-export const noSession = "-";
-const sessionPattern = /^[A-Za-z0-9_-]{8,64}$/;
-const loggedAria = /^@?[A-Za-z0-9_-]{1,64}$/;
-const maxSessions = 8;
-const maxPending = 1024;
-
-export function sessionOf(req: { readonly headers: { readonly [name: string]: string | string[] | undefined }; readonly url?: string | undefined }, upgrade: boolean): string {
-  const header = req.headers[sessionHeader.toLowerCase()];
-  let v = typeof header === "string" ? header : undefined;
-  if (v === undefined && upgrade) {
-    try {
-      v = new URL(req.url ?? "/", "http://gateway").searchParams.get("session") ?? undefined;
-    } catch {
-      v = undefined;
-    }
-  }
-  return v !== undefined && sessionPattern.test(v) ? v : noSession;
-}
-
-export function sessionList(ids: Iterable<string | undefined>): string[] {
-  const out: string[] = [];
-  for (const id of ids) {
-    if (id === undefined || id === noSession || out.includes(id)) continue;
-    out.push(id);
-    if (out.length === maxSessions) break;
-  }
-  return out;
-}
-
-export const sessionField = (ids: readonly string[]): string => (ids.length > 0 ? ids.join(",") : noSession);
-
-export function withSession(base: Credential | undefined, session: string): Credential | undefined {
-  if (session === noSession) return base;
-  return {
-    name: base ? `${base.name}+session` : "session",
-    upgrade: async () => {
-      const up = base ? await base.upgrade() : {};
-      return { ...up, headers: { ...(up.headers ?? {}), [sessionHeader]: session } };
-    },
-  };
-}
-
-export function onBehalfOf(base: Credential, user: string): Credential {
-  return {
-    name: `${base.name}+on-behalf-of`,
-    upgrade: async () => {
-      const up = await base.upgrade();
-      return { ...up, headers: { ...(up.headers ?? {}), [onBehalfHeader]: user } };
-    },
-  };
 }
 
 export function redact(text: string): string {
   return text.replace(/(\w+:\/\/)[^@/\s]*@/g, "$1").replace(/\?[^\s"')]*/g, "");
 }
 
-export function proxyDoor(ws: WebSocket, dial: Dial, hub: AudioHub | undefined, log: (line: string) => void = () => {}, session: string = noSession, tracer: Tracer = noTracer, attachments?: AttachStore, maxFrame: number = 1 << 20): void {
+export function proxyUpstream(ws: WebSocket, dial: Dial, hub: AudioHub | undefined, log: (line: string) => void = () => {}, session: string = noSession, tracer: Tracer = noTracer, attachments?: AttachStore, maxFrame: number = 1 << 20): void {
   const queue: string[] = [];
   const pending = new Map<string, Span>();
   let up: Socket | undefined;

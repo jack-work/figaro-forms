@@ -1,6 +1,6 @@
 import type { IncomingMessage } from "node:http";
 import WebSocket from "ws";
-import { noSession, sessionHeader, sessionOf } from "./door.js";
+import { noSession, sessionHeader, sessionOf } from "./session.js";
 import { parseTraceparent } from "./trace.js";
 import type { Dictations } from "./dictation.js";
 

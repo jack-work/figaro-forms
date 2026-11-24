@@ -1,7 +1,8 @@
 import type { Anchor, AppliedFrame, AriaClient, AriaStream, Message, Node, TurnEnd } from "figaro-forms/aria";
 import { pcmFormat, type SpeechDial, type SpeechSession } from "./speech.js";
 import { takeSentences } from "./sentences.js";
-import { redact, sessionField, sessionList } from "./door.js";
+import { redact } from "./proxy.js";
+import { sessionField, sessionList } from "./session.js";
 import { noTracer, type Span, type SpanContext, type Tracer } from "./trace.js";
 import type { Metrics } from "./metrics.js";
 

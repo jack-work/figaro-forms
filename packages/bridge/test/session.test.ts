@@ -2,7 +2,7 @@ import { request } from "node:http";
 import WebSocket from "ws";
 import { afterEach, describe, expect, it } from "vitest";
 import { FakeAria, tick } from "../../figaro-forms/test/aria/fake-aria.js";
-import { noSession, sessionList, sessionOf, withSession } from "../src/door.js";
+import { noSession, sessionList, sessionOf, withSession } from "../src/session.js";
 import { startGateway } from "../src/gateway.js";
 import { speechOverSocket } from "../src/speech.js";
 import { stt } from "../src/stt.js";

@@ -1,6 +1,6 @@
 import { request, type IncomingMessage, type ServerResponse } from "node:http";
 import type { GatewayRoute, GatewaySocket } from "./gateway.js";
-import { noSession, sessionHeader, sessionOf } from "./door.js";
+import { noSession, sessionHeader, sessionOf } from "./session.js";
 import { parseTraceparent } from "./trace.js";
 import { audioIdPattern, type Dictations } from "./dictation.js";
 import { ariaParam, attendSttStream, type SttStreamLimits } from "./stt-stream.js";

@@ -3,7 +3,7 @@ import type { AddressInfo } from "node:net";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import WebSocket from "ws";
 import { webSocketDial } from "figaro-forms";
-import { onBehalfOf } from "../src/door.js";
+import { onBehalfOf } from "../src/session.js";
 import { ClientCredentials, redialAfterRejection } from "../src/token.js";
 
 interface Hit {

@@ -4,7 +4,8 @@ import { WebSocketServer, type WebSocket } from "ws";
 import type { Dial } from "figaro-forms";
 import { AriaClient, ariaRefusal, AriaUnavailable } from "figaro-forms/aria";
 import { AudioHub, ariaIdPattern, type AudioListener } from "./audio.js";
-import { noSession, proxyDoor, redact, sessionHeader, sessionOf } from "./door.js";
+import { proxyUpstream, redact } from "./proxy.js";
+import { noSession, sessionHeader, sessionOf } from "./session.js";
 import { edgeRefusal, type EdgeGate } from "./edge.js";
 import type { SpeechDial } from "./speech.js";
 import { keyStored } from "./stt.js";
@@ -234,7 +235,7 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
         track(ws);
         meterDoor(ws, req.socket, session);
         o.faults?.page(ws, { session, audio: false });
-        proxyDoor(ws, doorFor(String(req.headers["remote-user"]), session, { session, audio: false }), hub, log, session, tracer, o.attachments, maxPayload);
+        proxyUpstream(ws, doorFor(String(req.headers["remote-user"]), session, { session, audio: false }), hub, log, session, tracer, o.attachments, maxPayload);
       });
     } else if (audio !== undefined && ariaIdPattern.test(audio)) {
       wss.handleUpgrade(req, sock, head, (ws) => {

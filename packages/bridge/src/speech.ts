@@ -1,5 +1,5 @@
 import WebSocket from "ws";
-import { sessionField, sessionHeader } from "./door.js";
+import { sessionField, sessionHeader } from "./session.js";
 
 export interface SpeechRequest {
   readonly key?: string;
