@@ -9,17 +9,44 @@
       forAllSystems = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
       version = (builtins.fromJSON (builtins.readFile ./packages/figaro-forms/package.json)).version;
 
-      workspace = pkgs: pkgs.buildNpmPackage {
+      workspace = pkgs:
+        let
+          src = pkgs.lib.cleanSourceWith {
+            src = ./.;
+            filter = path: type:
+              let base = baseNameOf path; in
+              !(builtins.elem base [ "node_modules" "dist" ".git" "result" ]) && !(pkgs.lib.hasSuffix ".tgz" base);
+          };
+          versionlessLock = pkgs.runCommand "package-lock-versionless" { nativeBuildInputs = [ pkgs.jq ]; } ''
+            mkdir $out
+            jq '
+              [.packages | to_entries[] | select(.value.link == true) | .key | ltrimstr("node_modules/")] as $ws
+              | .packages |= with_entries(
+                  if .key != "" and (.key | startswith("node_modules/") | not)
+                  then .value |= (
+                    (if has("version") then .version = "0.0.0" else . end)
+                    | with_entries(
+                        if (.key | IN("dependencies", "devDependencies", "peerDependencies", "optionalDependencies"))
+                        then .value |= with_entries(if (.key | IN($ws[])) then .value = "0.0.0" else . end)
+                        else . end))
+                  else . end)
+            ' ${src}/package-lock.json > $out/package-lock.json
+          '';
+          fetched = pkgs.fetchNpmDeps {
+            name = "figaro-forms-workspace-npm-deps";
+            src = versionlessLock;
+            hash = "sha256-R61bRM772SjXwnrxCaLa7OvgdBERBrDWZQplVV27k0s=";
+          };
+          npmDeps = pkgs.runCommand "figaro-forms-workspace-npm-deps-${version}" { } ''
+            cp -r ${fetched} $out
+            chmod -R u+w $out
+            cp ${src}/package-lock.json $out/package-lock.json
+          '';
+        in
+        pkgs.buildNpmPackage {
         pname = "figaro-forms-workspace";
-        inherit version;
-        src = pkgs.lib.cleanSourceWith {
-          src = ./.;
-          filter = path: type:
-            let base = baseNameOf path; in
-            !(builtins.elem base [ "node_modules" "dist" ".git" "result" ]) && !(pkgs.lib.hasSuffix ".tgz" base);
-        };
+        inherit version src npmDeps;
         nodejs = pkgs.nodejs_24;
-        npmDepsHash = "sha256-BHSSz0YeCfcgvcDb1H4uD2hwQDdqSZONMJvzYD0BQu0=";
         npmBuildScript = "build:all";
         doCheck = true;
         checkPhase = ''
