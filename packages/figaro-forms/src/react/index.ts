@@ -6,7 +6,7 @@ import type { Patch } from "../patch.js";
 import type { PathLike } from "../path.js";
 import type { EditResult, FormStatus, Replica } from "../replica.js";
 import type { ConnectionState } from "../rpc.js";
-import { flatten, type ViewNode, type OpenState } from "../view/index.js";
+import { flatten, type ViewNode, type OpenState } from "../view/flatten.js";
 
 const Context = createContext<FormsClient | null>(null);
 

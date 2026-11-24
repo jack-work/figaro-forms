@@ -1,6 +1,13 @@
 import { wellKnownKeys } from "./known-keys.gen.js";
 
-export type { KeyDoc, KeyMode } from "./keys.js";
+export type KeyMode = "user" | "system" | "per-turn";
+
+export interface KeyDoc {
+  readonly key: string;
+  readonly short: string;
+  readonly mode: KeyMode;
+}
+
 export { wellKnownKeys };
 
 export const forms = {

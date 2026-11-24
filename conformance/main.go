@@ -294,7 +294,7 @@ func keysSource() string {
 	if err != nil {
 		panic(err)
 	}
-	return "import type { KeyDoc } from \"./keys.js\";\n\n" +
+	return "import type { KeyDoc } from \"./well-known.js\";\n\n" +
 		"export const wellKnownKeys: readonly KeyDoc[] = " + string(known) + ";\n"
 }
 

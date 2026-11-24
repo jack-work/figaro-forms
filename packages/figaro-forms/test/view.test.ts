@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { FormsClient } from "../src/client.js";
-import { flatten, matchPath, OpenState, resolveAction } from "../src/view/index.js";
+import { flatten, matchPath, OpenState, resolveAction } from "../src/view/flatten.js";
 import type { FormView } from "../src/wire.js";
 import { FakeDoor, settle } from "./fake-door.js";
 

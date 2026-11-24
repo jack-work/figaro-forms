@@ -1,4 +1,4 @@
-import type { KeyDoc } from "./keys.js";
+import type { KeyDoc } from "./well-known.js";
 
 export const wellKnownKeys: readonly KeyDoc[] = [
   {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { glyphDocs, glyphs } from "../src/glyphs.js";
+import { glyphDocs, glyphs } from "../src/glyphs.gen.js";
 
 const webNeeds = [
   "send",

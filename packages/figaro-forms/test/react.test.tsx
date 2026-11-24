@@ -4,7 +4,7 @@ import { createElement, StrictMode } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 import { FormsClient } from "../src/client.js";
 import { FormsProvider, useFormStatus, useFormValue, useFormView } from "../src/react/index.js";
-import { OpenState } from "../src/view/index.js";
+import { OpenState } from "../src/view/flatten.js";
 import { FakeDoor, settle } from "./fake-door.js";
 
 afterEach(cleanup);

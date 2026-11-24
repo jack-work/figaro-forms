@@ -25,10 +25,10 @@ Imports point down the list. Nothing in a lower layer knows a higher one exists.
    connection plus a map of replicas held in a `registry.ts` `Registry`, the
    peek, retain, release and delayed-reap refcount that `AriaClient` also uses
    for its shared streams.
-4. Pure readers of a form. `view/` flattens a form into rows, `semantics/`
+4. Pure readers of a form. `view/flatten.ts` flattens a form into rows, `semantics/well-known.ts`
    holds the well-known form ids and key catalog, `hierarchy/` projects the
    role forms for the bridge and polls them for the page, `commands*.ts` and
-   `glyphs*.ts` are the command and glyph catalogs.
+   `glyphs.gen.ts` are the command and glyph catalogs.
 5. Bindings. `react/` and `jotai/` for forms, `aria/react.ts` and
    `aria/jotai.ts` for arias. They adapt a store to `useSyncExternalStore`
    or an atom and add no state of their own; `react/shared.ts` and
@@ -61,7 +61,8 @@ through.
 
 `package.json` `exports` lists them. Each is one directory or file above:
 `.` (layers 1 to 3), `auth`, `view`, `semantics`, `hierarchy`, `commands`,
-`catalog` (the slim command doc the web needs), `glyphs`, `react`, `jotai`,
+`catalog` (the slim command doc the web needs), `glyphs` (the generated
+`glyphs.gen.ts` itself), `react`, `jotai`,
 `aria`, `aria/react`, `aria/jotai`. A name that is exported from its module
 but not from an entry point is internal and exists for the tests.
 
