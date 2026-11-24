@@ -21,7 +21,7 @@ export abstract class Link {
       ...(opts.retryMaxMs !== undefined ? { retryMaxMs: opts.retryMaxMs } : {}),
       onOpen: (conn) => this.greet(conn),
     });
-    this.connection.on(method.doorLapsed, () => this.connection.reconnectNow());
+    this.connection.on(method.lapsed, () => this.connection.reconnectNow());
     this.connection.onState((state) => {
       if (state === "open") {
         this.connected(this.connection.epoch);

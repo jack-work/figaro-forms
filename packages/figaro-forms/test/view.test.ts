@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { FormsClient } from "../src/client.js";
 import { flatten, matchPath, OpenState, resolveAction } from "../src/view/flatten.js";
 import type { FormView } from "../src/wire.js";
-import { FakeDoor, settle } from "./fake-door.js";
+import { FakeDaemon, settle } from "./fake-daemon.js";
 
 const arias: FormView = {
   rows: ["arias.*", "**.forks.*"],
@@ -95,14 +95,14 @@ describe("OpenState", () => {
   });
 
   it("does not reset when the form version moves", async () => {
-    const door = new FakeDoor();
-    door.add("@f1", { a: { b: 1 } });
-    const client = new FormsClient({ dial: door.dial, client: "v1" });
+    const daemon = new FakeDaemon();
+    daemon.add("@f1", { a: { b: 1 } });
+    const client = new FormsClient({ dial: daemon.dial, client: "v1" });
     const f = client.retain("@f1");
     await f.ready();
     const open = new OpenState();
     open.set(["a"], true);
-    door.write("@f1", { object: { Delete: { a: { b: 1 } }, Set: { a: { c: 2 } } } });
+    daemon.write("@f1", { object: { Delete: { a: { b: 1 } }, Set: { a: { c: 2 } } } });
     await settle();
     expect(flatten(f.root, { isOpen: open.isOpen }).map((r) => r.key)).toEqual(["a", "c"]);
     client.close();

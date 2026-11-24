@@ -16,10 +16,10 @@ checked once.
 ```
 browser ──https──> reverse proxy (TLS, forward-auth to your IdP)
                      │  /chat/*        static client bundle (served by the proxy)
-                     │  /door, /audio, /chat/stt  + X-Figaro-Edge, Remote-User
+                     │  /rpc, /audio, /chat/stt  + X-Figaro-Edge, Remote-User
                      ▼
                figaro-gateway  (unix socket, behind the proxy only)
-                 │  /door   raw JSON-RPC passthrough  ─────────> figaro daemon [door.web]
+                 │  /rpc    raw JSON-RPC passthrough  ─────────> figaro daemon [door.web]
                  │  /audio  follows an aria, voices its prose        (bearer, TLS front)
                  │  /stt    dictation in
                  ▼
@@ -36,9 +36,9 @@ holds the Azure key.
 
 | part | repo | pin | what it is |
 |---|---|---|---|
-| figaro daemon | `jack/figaro` (keel), github `jack-work/figaro` | v0.78.1 (tested; the wire is the one in `docs/aria.md`) | the store and the door the gateway dials |
+| figaro daemon | `jack/figaro` (keel), github `jack-work/figaro` | v0.78.1 (tested; the wire is the one in `docs/aria.md`) | the store and the endpoint the gateway dials |
 | figaro-forms | `jack/figaro-forms` | v0.4.1 (branch `lane/v0.4.1`, `0faff64`, until tagged) | the TypeScript client library; builds the gateway |
-| figaro-gateway | same repo, `packages/bridge` | same | the door passthrough plus voice; `nix build .#bridge` gives `bin/figaro-gateway` |
+| figaro-gateway | same repo, `packages/bridge` | same | the JSON-RPC passthrough plus voice; `nix build .#bridge` gives `bin/figaro-gateway` |
 | web client | `jack/zanni` (keel), github `jack-work/zanni` | v0.28.0 (`f309c7f`); the next tag vendors figaro-forms v0.4.0 | the static bundle (`packages.figchat-shell`) |
 | speech service | `jack/figchat-speech` | v0.4.0 (`9bd1a32`) | `figchat-speech`: Go, unix socket, TTS, STT, audio replay |
 | Azure resource | `jack/kelliher-web` `terraform/speech` | `58b3638` (example) | Speech account, resource group data source, budget |
@@ -62,7 +62,7 @@ gateway's routes, frames and flags).
 - An Azure subscription for Speech (or replace `figchat-speech`; its API is below).
 - An S3-compatible bucket for stored audio (Garage in the example). The speech
   service requires one. Expiry is swept by the service (30 days by default).
-- Sockets, no new public ports: the daemon's web door is a unix socket, the gateway
+- Sockets, no new public ports: the daemon's web socket is a unix socket, the gateway
   listens on a unix socket (or loopback TCP with `--port`), the speech service on a
   unix socket. The only network hop is gateway to daemon (below).
 - TLS on the public name. A page needs https for the microphone and for `wss:`.
@@ -185,17 +185,16 @@ Notes:
 - `jwks` is the provider's public JWKS. If the daemon reaches the provider over a
   private network, use that URL.
 
-## 3. Network: gateway to the daemon's door
+## 3. Network: gateway to the daemon
 
-The gateway dials the door with `--door-url` over `wss://`. If the gateway runs on
+The gateway dials the daemon with `--upstream-url` over `wss://`. If the gateway runs on
 the same host as the daemon, point it at the unix socket instead:
-`--door-url ws+unix:///run/user/1000/figaro/web.sock:/door`. If it runs elsewhere
+`--upstream-url ws+unix:///run/user/1000/figaro/web.sock:/door`. If it runs elsewhere
 (the example: gateway on spain, daemon on gluck's desktop), put a TLS front on the
 daemon host that terminates TLS and forwards to `web.sock`, listen on a private
 address (the example: a tailnet address, port 7445), and allow only the gateway's
-host to connect (a firewall rule on that port). The bearer protects the door, TLS
-protects the bearer, the private network keeps the door off the internet. The door
-is a websocket at `/door`.
+host to connect (a firewall rule on that port). The bearer protects the daemon, TLS protects the bearer, the private
+network keeps it off the internet. The daemon serves its websocket at `/door`.
 
 ## 4. The speech service
 
@@ -252,7 +251,7 @@ Build: `nix build .#bridge` in figaro-forms gives `bin/figaro-gateway`; without 
 
 ```
 figaro-gateway \
-  --door-url wss://daemon.example.net:7445/door \
+  --upstream-url wss://daemon.example.net:7445/door \
   --token-url https://auth.kelliher.info/api/oidc/token \
   --client-id figaro-gateway \
   --client-secret-file $CREDENTIALS_DIRECTORY/client-secret \
@@ -268,7 +267,7 @@ figaro-gateway \
   (`[a-z0-9-]`, up to 63).
 - `--edge-secret-file` is a shared secret of at least 32 bytes that the proxy sends in
   `X-Figaro-Edge`; with it a request that skipped the proxy is refused.
-- The token flags are an alternative to `--door-token-file` (a static bearer that
+- The token flags are an alternative to `--upstream-token-file` (a static bearer that
   expires with its token). The gateway fetches a token at start (and refuses to
   start if that fails), refreshes at 80% of its lifetime, retries failures with
   backoff keeping the old token, and mints again once after a 401.
@@ -291,7 +290,7 @@ attributes on the `#app` element of `index.html`, none at build time:
 
 | attribute | default | meaning |
 |---|---|---|
-| `data-door` | `/door` | the gateway's JSON-RPC passthrough |
+| `data-endpoint` | `/rpc` | the gateway's JSON-RPC passthrough |
 | `data-audio` | `/audio` | `/audio/<aria>` and `/audio/key/<key>` |
 | `data-stt` | `stt` (relative: `/chat/stt`) | dictation |
 | `data-store` | `gluck` | the store id; must equal the gateway's `--store` |
@@ -308,7 +307,7 @@ Routes, all behind forward-auth:
 |---|---|
 | `/` (html) | redirect to `/chat/` |
 | `/chat/` and `/chat/assets/*` | the static bundle (`file_server`, dotfiles hidden) |
-| `/door` | gateway, websocket |
+| `/rpc` | gateway, websocket |
 | `/audio/*` | gateway, websocket and ranged GET |
 | `/chat/stt` | gateway `/stt` (strip `/chat`), body up to 10 MB |
 
@@ -336,7 +335,7 @@ tunnel hostname is excluded from any cache rule.
 | Azure Speech key | credential `azure-speech-key` | `az cognitiveservices account keys list ... -o tsv` into the secret store | figchat-speech |
 | Azure credential for terraform | the CI/secret store of whoever applies it | a service principal with rights on the one resource group | the terraform run only |
 | bucket key id and secret | credentials `garage-key-id`, `garage-secret` (SOPS names in the example: `figchat-speech-garage-key-id`, `figchat-speech-garage-secret`) | the bucket's own tool (Garage: create a key, grant it read and write on the bucket only) | figchat-speech |
-| a static door bearer (only if you do not use the token flags) | `--door-token-file` | the provider | figaro-gateway |
+| a static upstream bearer (only if you do not use the token flags) | `--upstream-token-file` | the provider | figaro-gateway |
 
 In the example these are in SOPS and delivered by systemd credentials. Type secrets
 into the command yourself; do not paste them into chat or a terminal that logs. If one
@@ -352,16 +351,16 @@ Run them in order; stop at the first failure.
    grant_type=client_credentials -d audience=https://fig.kelliher.info -H @hdr
    $TOKEN_URL`. Expect `access_token` and `expires_in`. 401 means the client id,
    secret or auth method is wrong.
-2. **Daemon door.** With that token, upgrade a websocket on the unix socket: `curl
+2. **Daemon endpoint.** With that token, upgrade a websocket on the unix socket: `curl
    -sS -o /dev/null -w '%{http_code}\n' --unix-socket web.sock -H "Authorization:
    Bearer $T" -H 'Connection: Upgrade' -H 'Upgrade: websocket' -H
-   'Sec-WebSocket-Version: 13' -H 'Sec-WebSocket-Key: x3JJHMbDL1EzLkh9GBhXDw==' http://door/door`.
+   'Sec-WebSocket-Version: 13' -H 'Sec-WebSocket-Key: x3JJHMbDL1EzLkh9GBhXDw==' http://daemon/door`.
    Expect 101; without the bearer, 401.
 3. **Speech.** `figchat-speech stt --socket /run/figchat/speech.sock clip.webm`
    prints the transcript and timings; `figchat-speech tts --socket ... text.txt`
    reports the first-audio latency.
 4. **Gateway.** On its socket, without the edge headers: expect 403. With
-   `X-Figaro-Edge` and `Remote-User`: an unknown path is 404; a websocket to `/door`
+   `X-Figaro-Edge` and `Remote-User`: an unknown path is 404; a websocket to `/rpc`
    answers `angelus.hello` (the daemon's capabilities), proving the token works.
 5. **Proxy.** Anonymous `GET /chat/` redirects to login and never reaches the
    gateway; a signed-in one returns the page. `GET /audio/key/x` anonymous is
@@ -372,7 +371,7 @@ Run them in order; stop at the first failure.
 
 ## 10. Troubleshooting
 
-- **Door answers 401 to the gateway.** The `iss` of the token differs from
+- **The daemon answers 401 to the gateway.** The `iss` of the token differs from
   `[[authz.issuers]].issuer`, the client id is missing from `clients`, the token
   expired (the gateway mints once more after a 401, so a persistent 401 is
   configuration), or the daemon cannot fetch the JWKS. Check the gateway log for the
@@ -386,7 +385,7 @@ Run them in order; stop at the first failure.
   web path cannot set them by design. Do those at the terminal.
 - **403 from the gateway.** `Remote-User` is not `--admin`, or `X-Figaro-Edge` is
   missing or wrong, or the page's origin is not the proxy's (`--origin`).
-- **Socket closes with 1009.** A `door` frame over 1 MiB, such as `qua` with images;
+- **Socket closes with 1009.** A frame over 1 MiB, such as `qua` with images;
   images are out of scope here.
 - **`/chat/stt` returns 415, 413, 503.** The body is not webm or mp4 by its first
   bytes; the clip is over 10 MB; four clips are already in flight.
@@ -395,7 +394,7 @@ Run them in order; stop at the first failure.
   browser has not been unlocked by a click. Joined mid-turn, speech starts from the
   join point, not from the beginning of the reply.
 - **Page loads but never connects.** CSP `connect-src` lacks `wss://<host>`, or the
-  proxy buffers websockets, or the page's `data-door` does not match a proxied path.
+  proxy buffers websockets, or the page's `data-endpoint` does not match a proxied path.
 - **Microphone denied.** The page is not https, or `Permissions-Policy` omits
   `microphone=(self)`.
 - **Replies stop after about 100 s on a CDN.** Pings are not reaching the client;

@@ -47,7 +47,7 @@ async function rig(faults?: Faults, renewMs?: number): Promise<{ fake: FakeAria;
   const gw = await startGateway({
     listen: { port: 0 },
     edge: { secret, admin: "gluck", peers: ["127.0.0.1"] },
-    door: () => fake.dial,
+    upstream: () => fake.dial,
     speech: speechOverSocket(speech.path),
     speechSocket: speech.path,
     store: "gluck",
@@ -90,7 +90,7 @@ function post(port: number, path: string, body: Buffer, extra: Record<string, st
 
 async function session(faults?: Faults): Promise<{ page: string[]; audio: string[]; pcm: number[]; moved: number }> {
   const { fake, port, lines } = await rig(faults, 2_500);
-  const page = await open(`ws://127.0.0.1:${port}/door`);
+  const page = await open(`ws://127.0.0.1:${port}/rpc`);
   const audio = await open(`ws://127.0.0.1:${port}/audio/${id}`);
   const call = async (n: number, method: string, params: Record<string, unknown>): Promise<void> => {
     page.ws.send(JSON.stringify({ jsonrpc: "2.0", id: n, method, params }));
@@ -113,7 +113,7 @@ async function session(faults?: Faults): Promise<{ page: string[]; audio: string
     if (turn === 1) await tick(2_600);
   }
   await call(5, "figaro.read", { figaro_id: id });
-  return { page: page.text, audio: audio.text, pcm: audio.binary, moved: lines.filter((l) => l.startsWith("door handover done")).length };
+  return { page: page.text, audio: audio.text, pcm: audio.binary, moved: lines.filter((l) => l.startsWith("upstream handover done")).length };
 }
 
 describe("faults", () => {
@@ -133,8 +133,8 @@ describe("faults", () => {
   it("drops, delays and closes page frames, scoped to a session, and counts down", async () => {
     const faults = new Faults();
     const { fake, port } = await rig(faults);
-    const a = await open(`ws://127.0.0.1:${port}/door?session=aaaaaaaaaaaa`);
-    const b = await open(`ws://127.0.0.1:${port}/door?session=bbbbbbbbbbbb`);
+    const a = await open(`ws://127.0.0.1:${port}/rpc?session=aaaaaaaaaaaa`);
+    const b = await open(`ws://127.0.0.1:${port}/rpc?session=bbbbbbbbbbbb`);
     for (const p of [a, b]) p.ws.send(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "figaro.follow", params: { figaro_id: id } }));
     await until("both follow", () => [a, b].every((p) => p.text.length === 1));
     expect(faults.apply({ op: "page.drop", method: "figaro.aria", count: 2, session: "aaaaaaaaaaaa" })).toEqual({ ok: true });
@@ -155,17 +155,17 @@ describe("faults", () => {
     expect(a.closes).toEqual([]);
   });
 
-  it("lapses the door on cue and the handover hides it; a short bearer makes it repeat", async () => {
+  it("lapses the upstream on cue and the handover hides it; a short bearer makes it repeat", async () => {
     const faults = new Faults();
     const { port, lines } = await rig(faults);
-    faults.apply({ op: "door.bearer", ms: 3_000 });
-    const p = await open(`ws://127.0.0.1:${port}/door`);
+    faults.apply({ op: "upstream.bearer", ms: 3_000 });
+    const p = await open(`ws://127.0.0.1:${port}/rpc`);
     p.ws.send(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "figaro.follow", params: { figaro_id: id } }));
     await until("follow", () => p.text.length === 1);
-    expect(faults.apply({ op: "door.lapse", notice: true })).toMatchObject({ ok: true });
-    await until("moved on the notice", () => lines.some((l) => l.startsWith("door handover done (lapse notice)")));
+    expect(faults.apply({ op: "upstream.lapse", notice: true })).toMatchObject({ ok: true });
+    await until("moved on the notice", () => lines.some((l) => l.startsWith("upstream handover done (lapse notice)")));
     await tick(3_500);
-    expect(lines.filter((l) => l.startsWith("door handover done")).length).toBeGreaterThanOrEqual(2);
+    expect(lines.filter((l) => l.startsWith("upstream handover done")).length).toBeGreaterThanOrEqual(2);
     expect(p.closes).toEqual([]);
   }, 10_000);
 

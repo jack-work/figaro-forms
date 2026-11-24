@@ -39,7 +39,7 @@ async function rig(now?: () => number): Promise<{ fake: FakeAria; speech: FakeSp
   const gw = await startGateway({
     listen: { port: 0 },
     edge: { secret, admin: "gluck", peers: ["127.0.0.1"] },
-    door: () => fake.dial,
+    upstream: () => fake.dial,
     speech: speechOverSocket(speech.path),
     speechSocket: speech.path,
     store: "gluck",
@@ -72,7 +72,7 @@ async function dictate(port: number, session: string): Promise<void> {
 }
 
 async function send(port: number, session: string, text: string, dictation?: string): Promise<Record<string, unknown>> {
-  const p = await open(`ws://127.0.0.1:${port}/door?session=${session}`);
+  const p = await open(`ws://127.0.0.1:${port}/rpc?session=${session}`);
   p.ws.send(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "figaro.follow", params: { figaro_id: id } }));
   p.ws.send(JSON.stringify({ jsonrpc: "2.0", id: 2, method: "figaro.qua", params: { figaro_id: id, text, ...(dictation ? { dictation } : {}) } }));
   await until("qua answer", () => p.got.some((f) => f.id === 2));

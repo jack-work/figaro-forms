@@ -53,7 +53,7 @@ describe.skipIf(!bin)("conformance against a disposable figaro daemon (FIGARO_BI
     await daemon?.stop();
   }, 60_000);
 
-  it("catches up a finished turn the daemon holds, then follows a prompt sent through the door", async () => {
+  it("catches up a finished turn the daemon holds, then follows a prompt sent through the daemon", async () => {
     const id = daemon.newAria("seed");
     await sleep(800);
     const c = connect();

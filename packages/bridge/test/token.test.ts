@@ -227,7 +227,7 @@ describe("client credentials", () => {
     await new Promise<void>((ok) => server.listen(0, "127.0.0.1", ok));
     cleanups.push(() => new Promise<void>((ok) => server.close(() => ok())));
     const dial = webSocketDial({
-      url: `ws://127.0.0.1:${(server.address() as AddressInfo).port}/door`,
+      url: `ws://127.0.0.1:${(server.address() as AddressInfo).port}/rpc`,
       credential: { name: "t", upgrade: () => ({ headers: { Authorization: "Bearer x" } }) },
       WebSocket: WebSocket as never,
     });
@@ -244,7 +244,7 @@ describe("client credentials", () => {
     await new Promise<void>((ok) => server.listen(0, "127.0.0.1", ok));
     cleanups.push(() => new Promise<void>((ok) => server.close(() => ok())));
     const cred = onBehalfOf({ name: "bearer", upgrade: () => ({ headers: { Authorization: "Bearer t" } }) }, "gluck");
-    const dial = webSocketDial({ url: `ws://127.0.0.1:${(server.address() as AddressInfo).port}/door`, credential: cred, WebSocket: WebSocket as never });
+    const dial = webSocketDial({ url: `ws://127.0.0.1:${(server.address() as AddressInfo).port}/rpc`, credential: cred, WebSocket: WebSocket as never });
     await expect(dial({ message: () => {}, closed: () => {} })).rejects.toMatchObject({ status: 403 });
     expect(seen[0]?.["x-figaro-on-behalf-of"]).toBe("gluck");
     expect(seen[0]?.authorization).toBe("Bearer t");

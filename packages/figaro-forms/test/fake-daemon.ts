@@ -25,7 +25,7 @@ export interface Conn {
   readonly received: Frame[];
 }
 
-export class FakeDoor {
+export class FakeDaemon {
   readonly forms = new Map<string, FakeForm>();
   readonly conns: Conn[] = [];
   principal = "user:gluck";

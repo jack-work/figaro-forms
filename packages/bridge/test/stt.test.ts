@@ -20,7 +20,7 @@ async function rig(maxBytes?: number, maxConcurrent?: number): Promise<{ speech:
   const gw: Gateway = await startGateway({
     listen: { port: 0 },
     edge: { secret, admin: "gluck", peers: ["127.0.0.1"] },
-    door: () => new FakeAria().dial,
+    upstream: () => new FakeAria().dial,
     speech: speechOverSocket(speech.path),
     speechSocket: speech.path,
     store: "gluck",

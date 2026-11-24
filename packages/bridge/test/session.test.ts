@@ -37,7 +37,7 @@ async function rig(): Promise<{ fake: FakeAria; speech: FakeSpeech; port: number
   const gw = await startGateway({
     listen: { port: 0 },
     edge: { secret, admin: "gluck", peers: ["127.0.0.1"] },
-    door: (user, session) => {
+    upstream: (user, session) => {
       dials.push({ user, session });
       return fake.dial;
     },
@@ -79,18 +79,18 @@ function http(port: number, method: string, path: string, headers: Record<string
 const webm = Buffer.concat([Buffer.from([0x1a, 0x45, 0xdf, 0xa3]), Buffer.from("clip")]);
 
 describe("session id parsing", () => {
-  const req = (headers: Record<string, string>, url = "/door"): { headers: Record<string, string>; url: string } => ({ headers, url });
+  const req = (headers: Record<string, string>, url = "/rpc"): { headers: Record<string, string>; url: string } => ({ headers, url });
 
   it("takes the header, and the session query only on an upgrade", () => {
     expect(sessionOf(req({ "x-figchat-session": sa }), false)).toBe(sa);
-    expect(sessionOf(req({}, `/door?session=${sa}`), true)).toBe(sa);
+    expect(sessionOf(req({}, `/rpc?session=${sa}`), true)).toBe(sa);
     expect(sessionOf(req({}, `/stt?session=${sa}`), false)).toBe(noSession);
-    expect(sessionOf(req({ "x-figchat-session": sa }, `/door?session=${sb}`), true)).toBe(sa);
+    expect(sessionOf(req({ "x-figchat-session": sa }, `/rpc?session=${sb}`), true)).toBe(sa);
   });
 
   it("gives '-' for a missing or ill-formed id, and a bad header does not fall back to the query", () => {
     for (const bad of ["", "short", "x".repeat(65), "has space ok ok", "a,bcdefghij", "a=b;c=d1234"]) {
-      expect(sessionOf(req({ "x-figchat-session": bad }, `/door?session=${sa}`), true)).toBe(noSession);
+      expect(sessionOf(req({ "x-figchat-session": bad }, `/rpc?session=${sa}`), true)).toBe(noSession);
     }
     expect(sessionOf(req({}), true)).toBe(noSession);
   });
@@ -101,7 +101,7 @@ describe("session id parsing", () => {
     expect(sessionList(many)).toEqual(many.slice(0, 8));
   });
 
-  it("adds the header to the door credential, keeping its own, and leaves it untouched without a session", async () => {
+  it("adds the header to the upstream credential, keeping its own, and leaves it untouched without a session", async () => {
     const base = { name: "bearer", upgrade: () => ({ headers: { Authorization: "Bearer t" } }) };
     expect(withSession(base, noSession)).toBe(base);
     expect(withSession(undefined, noSession)).toBeUndefined();
@@ -111,10 +111,10 @@ describe("session id parsing", () => {
 });
 
 describe("session ids through the gateway", () => {
-  it("dials the door with the page's session and logs each call by method, aria and session, never params or pushes", async () => {
+  it("dials the upstream with the page's session and logs each call by method, aria and session, never params or pushes", async () => {
     const { fake, port, dials, lines } = await rig();
     fake.answers.set("figaro.qua", { ok: true, cursor: 1 });
-    const { ws, got } = await open(`ws://127.0.0.1:${port}/door?session=${sa}`);
+    const { ws, got } = await open(`ws://127.0.0.1:${port}/rpc?session=${sa}`);
     ws.send(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "figaro.follow", params: { figaro_id: id } }));
     await until("follow answer", () => got.some((f) => f.id === 1));
     fake.openTurn(id, 1, "hi");
@@ -122,8 +122,8 @@ describe("session ids through the gateway", () => {
     ws.send(JSON.stringify({ jsonrpc: "2.0", id: 2, method: "figaro.qua", params: { figaro_id: id, text: "private words" } }));
     await until("qua answer", () => got.some((f) => f.id === 2));
     expect(dials).toEqual([{ user: "gluck", session: sa }]);
-    const door = lines.filter((l) => l.startsWith("door: "));
-    expect(door).toEqual([`door: call method=figaro.follow aria=${id} session=${sa}`, `door: call method=figaro.qua aria=${id} session=${sa}`]);
+    const upstreamLines = lines.filter((l) => l.startsWith("upstream: "));
+    expect(upstreamLines).toEqual([`upstream: call method=figaro.follow aria=${id} session=${sa}`, `upstream: call method=figaro.qua aria=${id} session=${sa}`]);
     const all = lines.join("\n");
     expect(all).not.toContain("private words");
     expect(all).not.toContain("figaro.aria");
@@ -133,12 +133,12 @@ describe("session ids through the gateway", () => {
     for (const headers of [good, { ...good, "x-figchat-session": "no good!" }]) {
       const { fake, port, dials, lines } = await rig();
       fake.answers.set("figaro.qua", { ok: true, cursor: 1 });
-      const { ws, got } = await open(`ws://127.0.0.1:${port}/door`, headers);
+      const { ws, got } = await open(`ws://127.0.0.1:${port}/rpc`, headers);
       ws.send(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "figaro.qua", params: { figaro_id: id, text: "x" } }));
       await until("qua answer", () => got.some((f) => f.id === 1));
       expect(got.find((f) => f.id === 1)).toMatchObject({ result: { ok: true } });
       expect(dials).toEqual([{ user: "gluck", session: noSession }]);
-      expect(lines).toContain(`door: call method=figaro.qua aria=${id} session=-`);
+      expect(lines).toContain(`upstream: call method=figaro.qua aria=${id} session=-`);
     }
   });
 

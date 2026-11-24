@@ -53,9 +53,9 @@ export function proxyUpstream(ws: WebSocket, dial: Dial, hub: AudioHub | undefin
     },
     closed: (reason) => {
       gone = true;
-      log(`door closed: ${redact(reason)} session=${session}`);
-      abandon("door closed");
-      ws.close(1011, "door closed");
+      log(`upstream closed: ${redact(reason)} session=${session}`);
+      abandon("upstream closed");
+      ws.close(1011, "upstream closed");
     },
   }).then(
     (socket) => {
@@ -67,16 +67,16 @@ export function proxyUpstream(ws: WebSocket, dial: Dial, hub: AudioHub | undefin
       try {
         for (const f of queue.splice(0)) socket.send(f);
       } catch (e) {
-        log(`door send failed: ${redact(e instanceof Error ? e.message : String(e))} session=${session}`);
+        log(`upstream send failed: ${redact(e instanceof Error ? e.message : String(e))} session=${session}`);
         gone = true;
-        ws.close(1011, "door closed");
+        ws.close(1011, "upstream closed");
       }
     },
     (e: unknown) => {
       gone = true;
-      log(`door unreachable: ${redact(e instanceof Error ? e.message : String(e))} session=${session}`);
-      abandon("door unreachable");
-      ws.close(1011, "door unreachable");
+      log(`upstream unreachable: ${redact(e instanceof Error ? e.message : String(e))} session=${session}`);
+      abandon("upstream unreachable");
+      ws.close(1011, "upstream unreachable");
     },
   );
   ws.on("close", () => {
@@ -93,7 +93,7 @@ export function proxyUpstream(ws: WebSocket, dial: Dial, hub: AudioHub | undefin
     if (size > maxFrame) {
       const head = (Buffer.isBuffer(data) ? data : Buffer.from(data as ArrayBuffer)).subarray(0, 256).toString();
       const at = /"id"\s*:\s*(-?\d{1,15}|"[^"\\]{0,64}")/.exec(head)?.[1];
-      log(`door: frame of ${size} bytes refused, over ${maxFrame} session=${session}`);
+      log(`upstream: frame of ${size} bytes refused, over ${maxFrame} session=${session}`);
       refuse(ws, at === undefined ? null : JSON.parse(at), `gateway: a message over ${maxFrame} bytes is refused (this one is ${size} bytes); send it in smaller parts`);
       return;
     }
@@ -166,10 +166,10 @@ export function proxyUpstream(ws: WebSocket, dial: Dial, hub: AudioHub | undefin
     }
     const aria = params?.figaro_id;
     const shownAria = typeof aria === "string" && loggedAria.test(aria) ? aria : noSession;
-    log(`door: call method=${frame.method} aria=${shownAria}${attached > 0 ? ` attachments=${attached}` : ""} session=${session}`);
+    log(`upstream: call method=${frame.method} aria=${shownAria}${attached > 0 ? ` attachments=${attached}` : ""} session=${session}`);
     if (frame.method === "figaro.interrupt" && typeof aria === "string") hub?.cancel(aria, "interrupt");
     if (frame.id !== undefined && tracer.recording) {
-      const sp = tracer.start(`door ${frame.method}`, typeof asked === "string" ? asked : undefined, { "rpc.method": frame.method, "figaro.aria": shownAria, "figchat.session": session });
+      const sp = tracer.start(`upstream ${frame.method}`, typeof asked === "string" ? asked : undefined, { "rpc.method": frame.method, "figaro.aria": shownAria, "figchat.session": session });
       const key = JSON.stringify(frame.id);
       pending.get(key)?.end();
       pending.delete(key);
@@ -191,9 +191,9 @@ export function proxyUpstream(ws: WebSocket, dial: Dial, hub: AudioHub | undefin
     try {
       up.send(text);
     } catch (e) {
-      log(`door send failed: ${redact(e instanceof Error ? e.message : String(e))} session=${session}`);
+      log(`upstream send failed: ${redact(e instanceof Error ? e.message : String(e))} session=${session}`);
       gone = true;
-      ws.close(1011, "door closed");
+      ws.close(1011, "upstream closed");
     }
   });
 }

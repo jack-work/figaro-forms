@@ -1,17 +1,17 @@
 # figaro-gateway
 
-The `figaro-gateway` binary (packages/bridge) fronts gluck's figaro door for the
+The `figaro-gateway` binary (packages/bridge) fronts gluck's figaro daemon for the
 figaro web client and adds voice, and nothing else: speech out (it tees a followed
 aria's spoken prose into figchat-speech) and transcription in (`POST /stt`). The
-conversation itself is figaro's UI IR, native and untouched: `/door` is a raw
-passthrough of the door's JSON-RPC, so a page folds the same `figaro.aria` frames
+conversation itself is figaro's UI IR, native and untouched: `/rpc` is a raw
+passthrough of the upstream's JSON-RPC, so a page folds the same `figaro.aria` frames
 the pager does with `figaro-forms/aria` (docs/aria.md). It sits behind the edge:
 every request needs the edge secret in `X-Figaro-Edge` and the admin in
 `Remote-User`.
 
 ## Routes
 
-- `/door` (WebSocket): JSON-RPC to the door, one upstream connection per client.
+- `/rpc` (WebSocket): JSON-RPC to the upstream, one upstream connection per client.
   Allowed: `angelus.hello`, `angelus.outfits`, `figaro.follow`, `figaro.unfollow`,
   `figaro.form`, `figaro.read`, `figaro.qua`, `figaro.interrupt`, `figaro.queued`,
   `figaro.queue.delete`, `figaro.queue.update`, `figaro.fork`,
@@ -31,9 +31,9 @@ every request needs the edge secret in `X-Figaro-Edge` and the admin in
   (`maxFrameBytes`): one over it is answered with a JSON-RPC error naming the limit
   and its size, for the request's id when its first 256 bytes show one, and the
   socket stays open; past 8 MiB (or 8 times the limit) the socket closes with 1009.
-  Images go through `POST /attach`. A door connection that fails a send closes the
+  Images go through `POST /attach`. An upstream connection that fails a send closes the
   page's socket with 1011 instead of taking the gateway down. A failure to
-  reach the door closes the socket with a fixed reason; the detail goes to the
+  reach the upstream closes the socket with a fixed reason; the detail goes to the
   gateway's log with the query and userinfo removed.
 - `/audio/<aria>` or `/audio/<store>/<aria>` (WebSocket, aria is the 32-hex id; a
   store the gateway does not serve is answered with an `error` frame, code `store`,
@@ -174,7 +174,7 @@ Client to server:
 - `{type:"cancel"}` stops the aria's pending speech for everyone, and this socket's
   running say.
 - `{type:"say", turn:N}` (N a positive integer) speaks a finished turn again, to
-  this socket only. The gateway reads the turn from the door, speaks the same prose
+  this socket only. The gateway reads the turn from the upstream, speaks the same prose
   nodes the live path does (same voice, filtering and chunking) and stores it under
   the live key `<store>/<aria>:<N>/out`, so `/audio/key/<key>` replays it afterwards.
   The asker gets `audio.start` (with `say:true`), `audio.chunk` and binary PCM, then
@@ -186,7 +186,7 @@ Client to server:
   asker on `cancel`). Refusals are `{type:"error", turn, code, text}` with `turn`
   echoing the request: `bad-turn` (not a positive integer, or no such turn),
   `open` (still running: live audio covers it), `silent` (no output prose), `busy`
-  (a say is already running on this socket), `speech` (synthesis failed), `door`
+  (a say is already running on this socket), `speech` (synthesis failed), `upstream`
   (the turn could not be read).
 
 Prose is fed to speech from the first sentence (a terminator followed by space, a
@@ -199,14 +199,14 @@ other end finishes it. Markdown stripping is the speech service's.
 
 Each `/audio` connection writes to stderr (the journal), never a token or query
 string: `audio: connect aria= user=` (and `store=` when the client named one),
-`audio: dialing the door`, `audio: follow ready` or `audio: follow failed code=
+`audio: dialing the upstream`, `audio: follow ready` or `audio: follow failed code=
 text=` with the refusal verbatim, `turn seen`, `tts open`, `tts done` / `tts error`
 / `turn cancelled` with chunk and byte counts (a say logs `say seen`, `say aria= turn=
 chunks= bytes=`, `say stored`, `say refused ... code=`, `say failed code=speech`), and `audio: closed code= reason=
 json= binary=` with the frame counts sent.
 
-Each `/door` socket logs one line per call it passes to the door, `door: call
-method= aria= session=`, with no params; the door's pushes (`figaro.aria`,
+Each `/rpc` socket logs one line per call it passes to the upstream, `upstream: call
+method= aria= session=`, with no params; the upstream's pushes (`figaro.aria`,
 `form.delta`, `turn.done`) are not logged. Each HTTP request behind the gate logs
 `http <method> <path> <status> <ms> ms session=`.
 
@@ -218,14 +218,14 @@ table says (captains-log 2026/11/21/figchat-metrics-table.md): durations in ms a
 histograms with bounds 5 to 30000, counts as monotonic sums, attributes only
 `figchat.session`, `figaro.aria`, `kind`, `outcome`.
 
-- `figchat.gateway.door.dial_ms` (kind page, audio, handover; outcome)
-- `figchat.gateway.door.first_frame_ms`: page socket open to its first frame
+- `figchat.gateway.upstream.dial_ms` (kind page, audio, handover; outcome)
+- `figchat.gateway.upstream.first_frame_ms`: page socket open to its first frame
 - `figchat.gateway.turn.first_token_ms`: a page's qua to the first frame carrying
   output for that aria
 - `figchat.gateway.handover_ms` (kind between_turns, deadline, lapse_notice)
 - `figchat.gateway.audio.first_byte_ms`: turn seen to its first PCM
-- `figchat.gateway.reconnects` (kind door, audio): a session's socket opened again
-- `figchat.gateway.errors` (kind door_closed, refused, speech, handover)
+- `figchat.gateway.reconnects` (kind page, audio): a session's socket opened again
+- `figchat.gateway.errors` (kind upstream_closed, refused, speech, handover)
 
 ## Faults (test mode)
 
@@ -236,15 +236,15 @@ production shape (a unix socket behind the edge) cannot be put in test mode, and
 it logs `faults armed on PATH: this gateway is in test mode`. Without the flag
 nothing is wrapped.
 
-- `{"op":"door.lapse","notice":true}`: end the live door legs now (with `door.lapsed`
-  first when `notice`), as gluck's door does at bearer expiry; `leg`, `ms` (after).
-- `{"op":"door.bearer","ms":3000}`: every new door leg lapses ms after it opens and
+- `{"op":"upstream.lapse","notice":true}`: end the live upstream legs now (with `door.lapsed`
+  first when `notice`), as gluck's daemon does at bearer expiry; `leg`, `ms` (after).
+- `{"op":"upstream.bearer","ms":3000}`: every new upstream leg lapses ms after it opens and
   the gateway is told so, so handovers come every ms; `"ms":null` ends it.
-- `{"op":"door.drop"|"door.delay", ...}` and `{"op":"page.drop"|"page.delay", ...}`:
-  frames from the door, or to the page, matching `method` (or audio `type`),
+- `{"op":"upstream.drop"|"upstream.delay", ...}` and `{"op":"page.drop"|"page.delay", ...}`:
+  frames from the upstream, or to the page, matching `method` (or audio `type`),
   `reply` ("page", "gateway" or an id), `leg` ("first"/"later"), `notify`; delay
   takes `ms`.
-- `{"op":"door.stall","ms":M}`: the next door dials wait M ms.
+- `{"op":"upstream.stall","ms":M}`: the next upstream dials wait M ms.
 - `{"op":"page.close","code":1011}`: close page sockets (1006 terminates).
 - `{"op":"speech.stall","ms":M}`, `{"op":"speech.fail"}`: hold or fail the next
   speech calls (TTS, dictation, streaming dictation).
@@ -254,15 +254,15 @@ Every op takes `session` (a figchat session id) or `audio` (true for the audio
 follow) to scope it, and `count` to end it after that many hits (default: until
 `clear`).
 
-`npm run test:load` in packages/bridge runs a load test through `/door` against a
-fake door (LOAD_FIGAROS, LOAD_TURNS, LOAD_DELTAS, LOAD_PAGES; LOAD_DEFLATE=0 for plain sockets).
+`npm run test:load` in packages/bridge runs a load test through `/rpc` against a
+fake upstream (LOAD_FIGAROS, LOAD_TURNS, LOAD_DELTAS, LOAD_PAGES; LOAD_DEFLATE=0 for plain sockets).
 
-## Door handover
+## Upstream handover
 
-gluck's door closes a connection when the bearer it was admitted with expires
+gluck's daemon closes a connection when the bearer it was admitted with expires
 ("the bearer expired: reconnect with a fresh token"). With a minted bearer
 (`--token-url`) the gateway hides that from the page and from the audio follow:
-each door leg knows its bearer's expiry, and before it the gateway opens a new leg
+each upstream leg knows its bearer's expiry, and before it the gateway opens a new leg
 with a bearer that outlasts it, follows on it every aria and form the old leg
 followed (and every aria a `figaro.qua` followed), then switches.
 
@@ -283,28 +283,28 @@ followed (and every aria a `figaro.qua` followed), then switches.
 - Requests already sent on the old leg are answered from it; the old leg closes
   once they are and the overlap is matched (2 s at most when no frame comes). If
   it closes first, each unanswered request gets a JSON-RPC error, never silence.
-  The gateway's own requests use negative integer ids (figaro's door takes
+  The gateway's own requests use negative integer ids (figaro's daemon takes
   integer ids only and drops a connection that sends any other), so a page request
   with a negative id is refused.
-- Logged: `door handover done (between turns|deadline|lapse notice): N follows
-  moved in M ms`, `door handover skipped`, `abandoned` or `failed` with why. If no
+- Logged: `upstream handover done (between turns|deadline|lapse notice): N follows
+  moved in M ms`, `upstream handover skipped`, `abandoned` or `failed` with why. If no
   bearer outlasting the current one can be had, or the new leg fails, the old
   leg's close reaches the page as before.
 
-A static `--door-token-file` bearer cannot be renewed, so there is no handover.
+A static `--upstream-token-file` bearer cannot be renewed, so there is no handover.
 
-## Compression and the door meter
+## Compression and the session meter
 
-`/door` and `/audio` offer permessage-deflate (level 6, context takeover, messages
+`/rpc` and `/audio` offer permessage-deflate (level 6, context takeover, messages
 under 128 bytes sent plain); audio PCM goes out uncompressed. A client that does not
 offer it is served plain; `--no-deflate` stops offering it. Measured on Spain, a
 turn stream deflates about 12x with context takeover (form.delta repeats itself),
 a first paint 4 to 5x.
 
-Each `/door` socket logs on close `door: session closed frames_out= bytes_out=
+Each `/rpc` socket logs on close `upstream: session closed frames_out= bytes_out=
 wire_out= frames_in= bytes_in= wire_in= deflate= session=` (bytes are JSON payload,
-wire is what the socket carried) and, when tracing, ends a `door session` span with
-the same numbers as `door.*` attributes, so figscope holds the baseline.
+wire is what the socket carried) and, when tracing, ends an `upstream session` span with
+the same numbers as `upstream.*` attributes, so figscope holds the baseline.
 
 ## Origin on writes
 
@@ -337,7 +337,7 @@ Answers `200 {id, kind, name, bytes, images, pages?, text?}`, or `400` (empty),
 held 15 minutes, and spent by the first `figaro.qua` that names it.
 
 `figaro.qua` may carry `attachments: [id, ...]` (1 to 8) with non-empty `text`. The
-gateway replaces them before the door: images (and a scan's pages) join `images`,
+gateway replaces them before the upstream: images (and a scan's pages) join `images`,
 at most 4 with any the page sent; each pdf's text is appended to `text` as a fenced
 block headed by its name and page count. An unknown, spent, expired or repeated id,
 or too many images, refuses the call naming why, and nothing is spent. The ids are
@@ -354,7 +354,7 @@ answered within 10 s, or a failed one, drops its batch and is logged at most onc
 a minute; shutdown waits at most 3 s for the last flush). Without it the
 gateway makes none, and passes a page's valid `traceparent` through untouched.
 
-- `door <method>`: each client call with an id, from forward to the door's answer,
+- `upstream <method>`: each client call with an id, from forward to the upstream's answer,
   under the `traceparent` a `figaro.qua` carried. The qua goes on carrying the
   gateway span's `traceparent`, so figaro's turn hangs under it.
 - `http <method> <route>`: each HTTP request behind the gate, under the request's
@@ -381,7 +381,7 @@ nothing; a request with a bad or missing id is served exactly as one with a good
 id. It rides:
 
 - every gateway log line about that request or socket (`session=`);
-- the door dial of that `/door` socket, as `X-Figchat-Session` (figaro ignores it
+- the upstream dial of that `/rpc` socket, as `X-Figchat-Session` (figaro ignores it
   today); the shared audio follow dials without one;
 - every speech call: `POST /stt`, `POST /stt/<id>`, `POST /audio/keys` and the
   `/audio/key/` replay carry the asker's id, and so does the `/stt/stream` dial (as a header, never in its query). A `/tts` session is shared by every
@@ -398,12 +398,12 @@ After=network-online.target figchat-speech.service
 
 [Service]
 ExecStart=figaro-gateway \
-  --door-url wss://gluck.example.ts.net:7445/door \
+  --upstream-url wss://gluck.example.ts.net:7445/door \
   --speech-socket /run/figchat/speech.sock \
   --store gluck \
   --listen-socket /run/figaro-gateway/gateway.sock \
   --admin gluck
-LoadCredential=door:/run/secrets/figaro-gateway-door-bearer
+LoadCredential=upstream-token:/run/secrets/figaro-gateway-upstream-token
 LoadCredential=edge:/run/secrets/figaro-gateway-edge
 DynamicUser=yes
 Group=figchat
@@ -413,10 +413,10 @@ RuntimeDirectoryPreserve=yes
 Restart=on-failure
 ```
 
-The door bearer is read from `$CREDENTIALS_DIRECTORY/door`, the edge secret from
+The upstream bearer is read from `$CREDENTIALS_DIRECTORY/upstream-token`, the edge secret from
 `$CREDENTIALS_DIRECTORY/edge`.
 
-## Minting the door bearer
+## Minting the upstream bearer
 
 A static bearer expires with its token. For an OAuth client (Authelia
 `client_credentials`) the gateway mints and refreshes its own:
@@ -433,19 +433,19 @@ It posts `grant_type=client_credentials` and the `audience`, with the client as
 HTTP basic auth (`client_secret_basic`), at start (a failure there stops the
 gateway) and again at 80% of `expires_in`. A failed refresh is logged (status
 only, never the secret) and retried with backoff, 1 s doubling to 60 s, while the
-old token is kept until it expires; a dial after that mints on demand. A door
+old token is kept until it expires; a dial after that mints on demand. An upstream
 that refuses the upgrade with 401 makes the gateway mint a new token and redial
 once. The secret file is read at each mint, so a rotated credential is picked up.
-`--token-url` and `--door-token-file` are alternatives; the static bearer stays.
+`--token-url` and `--upstream-token-file` are alternatives; the static bearer stays.
 
 ## Acting for the signed-in user
 
-With `--on-behalf-of`, each door dial (for `/door` clients and for the audio
+With `--on-behalf-of`, each upstream dial (for `/rpc` clients and for the audio
 follow) also sends `X-Figaro-On-Behalf-Of: <Remote-User>`. A daemon that lists the
 gateway under `[[authz.delegation]]` then seats the connection as that user: the
 user's seat and grants, the user as the sender of messages, with the service's verbs
 as a ceiling. A daemon that does not list it answers 403. Without the flag the
 gateway acts as its own service principal.
- The audio follow dials the door as the admin;
-`/door` clients dial it as their own `Remote-User`, passed to the `door` option
+ The audio follow dials the upstream as the admin;
+`/rpc` clients dial it as their own `Remote-User`, passed to the `upstream` option
 (where an on-behalf-of rule would attach).

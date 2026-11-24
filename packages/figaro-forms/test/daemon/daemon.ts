@@ -61,7 +61,7 @@ export async function startDaemon(bin: string): Promise<Daemon> {
   for (let i = 0; i < 100 && !(existsSync(web) && existsSync(join(root, "run", "angelus.sock"))); i++) await sleep(100);
   if (!existsSync(web)) {
     child.kill("SIGKILL");
-    throw new Error("the disposable daemon did not open its web door");
+    throw new Error("the disposable daemon did not open its web socket");
   }
   return {
     root,

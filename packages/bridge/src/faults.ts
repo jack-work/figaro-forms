@@ -22,9 +22,9 @@ export interface FrameMatch {
 }
 
 type Rule =
-  | { kind: "door.drop" | "page.drop"; scope: Scope; match: FrameMatch; count: number }
-  | { kind: "door.delay" | "page.delay"; scope: Scope; match: FrameMatch; count: number; ms: number }
-  | { kind: "door.stall"; scope: Scope; count: number; ms: number }
+  | { kind: "upstream.drop" | "page.drop"; scope: Scope; match: FrameMatch; count: number }
+  | { kind: "upstream.delay" | "page.delay"; scope: Scope; match: FrameMatch; count: number; ms: number }
+  | { kind: "upstream.stall"; scope: Scope; count: number; ms: number }
   | { kind: "speech.stall"; count: number; ms: number }
   | { kind: "speech.fail"; count: number };
 
@@ -96,12 +96,12 @@ export class Faults {
     return r;
   }
 
-  door(dial: Dial, who: Who): Dial {
+  upstream(dial: Dial, who: Who): Dial {
     return async (outer: SocketEvents) => {
       const n = ++this.dials;
       this.onDial?.(n, who);
-      const stall = this.take("door.stall", (r) => inScope((r as { scope: Scope }).scope, who));
-      if (stall && stall.kind === "door.stall") await new Promise((ok) => setTimeout(ok, stall.ms));
+      const stall = this.take("upstream.stall", (r) => inScope((r as { scope: Scope }).scope, who));
+      if (stall && stall.kind === "upstream.stall") await new Promise((ok) => setTimeout(ok, stall.ms));
       let dead = false;
       let lapse: ReturnType<typeof setTimeout> | undefined;
       let inner: Socket | undefined;
@@ -118,10 +118,10 @@ export class Faults {
       };
       const deliver = (frame: string): void => {
         if (dead) return;
-        const drop = this.take("door.drop", (r) => r.kind === "door.drop" && inScope(r.scope, who) && matches(r.match, frame, n));
+        const drop = this.take("upstream.drop", (r) => r.kind === "upstream.drop" && inScope(r.scope, who) && matches(r.match, frame, n));
         if (drop) return;
-        const delay = this.take("door.delay", (r) => r.kind === "door.delay" && inScope(r.scope, who) && matches(r.match, frame, n));
-        if (delay && delay.kind === "door.delay") {
+        const delay = this.take("upstream.delay", (r) => r.kind === "upstream.delay" && inScope(r.scope, who) && matches(r.match, frame, n));
+        if (delay && delay.kind === "upstream.delay") {
           setTimeout(() => !dead && outer.message(frame), delay.ms);
           return;
         }
@@ -244,7 +244,7 @@ export class Faults {
       return v;
     };
     switch (op.op) {
-      case "door.lapse": {
+      case "upstream.lapse": {
         const notice = op.notice !== false;
         const leg = typeof op.leg === "number" ? op.leg : undefined;
         const after = ms ?? 0;
@@ -252,29 +252,29 @@ export class Faults {
         if (after === 0) {
           const cut = pick();
           for (const l of cut) l.cut(notice);
-          this.log(`faults: door.lapse ${cut.length} legs${notice ? "" : " without notice"}`);
+          this.log(`faults: upstream.lapse ${cut.length} legs${notice ? "" : " without notice"}`);
           return { ok: true, legs: cut.length };
         }
         setTimeout(() => {
           const cut = pick();
           for (const l of cut) l.cut(notice);
-          this.log(`faults: door.lapse ${cut.length} legs${notice ? "" : " without notice"} after ${after} ms`);
+          this.log(`faults: upstream.lapse ${cut.length} legs${notice ? "" : " without notice"} after ${after} ms`);
         }, after);
         return { ok: true };
       }
-      case "door.bearer":
+      case "upstream.bearer":
         this.bearerMs = op.ms === null ? undefined : { ms: need(ms, "ms"), notice: op.notice !== false };
         break;
-      case "door.drop":
+      case "upstream.drop":
       case "page.drop":
         this.rules.push({ kind: op.op, scope, match, count });
         break;
-      case "door.delay":
+      case "upstream.delay":
       case "page.delay":
         this.rules.push({ kind: op.op, scope, match, count, ms: need(ms, "ms") });
         break;
-      case "door.stall":
-        this.rules.push({ kind: "door.stall", scope, count, ms: need(ms, "ms") });
+      case "upstream.stall":
+        this.rules.push({ kind: "upstream.stall", scope, count, ms: need(ms, "ms") });
         break;
       case "page.close": {
         const code = typeof op.code === "number" ? op.code : 1011;

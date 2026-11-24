@@ -6,7 +6,7 @@ describe("web commands", () => {
   it("call only methods the gateway passes", () => {
     const passed: readonly string[] = gatewayMethods;
     for (const [name, route] of Object.entries(webCommands)) {
-      if (route.on !== "door") continue;
+      if (route.on !== "gateway") continue;
       for (const m of route.methods) expect(passed, `${name} calls ${m}`).toContain(m);
     }
   });

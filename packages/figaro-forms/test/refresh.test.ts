@@ -271,7 +271,7 @@ interface Request {
   answered?: boolean;
 }
 
-class Door {
+class ScriptedDaemon {
   readonly sockets: { events: SocketEvents; requests: Request[] }[] = [];
   readonly dial: Dial = async (events) => {
     const socket = { events, requests: [] as Request[] };
@@ -304,68 +304,68 @@ class Door {
 
 function client() {
   vi.useFakeTimers();
-  const door = new Door();
-  const c = new FormsClient({ dial: door.dial, retryMinMs: 10, retryMaxMs: 10 });
+  const daemon = new ScriptedDaemon();
+  const c = new FormsClient({ dial: daemon.dial, retryMinMs: 10, retryMaxMs: 10 });
   cleanup.push(() => c.close());
-  return { c, door };
+  return { c, daemon };
 }
 
 describe("FormsClient refresh generations over JSON-RPC", () => {
   it("keeps open transport separate from a current projection, then accepts a lower seed", async () => {
-    const { c, door } = client();
+    const { c, daemon } = client();
     const form = c.retain("@topology");
-    await door.open(0);
-    await door.follow(0);
-    door.answer(0, "figaro.form", { result: seed(100, "old") });
+    await daemon.open(0);
+    await daemon.follow(0);
+    daemon.answer(0, "figaro.form", { result: seed(100, "old") });
     await form.ready();
-    const oldSocket = door.sockets[0]!;
+    const oldSocket = daemon.sockets[0]!;
     oldSocket.events.closed("daemon restarted");
     expect(form.status.freshness).toBe("stale");
     expect(c.hello).toBeUndefined();
     await vi.advanceTimersByTimeAsync(20);
-    await door.open(1);
+    await daemon.open(1);
     expect(c.state).toBe("open");
     expect(form.status.freshness).toBe("resyncing");
-    await door.follow(1);
+    await daemon.follow(1);
     oldSocket.events.message(JSON.stringify({ jsonrpc: "2.0", method: "form.delta", params: { ...delta(101, "old push"), aria_id: "@topology" } }));
-    door.answer(1, "figaro.form", { result: seed(1, "new") });
+    daemon.answer(1, "figaro.form", { result: seed(1, "new") });
     await form.ready();
     expect(form.root).toEqual({ name: "new" });
     expect(form.status).toMatchObject({ freshness: "current", version: 1 });
-    expect(door.sockets[1]!.requests.map((r) => r.method)).toEqual(["angelus.hello", "figaro.follow", "figaro.form"]);
+    expect(daemon.sockets[1]!.requests.map((r) => r.method)).toEqual(["angelus.hello", "figaro.follow", "figaro.form"]);
   });
 
   it("fails closed when re-follow is denied, without requesting or retaining the old form", async () => {
-    const { c, door } = client();
+    const { c, daemon } = client();
     const form = c.retain("@topology");
-    await door.open(0);
-    await door.follow(0);
-    door.answer(0, "figaro.form", { result: seed(100, "private") });
+    await daemon.open(0);
+    await daemon.follow(0);
+    daemon.answer(0, "figaro.form", { result: seed(100, "private") });
     await form.ready();
-    door.sockets[0]!.events.closed("groups changed");
+    daemon.sockets[0]!.events.closed("groups changed");
     await vi.advanceTimersByTimeAsync(20);
-    await door.open(1);
+    await daemon.open(1);
     const ready = expect(form.ready()).rejects.toThrow("listen denied");
-    door.answer(1, "figaro.follow", { error: { code: -32020, message: "listen denied" } });
+    daemon.answer(1, "figaro.follow", { error: { code: -32020, message: "listen denied" } });
     await ready;
     expect(form.root).toEqual({});
     expect(form.status.access).toBeUndefined();
-    expect(door.sockets[1]!.requests.some((r) => r.method === "figaro.form")).toBe(false);
+    expect(daemon.sockets[1]!.requests.some((r) => r.method === "figaro.form")).toBe(false);
   });
 
   it("clears prior role authority on a denied read after follow succeeds", async () => {
-    const { c, door } = client();
+    const { c, daemon } = client();
     const form = c.retain("@topology");
-    await door.open(0);
-    await door.follow(0);
-    door.answer(0, "figaro.form", { result: seed(100, "private") });
+    await daemon.open(0);
+    await daemon.follow(0);
+    daemon.answer(0, "figaro.form", { result: seed(100, "private") });
     await form.ready();
-    door.sockets[0]!.events.closed("re-auth");
+    daemon.sockets[0]!.events.closed("re-auth");
     await vi.advanceTimersByTimeAsync(20);
-    await door.open(1);
-    await door.follow(1);
+    await daemon.open(1);
+    await daemon.follow(1);
     const ready = expect(form.ready()).rejects.toThrow("read denied");
-    door.answer(1, "figaro.form", { error: { code: -32020, message: "read denied" } });
+    daemon.answer(1, "figaro.form", { error: { code: -32020, message: "read denied" } });
     await ready;
     expect(form.root).toEqual({});
     expect(form.confirmed).toEqual({});
@@ -373,34 +373,34 @@ describe("FormsClient refresh generations over JSON-RPC", () => {
   });
 
   it("does not let a failed old hello tear down the replacement connection", async () => {
-    const { c, door } = client();
+    const { c, daemon } = client();
     const form = c.retain("@topology");
     await vi.advanceTimersByTimeAsync(0);
-    door.sockets[0]!.events.closed("before hello replied");
+    daemon.sockets[0]!.events.closed("before hello replied");
     await vi.advanceTimersByTimeAsync(20);
-    expect(door.sockets).toHaveLength(2);
-    await door.open(1);
+    expect(daemon.sockets).toHaveLength(2);
+    await daemon.open(1);
     expect(c.connection.epoch).toBe(3);
-    door.answer(0, "angelus.hello", { result: { version: 1, capabilities: [], node: "old", principal: { kind: "user", id: "old" } } });
-    await door.follow(1);
-    door.answer(1, "figaro.form", { result: seed(1, "fresh") });
+    daemon.answer(0, "angelus.hello", { result: { version: 1, capabilities: [], node: "old", principal: { kind: "user", id: "old" } } });
+    await daemon.follow(1);
+    daemon.answer(1, "figaro.form", { result: seed(1, "fresh") });
     await form.ready();
     expect(c.hello?.principal.id).toBe("test");
     expect(form.root).toEqual({ name: "fresh" });
   });
 
   it("does not accept an old follow completion as current after reconnect", async () => {
-    const { c, door } = client();
+    const { c, daemon } = client();
     const form = c.retain("@topology");
-    await door.open(0);
-    door.sockets[0]!.events.closed("before follow replied");
+    await daemon.open(0);
+    daemon.sockets[0]!.events.closed("before follow replied");
     await vi.advanceTimersByTimeAsync(20);
-    await door.open(1);
-    door.answer(0, "figaro.follow", { result: { ok: true, figaro_id: "@topology" } });
+    await daemon.open(1);
+    daemon.answer(0, "figaro.follow", { result: { ok: true, figaro_id: "@topology" } });
     await vi.advanceTimersByTimeAsync(0);
-    expect(door.sockets[1]!.requests.some((r) => r.method === "figaro.form")).toBe(false);
-    await door.follow(1);
-    door.answer(1, "figaro.form", { result: seed(1, "fresh") });
+    expect(daemon.sockets[1]!.requests.some((r) => r.method === "figaro.form")).toBe(false);
+    await daemon.follow(1);
+    daemon.answer(1, "figaro.form", { result: seed(1, "fresh") });
     await form.ready();
     expect(form.root).toEqual({ name: "fresh" });
   });

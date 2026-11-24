@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { FormsClient, webSocketDial } from "../../figaro-forms/src/index.js";
-import { FakeDoor, settle } from "../../figaro-forms/test/fake-door.js";
+import { FakeDaemon, settle } from "../../figaro-forms/test/fake-daemon.js";
 import { startBridge, type Bridge } from "../src/bridge.js";
 
 const cleanups: (() => Promise<void> | void)[] = [];
@@ -15,13 +15,13 @@ afterEach(async () => {
   for (const c of cleanups.splice(0).reverse()) await c();
 });
 
-async function fakeDaemon(door: FakeDoor): Promise<string> {
+async function fakeDaemon(daemon: FakeDaemon): Promise<string> {
   const dir = mkdtempSync(join(tmpdir(), "ffb-"));
   const path = join(dir, "angelus.sock");
   const srv: Server = createServer((sock) => {
     sock.setEncoding("utf8");
     let buf = "";
-    void door
+    void daemon
       .dial({
         message: (frame) => sock.write(frame + "\n"),
         closed: () => sock.end(),
@@ -42,8 +42,8 @@ async function fakeDaemon(door: FakeDoor): Promise<string> {
   return path;
 }
 
-async function bridge(door: FakeDoor, extra: Partial<Parameters<typeof startBridge>[0]> = {}): Promise<Bridge> {
-  const b = await startBridge({ socket: await fakeDaemon(door), ...extra });
+async function bridge(daemon: FakeDaemon, extra: Partial<Parameters<typeof startBridge>[0]> = {}): Promise<Bridge> {
+  const b = await startBridge({ socket: await fakeDaemon(daemon), ...extra });
   cleanups.push(() => b.close());
   return b;
 }
@@ -59,8 +59,8 @@ async function upgradeStatus(url: string, headers: Record<string, string> = {}):
   });
 }
 
-function rawUpgrade(doorUrl: string, host: string): Promise<number> {
-  const u = new URL(doorUrl.replace(/^ws/, "http"));
+function rawUpgrade(endpointUrl: string, host: string): Promise<number> {
+  const u = new URL(endpointUrl.replace(/^ws/, "http"));
   return new Promise((resolve) => {
     const req = request({
       host: u.hostname,
@@ -83,16 +83,16 @@ function rawUpgrade(doorUrl: string, host: string): Promise<number> {
 
 describe("figaro-forms-bridge", () => {
   it("carries a FormsClient end to end, read-only by default", async () => {
-    const door = new FakeDoor();
-    door.add("@f1", { title: "demo" });
-    const b = await bridge(door);
-    const client = new FormsClient({ dial: webSocketDial({ url: b.doorUrl }), client: "b1", retryMinMs: 5 });
+    const daemon = new FakeDaemon();
+    daemon.add("@f1", { title: "demo" });
+    const b = await bridge(daemon);
+    const client = new FormsClient({ dial: webSocketDial({ url: b.endpointUrl }), client: "b1", retryMinMs: 5 });
     cleanups.push(() => client.close());
     const f = client.retain("@f1");
     await f.ready();
     expect(f.root).toEqual({ title: "demo" });
     expect(client.hello?.principal.id).toBe("gluck");
-    door.write("@f1", { object: { Set: { more: 1 } } });
+    daemon.write("@f1", { object: { Set: { more: 1 } } });
     await settle(10);
     await new Promise((r) => setTimeout(r, 30));
     expect(f.get("more")).toBe(1);
@@ -100,33 +100,33 @@ describe("figaro-forms-bridge", () => {
     expect(res.ok).toBe(false);
     expect(res.ok ? "" : res.refusal.reason).toContain("read-only bridge");
     expect(f.get("title")).toBe("demo");
-    expect(door.forms.get("@f1")!.value).toEqual({ title: "demo", more: 1 });
+    expect(daemon.forms.get("@f1")!.value).toEqual({ title: "demo", more: 1 });
   });
 
   it("lets edits through with --write", async () => {
-    const door = new FakeDoor();
-    door.add("@f1", { title: "demo" });
-    const b = await bridge(door, { write: true });
-    const client = new FormsClient({ dial: webSocketDial({ url: b.doorUrl }), client: "b2" });
+    const daemon = new FakeDaemon();
+    daemon.add("@f1", { title: "demo" });
+    const b = await bridge(daemon, { write: true });
+    const client = new FormsClient({ dial: webSocketDial({ url: b.endpointUrl }), client: "b2" });
     cleanups.push(() => client.close());
     const f = client.retain("@f1");
     await f.ready();
     await expect(f.set("title", "edited")).resolves.toMatchObject({ ok: true });
-    expect(door.forms.get("@f1")!.value).toEqual({ title: "edited" });
+    expect(daemon.forms.get("@f1")!.value).toEqual({ title: "edited" });
   });
 
   it("refuses an upgrade without the token, with a foreign origin, or for a rebound host", async () => {
-    const door = new FakeDoor();
-    door.add("@f1", {});
-    const b = await bridge(door, { origins: ["http://127.0.0.1:8765"] });
-    const bare = b.doorUrl.replace(/\?token=.*/, "");
+    const daemon = new FakeDaemon();
+    daemon.add("@f1", {});
+    const b = await bridge(daemon, { origins: ["http://127.0.0.1:8765"] });
+    const bare = b.endpointUrl.replace(/\?token=.*/, "");
     expect(await upgradeStatus(bare)).toBe("refused");
     expect(await upgradeStatus(`${bare}?token=wrong`)).toBe("refused");
-    expect(await upgradeStatus(b.doorUrl, { Origin: "https://evil.example" })).toBe("refused");
-    expect(await upgradeStatus(b.doorUrl, { Origin: "http://127.0.0.1:8765" })).toBe("open");
-    expect(await rawUpgrade(b.doorUrl, "evil.example")).toBe(421);
-    expect(await rawUpgrade(b.doorUrl, new URL(b.origin).host)).toBe(101);
-    expect(await upgradeStatus(b.doorUrl)).toBe("open");
+    expect(await upgradeStatus(b.endpointUrl, { Origin: "https://evil.example" })).toBe("refused");
+    expect(await upgradeStatus(b.endpointUrl, { Origin: "http://127.0.0.1:8765" })).toBe("open");
+    expect(await rawUpgrade(b.endpointUrl, "evil.example")).toBe(421);
+    expect(await rawUpgrade(b.endpointUrl, new URL(b.origin).host)).toBe(101);
+    expect(await upgradeStatus(b.endpointUrl)).toBe("open");
   });
 
   it("refuses to listen anywhere but loopback", async () => {
@@ -134,12 +134,12 @@ describe("figaro-forms-bridge", () => {
   });
 
   it("serves a static page without escaping its root", async () => {
-    const door = new FakeDoor();
+    const daemon = new FakeDaemon();
     const dir = mkdtempSync(join(tmpdir(), "ffs-"));
     await mkdir(join(dir, "assets"));
     await writeFile(join(dir, "index.html"), "<p>page</p>");
     await writeFile(join(dir, "assets", "a.js"), "1");
-    const b = await bridge(door, { staticDir: dir });
+    const b = await bridge(daemon, { staticDir: dir });
     expect(b.pageUrl).toContain("#token=");
     const page = await fetch(`${b.origin}/`);
     expect(await page.text()).toBe("<p>page</p>");
@@ -180,43 +180,43 @@ async function rawSession(url: string) {
 
 describe("figaro-forms-bridge static serving", () => {
   it("frames only the origins it is given, never its own, and types PDFs and text", async () => {
-    const door = new FakeDoor();
+    const daemon = new FakeDaemon();
     const dir = mkdtempSync(join(tmpdir(), "fff-"));
     await writeFile(join(dir, "index.html"), "<p>page</p>");
     await writeFile(join(dir, "paper.pdf"), "%PDF-1.4");
     await writeFile(join(dir, "notes.tex"), "\\section{x}");
-    const plain = await bridge(door, { staticDir: dir });
+    const plain = await bridge(daemon, { staticDir: dir });
     expect((await fetch(`${plain.origin}/`)).headers.get("content-security-policy")).not.toContain("frame-src");
-    const framed = await bridge(door, { staticDir: dir, frameOrigins: ["http://127.0.0.1:8765"] });
+    const framed = await bridge(daemon, { staticDir: dir, frameOrigins: ["http://127.0.0.1:8765"] });
     expect((await fetch(`${framed.origin}/`)).headers.get("content-security-policy")).toContain("; frame-src http://127.0.0.1:8765");
     expect((await fetch(`${framed.origin}/paper.pdf`)).headers.get("content-type")).toBe("application/pdf");
     expect((await fetch(`${framed.origin}/notes.tex`)).headers.get("content-type")).toBe("text/plain; charset=utf-8");
-    await expect(bridge(door, { staticDir: dir, frameOrigins: ["http://127.0.0.1:8765/path"] })).rejects.toThrow(/origin/);
-    await expect(bridge(door, { staticDir: dir, frameOrigins: ["*"] })).rejects.toThrow(/URL|origin/);
+    await expect(bridge(daemon, { staticDir: dir, frameOrigins: ["http://127.0.0.1:8765/path"] })).rejects.toThrow(/origin/);
+    await expect(bridge(daemon, { staticDir: dir, frameOrigins: ["*"] })).rejects.toThrow(/URL|origin/);
     await expect(
-      bridge(door, { staticDir: dir, frameOrigins: ["http://127.0.0.1:8765"], origins: ["http://127.0.0.1:8765/"] }),
+      bridge(daemon, { staticDir: dir, frameOrigins: ["http://127.0.0.1:8765"], origins: ["http://127.0.0.1:8765/"] }),
     ).rejects.toThrow(/both --frame-src and --origin/);
     const port = new URL(framed.origin).port;
     await framed.close();
-    await expect(bridge(door, { staticDir: dir, port: Number(port), frameOrigins: [`http://localhost:${port}`] })).rejects.toThrow(/own origin/);
+    await expect(bridge(daemon, { staticDir: dir, port: Number(port), frameOrigins: [`http://localhost:${port}`] })).rejects.toThrow(/own origin/);
   });
 });
 
 describe("figaro-forms-bridge under --write", () => {
   it("survives a malformed escape in a static path", async () => {
-    const door = new FakeDoor();
+    const daemon = new FakeDaemon();
     const dir = mkdtempSync(join(tmpdir(), "ffs-"));
     await writeFile(join(dir, "index.html"), "<p>page</p>");
-    const b = await bridge(door, { staticDir: dir });
+    const b = await bridge(daemon, { staticDir: dir });
     expect((await fetch(`${b.origin}/%E0%A4%A`)).status).toBe(400);
     expect((await fetch(`${b.origin}/`)).status).toBe(200);
   });
 
   it("refuses owner-held and daemon-written keys, outfits, and ambiguous shapes", async () => {
-    const door = new FakeDoor();
-    door.add("@f1", { title: "demo", system: { model: "m" } });
-    const b = await bridge(door, { write: true });
-    const s = await rawSession(b.doorUrl);
+    const daemon = new FakeDaemon();
+    daemon.add("@f1", { title: "demo", system: { model: "m" } });
+    const b = await bridge(daemon, { write: true });
+    const s = await rawSession(b.endpointUrl);
     cleanups.push(() => s.close());
     const set = (patch: unknown, extra: object = {}) => s.call("figaro.set", { figaro_id: "@f1", patch, ...extra });
     const refused: [string, Promise<{ error?: { message: string } }>][] = [
@@ -235,21 +235,21 @@ describe("figaro-forms-bridge under --write", () => {
       const r = await p;
       expect(r.error?.message, what).toMatch(/^bridge: /);
     }
-    expect(door.forms.get("@f1")!.value).toEqual({ title: "demo", system: { model: "m" } });
+    expect(daemon.forms.get("@f1")!.value).toEqual({ title: "demo", system: { model: "m" } });
     expect((await set({ object: { Set: { notes: { a: 1 } } } })).error).toBeUndefined();
     expect((await s.call("form.create", { patch: { object: { Set: { title: "new" } } } })).error).toBeUndefined();
-    expect(door.forms.get("@f1")!.value).toEqual({ title: "demo", system: { model: "m" }, notes: { a: 1 } });
+    expect(daemon.forms.get("@f1")!.value).toEqual({ title: "demo", system: { model: "m" }, notes: { a: 1 } });
   });
 
   it("lets owner-held keys through only with --write-system", async () => {
-    const door = new FakeDoor();
-    door.add("@f1", { system: { model: "m" } });
-    const b = await bridge(door, { write: true, writeSystem: true });
-    const s = await rawSession(b.doorUrl);
+    const daemon = new FakeDaemon();
+    daemon.add("@f1", { system: { model: "m" } });
+    const b = await bridge(daemon, { write: true, writeSystem: true });
+    const s = await rawSession(b.endpointUrl);
     cleanups.push(() => s.close());
     const r = await s.call("figaro.set", { figaro_id: "@f1", patch: { object: { Update: { system: { object: { Update: { model: { scalar: { Before: "m", After: "x" } } } } } } } } });
     expect(r.error).toBeUndefined();
-    expect(door.forms.get("@f1")!.value).toEqual({ system: { model: "x" } });
+    expect(daemon.forms.get("@f1")!.value).toEqual({ system: { model: "x" } });
     const odd = await s.call("figaro.set", { figaro_id: "@f1", Patch: {} });
     expect(odd.error?.message).toMatch(/unexpected key/);
   });
@@ -261,22 +261,22 @@ async function getHierarchy(b: Bridge, path = "/hierarchy", headers: Record<stri
   return { code: res.status, body: text ? JSON.parse(text) : undefined };
 }
 
-function orderDoor(): FakeDoor {
-  const door = new FakeDoor();
-  door.add("@king", { "role-name": "King", system: { key: "secret-system" } });
-  door.add("@eng", { "role-name": "Engineer" });
-  door.rows = [
+function orderDaemon(): FakeDaemon {
+  const daemon = new FakeDaemon();
+  daemon.add("@king", { "role-name": "King", system: { key: "secret-system" } });
+  daemon.add("@eng", { "role-name": "Engineer" });
+  daemon.rows = [
     { id: "@king", kind: "form", state: "form", target_aria: "ak", parent: "" },
     { id: "@eng", kind: "form", state: "form", target_aria: "ae", parent: "@king" },
     { id: "ak", kind: "conversation", state: "active" },
     { id: "ae", kind: "conversation", state: "active" },
   ];
-  return door;
+  return daemon;
 }
 
 describe("figaro-forms-bridge /hierarchy", () => {
   it("serves the caller's projection only to a bearer of the token", async () => {
-    const b = await bridge(orderDoor());
+    const b = await bridge(orderDaemon());
     const bearer = { Authorization: `Bearer ${b.token}` };
     const none = await getHierarchy(b);
     expect(none).toEqual({ code: 401, body: { status: "signedout", reason: expect.any(String) } });
@@ -293,13 +293,13 @@ describe("figaro-forms-bridge /hierarchy", () => {
   });
 
   it("answers a refusal with no nodes", async () => {
-    const door = orderDoor();
-    const b = await bridge(door);
+    const daemon = orderDaemon();
+    const b = await bridge(daemon);
     const bearer = { Authorization: `Bearer ${b.token}` };
     expect(await getHierarchy(b, "/hierarchy?root=%40hidden", bearer)).toEqual({ code: 403, body: { status: "denied", reason: expect.any(String) } });
-    door.sees = () => false;
+    daemon.sees = () => false;
     expect(await getHierarchy(b, "/hierarchy", bearer)).toEqual({ code: 200, body: { status: "empty", observed_at: expect.any(Number) } });
-    door.listDenied = "figaro.list: not yours";
+    daemon.listDenied = "figaro.list: not yours";
     expect(await getHierarchy(b, "/hierarchy", bearer)).toEqual({ code: 403, body: { status: "denied", reason: "figaro.list: not yours" } });
   });
 

@@ -8,7 +8,7 @@
 </p>
 
 <p align="center"><b>Live, subscribable <a href="https://github.com/jack-work/figaro">figaro</a> forms in TypeScript.</b><br>
-Connect to a figaro daemon's door, follow any form, read and write it by path. React and jotai bindings included.</p>
+Connect to a figaro daemon's endpoint, follow any form, read and write it by path. React and jotai bindings included.</p>
 
 State and interfaces only: no
 DOM. `apps/demo` is the one place anything is drawn.
@@ -16,7 +16,7 @@ DOM. `apps/demo` is the one place anything is drawn.
 | import | holds |
 |---|---|
 | `figaro-forms` | `FormsClient`, `Replica` (one form: tree, status, optimistic edits), `webSocketDial`, the patch algebra, wire types |
-| `figaro-forms/auth` | credentials (`edgeSession`, `bearer`, `apiKey`), `doorUrl`, `bridgeDoor`, access checks (`refusalOf`, `writable`) |
+| `figaro-forms/auth` | credentials (`edgeSession`, `bearer`, `apiKey`), `endpointUrl`, `bridgeEndpoint`, access checks (`refusalOf`, `writable`) |
 | `figaro-forms/view` | headless view model: `flatten(root, {view, isOpen, subject, overlay})`, `matchPath`, `resolveAction`, `OpenState` (UI open paths, synced across tabs over BroadcastChannel, memory only) |
 | `figaro-forms/semantics` | the well-known form ids and the daemon's key catalog |
 | `figaro-forms/hierarchy` | server-authorized role/figaro hierarchy: `readHierarchy` (server side, as the caller), `hierarchyHttp`, `HierarchyFeed` (client side) |
@@ -30,9 +30,9 @@ Source layout, the generation contract and how an edit travels: [docs/architectu
 
 ```ts
 import { FormsClient, webSocketDial } from "figaro-forms";
-import { doorUrl, edgeSession } from "figaro-forms/auth";
+import { endpointUrl, edgeSession } from "figaro-forms/auth";
 
-const client = new FormsClient({ dial: webSocketDial({ url: doorUrl("/door"), credential: edgeSession() }) });
+const client = new FormsClient({ dial: webSocketDial({ url: endpointUrl("/rpc"), credential: edgeSession() }) });
 const form = client.retain("@619b8925...");
 await form.ready();
 form.subscribe("a.b", () => console.log(form.get("a.b")));
@@ -65,7 +65,7 @@ The order view never selects public keys in the browser. A server reads the
 hierarchy as the caller and serves only what the daemon lets that caller see.
 
 `readHierarchy(call, {root?})` runs on the server, where `call` is a
-JSON-RPC call carrying the caller's own authority (a door connection dialed
+JSON-RPC call carrying the caller's own authority (a daemon connection dialed
 with their credential, or the bridge's daemon socket, which is the owner).
 It asks `figaro.list {global: true}`, which the daemon filters per caller,
 then reads each candidate role form with `figaro.form`. A form the daemon
@@ -155,13 +155,13 @@ none failed, exactly the rows that drift.
 loopback, to an edge proxy that reaches it through a tunnel. Before the
 request is read, the peer must be a `--peer` and `X-Figaro-Edge` must equal
 the secret from `$CREDENTIALS_DIRECTORY/edge` (or `--edge-secret-file`, 32
-bytes or more); then `Remote-User` must be `--admin`. No door, no pages, no
+bytes or more); then `Remote-User` must be `--admin`. No endpoint, no pages, no
 bearer. The proxy strips client `Remote-*` and `X-Figaro-Edge` and injects
 its own.
 
 ## Reaching a daemon
 
-- Behind the edge (fig.kelliher.info): same-origin `/door`, `edgeSession()`.
+- Behind the edge (fig.kelliher.info): same-origin `/rpc`, `edgeSession()`.
   The Authelia cookie rides the upgrade.
 - From Node: `bearer(token)` or `apiKey(fgk_...)` set `Authorization`.
   A browser cannot; the dial says so instead of failing quietly.
@@ -173,7 +173,7 @@ its own.
   prints once on stdout; never pipe that into a log or journal others can
   read. Other origins are refused unless named with `--origin`, which
   grants every page on that origin the same reach. `--static DIR` serves a
-  page on the bridge's own origin, and `bridgeDoor()` reads the token from
+  page on the bridge's own origin, and `bridgeEndpoint()` reads the token from
   that page's `#token=`.
 
 A page served with `--static` lives under a strict CSP: no inline
@@ -181,11 +181,11 @@ A page served with `--static` lives under a strict CSP: no inline
 objects. Put script and style in files. `--frame-src ORIGIN` lets the
 page frame pages from another origin; never the bridge's own, whose pages
 could read the token, and never one also given to `--origin`, so framed
-content never reaches the door. The bridge cannot police the page itself,
+content never reaches the endpoint. The bridge cannot police the page itself,
 so a page that frames must: frame with `sandbox="allow-scripts"` (no
 `allow-same-origin` unless the content needs it, never
 `allow-top-navigation`), treat any `postMessage` from a frame as data
-after checking `event.origin`, never turn one into a door call, and never
+after checking `event.origin`, never turn one into an RPC call, and never
 post the token into a frame. Test drivers that evaluate code in the page
 (Playwright's `wait_for_function`) are blocked by the same policy; wait
 on selectors instead.

@@ -31,15 +31,15 @@ describe("webCommands", () => {
   it("says why a command cannot run on the web", () => {
     for (const name of ["kill", "import", "login", "provider", "troupe", "succeed"] as const) {
       const r = webCommands[name];
-      const why = r.on === "nowhere" ? r.reason : r.on === "door" ? r.limits : undefined;
+      const why = r.on === "nowhere" ? r.reason : r.on === "gateway" ? r.limits : undefined;
       expect(why, name).toMatch(/\w/);
     }
   });
 
-  it("names the pager's view form for each view the door can read", () => {
+  it("names the pager's view form for each view the gateway can read", () => {
     for (const c of commandDocs) {
       const r = webCommands[c.name];
-      if (c.pager === "view" && r.on === "door" && c.name !== "state") expect(r.form, c.name).toMatch(/^@/);
+      if (c.pager === "view" && r.on === "gateway" && c.name !== "state") expect(r.form, c.name).toMatch(/^@/);
     }
   });
 

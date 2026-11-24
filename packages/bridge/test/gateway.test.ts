@@ -39,7 +39,7 @@ async function rig(listen?: Parameters<typeof startGateway>[0]["listen"], extra:
   const gw = await startGateway({
     listen: listen ?? { port: 0 },
     edge: { secret, admin: "gluck", peers: ["127.0.0.1"] },
-    door: (u) => {
+    upstream: (u) => {
       users.push(u);
       return fake.dial;
     },
@@ -75,21 +75,21 @@ const ofType = (got: (Record<string, unknown> | Buffer)[], t: string): Record<st
 describe("figaro gateway", () => {
   it("refuses a request without the edge secret, from the wrong user, or from a foreign origin", async () => {
     const { port } = await rig();
-    await expect(open(`ws://127.0.0.1:${port}/door`, { "remote-user": "gluck" })).rejects.toThrow("403");
-    await expect(open(`ws://127.0.0.1:${port}/door`, { ...good, "remote-user": "mallory" })).rejects.toThrow("403");
-    await expect(open(`ws://127.0.0.1:${port}/door`, { ...good, origin: "https://evil.example" })).rejects.toThrow("403");
+    await expect(open(`ws://127.0.0.1:${port}/rpc`, { "remote-user": "gluck" })).rejects.toThrow("403");
+    await expect(open(`ws://127.0.0.1:${port}/rpc`, { ...good, "remote-user": "mallory" })).rejects.toThrow("403");
+    await expect(open(`ws://127.0.0.1:${port}/rpc`, { ...good, origin: "https://evil.example" })).rejects.toThrow("403");
     await expect(open(`ws://127.0.0.1:${port}/nowhere`)).rejects.toThrow("404");
     await expect(open(`ws://127.0.0.1:${port}/audio/not-an-id`)).rejects.toThrow("404");
-    await expect(open(`ws://127.0.0.1:${port}/door`)).resolves.toBeDefined();
+    await expect(open(`ws://127.0.0.1:${port}/rpc`)).resolves.toBeDefined();
   });
 
-  it("carries an AriaClient end to end through /door, one upstream per client, aria methods included", async () => {
+  it("carries an AriaClient end to end through /rpc, one upstream per client, aria methods included", async () => {
     const { fake, port, users } = await rig();
     fake.answers.set("figaro.qua", { ok: true, cursor: 1 });
     const mk = (): AriaClient =>
       new AriaClient({
         dial: webSocketDial({
-          url: `ws://127.0.0.1:${port}/door`,
+          url: `ws://127.0.0.1:${port}/rpc`,
           credential: { name: "edge", upgrade: () => ({ headers: good }) },
           WebSocket: WebSocket as never,
         }),
@@ -113,7 +113,7 @@ describe("figaro gateway", () => {
 
   it("refuses methods outside the gateway set", async () => {
     const { port } = await rig();
-    const ws = await open(`ws://127.0.0.1:${port}/door`);
+    const ws = await open(`ws://127.0.0.1:${port}/rpc`);
     const got = collect(ws);
     ws.send(JSON.stringify({ jsonrpc: "2.0", id: 7, method: "figaro.form.create", params: {} }));
     ws.send(JSON.stringify({ jsonrpc: "2.0", id: 8, method: "figaro.kill", params: {} }));
@@ -129,7 +129,7 @@ describe("figaro gateway", () => {
     fake.answers.set("figaro.queued", { epoch: "e1", queue: [] });
     fake.answers.set("figaro.queue.delete", { epoch: "e1", results: [{ id: 2, outcome: "deleted" }] });
     fake.answers.set("figaro.queue.update", { epoch: "e1", result: { id: 2, outcome: "updated" } });
-    const ws = await open(`ws://127.0.0.1:${port}/door`);
+    const ws = await open(`ws://127.0.0.1:${port}/rpc`);
     const got = collect(ws);
     const calls: [string, Record<string, unknown>][] = [
       ["figaro.form", { figaro_id: id, intrinsic: "queue" }],
@@ -160,7 +160,7 @@ describe("figaro gateway", () => {
 
   it("refuses a qua or fork that carries a form patch, outfits, seat, studies or abdication, naming the field", async () => {
     const { fake, port } = await rig();
-    const ws = await open(`ws://127.0.0.1:${port}/door`);
+    const ws = await open(`ws://127.0.0.1:${port}/rpc`);
     const got = collect(ws);
     const cases: [string, Record<string, unknown>, string][] = [
       ["figaro.qua", { figaro_id: id, text: "x", form: { patch: { set: {} } } }, "form"],
@@ -186,7 +186,7 @@ describe("figaro gateway", () => {
     const { fake, port } = await rig();
     fake.answers.set("figaro.create", { figaro_id: "new" });
     fake.answers.set("angelus.outfits", { outfits: [] });
-    const ws = await open(`ws://127.0.0.1:${port}/door`);
+    const ws = await open(`ws://127.0.0.1:${port}/rpc`);
     const got = collect(ws);
     const calls: [string, Record<string, unknown>, string | undefined][] = [
       ["figaro.create", { outfits: ["mock"] }, undefined],
@@ -216,7 +216,7 @@ describe("figaro gateway", () => {
   it("passes an interrupt that keeps or clears the queue as asked, and nothing else", async () => {
     const { fake, port } = await rig();
     fake.answers.set("figaro.interrupt", { ok: true, queue: [] });
-    const ws = await open(`ws://127.0.0.1:${port}/door`);
+    const ws = await open(`ws://127.0.0.1:${port}/rpc`);
     const got = collect(ws);
     const calls: [Record<string, unknown>, string | undefined][] = [
       [{ figaro_id: id }, undefined],
@@ -241,7 +241,7 @@ describe("figaro gateway", () => {
     const { fake, port } = await rig();
     fake.answers.set("figaro.qua", { ok: true, cursor: 1 });
     fake.answers.set("figaro.fork", { parent: id, continuation: "c", alternative: "a" });
-    const ws = await open(`ws://127.0.0.1:${port}/door`);
+    const ws = await open(`ws://127.0.0.1:${port}/rpc`);
     const got = collect(ws);
     ws.send(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "angelus.hello", params: { version: 1 } }));
     ws.send(JSON.stringify({ jsonrpc: "2.0", id: 2, method: "figaro.qua", params: { figaro_id: id, text: "x", images: [{ data: "AA==" }] } }));
@@ -270,13 +270,13 @@ describe("figaro gateway", () => {
     expect(r.status).toBe(404);
   });
 
-  it("does not put the door's address in the close reason when the door is unreachable", async () => {
+  it("does not put the upstream's address in the close reason when the upstream is unreachable", async () => {
     const lines: string[] = [];
-    const { port } = await rig(undefined, { door: () => async () => { throw new Error("could not open wss://user:pw@door.example/door?token=SECRET"); }, log: (l) => lines.push(l) });
-    const ws = await open(`ws://127.0.0.1:${port}/door`);
+    const { port } = await rig(undefined, { upstream: () => async () => { throw new Error("could not open wss://user:pw@upstream.example/rpc?token=SECRET"); }, log: (l) => lines.push(l) });
+    const ws = await open(`ws://127.0.0.1:${port}/rpc`);
     const closed = await new Promise<string>((ok) => ws.on("close", (_c, reason) => ok(reason.toString())));
-    expect(closed).toBe("door unreachable");
-    expect(lines.join("\n")).toContain("door.example");
+    expect(closed).toBe("upstream unreachable");
+    expect(lines.join("\n")).toContain("upstream.example");
     expect(lines.join("\n")).not.toMatch(/SECRET|pw@/);
   });
 
@@ -296,17 +296,17 @@ describe("figaro gateway", () => {
     expect(ofType(got, "audio.end")[0]).toMatchObject({ turn: 1, key: `gluck/${id}:1/out`, audio_id: "a-1" });
   });
 
-  it("cancels audio when the page interrupts through /door, and when the audio client asks", async () => {
+  it("cancels audio when the page interrupts through /rpc, and when the audio client asks", async () => {
     const { fake, port } = await rig();
     fake.answers.set("figaro.interrupt", { ok: true, stopped: true });
     const audio = await open(`ws://127.0.0.1:${port}/audio/${id}`);
     const got = collect(audio);
     await until("ready", () => ofType(got, "ready").length === 1);
-    const door = await open(`ws://127.0.0.1:${port}/door`);
+    const rpc = await open(`ws://127.0.0.1:${port}/rpc`);
     fake.openTurn(id, 1, "hi");
     fake.update(id, 1, [prose(0, "Going on. And on")]);
     await until("audio", () => got.some((f) => Buffer.isBuffer(f)));
-    door.send(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "figaro.interrupt", params: { figaro_id: id, queue: "keep" } }));
+    rpc.send(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "figaro.interrupt", params: { figaro_id: id, queue: "keep" } }));
     await until("cancel", () => ofType(got, "audio.cancel").length === 1);
     expect(ofType(got, "audio.cancel")[0]).toMatchObject({ turn: 1, why: "interrupt" });
 
@@ -439,7 +439,7 @@ describe("figaro gateway", () => {
     const gw = await startGateway({
       listen: { port: 0 },
       edge: { secret, admin: "gluck", peers: ["127.0.0.1"] },
-      door: () => fake.dial,
+      upstream: () => fake.dial,
       speech: speechOverSocket(speech.path),
       store: "gluck",
       routes: (req, res, path, user) => {
@@ -471,10 +471,10 @@ describe("figaro gateway", () => {
     const fake = new FakeAria();
     const speech = await startFakeSpeech();
     cleanups.push(() => speech.stop());
-    const gw = await startGateway({ listen: { path, mode: 0o660 }, edge: { secret, admin: "gluck" }, door: () => fake.dial, speech: speechOverSocket(speech.path), store: "gluck" });
+    const gw = await startGateway({ listen: { path, mode: 0o660 }, edge: { secret, admin: "gluck" }, upstream: () => fake.dial, speech: speechOverSocket(speech.path), store: "gluck" });
     cleanups.push(() => gw.close());
     expect(statSync(path).mode & 0o777).toBe(0o660);
-    const ws = await open(`ws+unix://${path}:/door`);
+    const ws = await open(`ws+unix://${path}:/rpc`);
     ws.send(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "angelus.hello", params: { version: 1 } }));
     const got = collect(ws);
     await until("hello", () => got.length === 1);

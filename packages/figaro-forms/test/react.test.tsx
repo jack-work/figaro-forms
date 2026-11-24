@@ -5,20 +5,20 @@ import { afterEach, describe, expect, it } from "vitest";
 import { FormsClient } from "../src/client.js";
 import { FormsProvider, useFormStatus, useFormValue, useFormView } from "../src/react/index.js";
 import { OpenState } from "../src/view/flatten.js";
-import { FakeDoor, settle } from "./fake-door.js";
+import { FakeDaemon, settle } from "./fake-daemon.js";
 
 afterEach(cleanup);
 
 function setup() {
-  const door = new FakeDoor();
-  door.add("@f1", { a: { b: 1, c: 2 }, z: 0 });
-  const client = new FormsClient({ dial: door.dial, client: "r1", releaseGraceMs: 5 });
-  return { door, client };
+  const daemon = new FakeDaemon();
+  daemon.add("@f1", { a: { b: 1, c: 2 }, z: 0 });
+  const client = new FormsClient({ dial: daemon.dial, client: "r1", releaseGraceMs: 5 });
+  return { daemon, client };
 }
 
 describe("React hooks", () => {
   it("re-renders only the components whose path a delta touched", async () => {
-    const { door, client } = setup();
+    const { daemon, client } = setup();
     const renders: Record<string, number> = { ab: 0, ac: 0, z: 0 };
     const Leaf = (p: { name: string; path: string }) => {
       renders[p.name] = (renders[p.name] ?? 0) + 1;
@@ -38,7 +38,7 @@ describe("React hooks", () => {
     expect(ui.getByTestId("ab").textContent).toBe("1");
     const before = { ...renders };
     await act(async () => {
-      door.write("@f1", { object: { Update: { a: { object: { Update: { b: { scalar: { Before: 1, After: 7 } } } } } } } });
+      daemon.write("@f1", { object: { Update: { a: { object: { Update: { b: { scalar: { Before: 1, After: 7 } } } } } } } });
       await settle();
     });
     expect(ui.getByTestId("ab").textContent).toBe("7");
@@ -63,7 +63,7 @@ describe("React hooks", () => {
   });
 
   it("keeps UI open state across a version change", async () => {
-    const { door, client } = setup();
+    const { daemon, client } = setup();
     const open = new OpenState();
     open.set(["a"], true);
     const Tree = () =>
@@ -76,7 +76,7 @@ describe("React hooks", () => {
     await act(() => settle());
     expect([...ui.container.querySelectorAll("li")].map((li) => li.textContent?.trim())).toEqual(["a", "b", "c", "z"]);
     await act(async () => {
-      door.write("@f1", { object: { Set: { y: 1 } } });
+      daemon.write("@f1", { object: { Set: { y: 1 } } });
       await settle();
     });
     expect([...ui.container.querySelectorAll("li")].map((li) => li.textContent?.trim())).toEqual(["a", "b", "c", "y", "z"]);

@@ -5,7 +5,7 @@ import { createServer, type Server } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { FakeDoor } from "../../figaro-forms/test/fake-door.js";
+import { FakeDaemon } from "../../figaro-forms/test/fake-daemon.js";
 import { startBridge, type Bridge, type BridgeOptions } from "../src/bridge.js";
 import { cachedDrift, DriftCheckFailed, mapDrift, parseCheck, runCheck, type CheckRow, type CheckRun, type DriftDaemon, type DriftReport } from "../src/drift.js";
 
@@ -190,13 +190,13 @@ describe("a check run", () => {
   });
 });
 
-async function fakeDaemon(door: FakeDoor): Promise<string> {
+async function fakeDaemon(daemon: FakeDaemon): Promise<string> {
   const dir = mkdtempSync(join(tmpdir(), "ffd-"));
   const path = join(dir, "angelus.sock");
   const srv: Server = createServer((sock) => {
     sock.setEncoding("utf8");
     let buf = "";
-    void door.dial({ message: (frame) => sock.write(frame + "\n"), closed: () => sock.end() }).then((s) => {
+    void daemon.dial({ message: (frame) => sock.write(frame + "\n"), closed: () => sock.end() }).then((s) => {
       sock.on("data", (chunk: string) => {
         buf += chunk;
         for (let i = buf.indexOf("\n"); i >= 0; i = buf.indexOf("\n")) {
@@ -212,18 +212,18 @@ async function fakeDaemon(door: FakeDoor): Promise<string> {
   return path;
 }
 
-function orderDoor(): FakeDoor {
-  const door = new FakeDoor();
-  door.add("@king0000", { "role-name": "King", "target-aria": "ak" });
-  door.add("@eng00000", { "role-name": "Engineer", "target-aria": "ae", fanout: 1 });
-  door.outfits.set("role-eng-fields", { fanout: 2 });
-  door.rows = [
+function orderDaemon(): FakeDaemon {
+  const daemon = new FakeDaemon();
+  daemon.add("@king0000", { "role-name": "King", "target-aria": "ak" });
+  daemon.add("@eng00000", { "role-name": "Engineer", "target-aria": "ae", fanout: 1 });
+  daemon.outfits.set("role-eng-fields", { fanout: 2 });
+  daemon.rows = [
     { id: "@king0000", kind: "form", state: "form", target_aria: "ak", parent: "" },
     { id: "@eng00000", kind: "form", state: "form", target_aria: "ae", parent: "@king0000" },
     { id: "ak", kind: "conversation", state: "active" },
     { id: "ae", kind: "conversation", state: "active" },
   ];
-  return door;
+  return daemon;
 }
 
 const driftTally = "figaro-apply: 1 of 2 roles drift; run without --check to apply\n";
@@ -234,7 +234,7 @@ const checkOut =
   "\n";
 
 async function bridge(extra: Partial<BridgeOptions> = {}, run: () => Promise<CheckRun> = async () => ({ code: 1, stdout: checkOut, stderr: driftTally })): Promise<Bridge> {
-  const b = await startBridge({ socket: await fakeDaemon(orderDoor()), checkRun: run, ...extra });
+  const b = await startBridge({ socket: await fakeDaemon(orderDaemon()), checkRun: run, ...extra });
   cleanups.push(() => b.close());
   return b;
 }
@@ -330,7 +330,7 @@ describe("--edge", () => {
     expect(d.code).toBe(200);
     expect((JSON.parse(d.body) as DriftReport).roles).toHaveLength(2);
     expect((await get(b, "/", good)).code).toBe(404);
-    expect((await get(b, `/door?token=${b.token}`, good)).code).toBe(404);
+    expect((await get(b, `/rpc?token=${b.token}`, good)).code).toBe(404);
   });
 
   for (const [name, headers] of [
@@ -362,7 +362,7 @@ describe("--edge", () => {
     }
   });
 
-  it("refuses to start with a short secret, no peer, a bad peer, no admin, or door options", async () => {
+  it("refuses to start with a short secret, no peer, a bad peer, no admin, or daemon options", async () => {
     const s = "/nonexistent";
     await expect(startBridge({ socket: s, edge: { ...edge, secret: "x".repeat(31) } })).rejects.toThrow(/32 bytes/);
     await expect(startBridge({ socket: s, edge: { ...edge, peers: [] } })).rejects.toThrow(/--peer/);
@@ -373,10 +373,10 @@ describe("--edge", () => {
     }
   });
 
-  it("opens no door", async () => {
+  it("opens no daemon", async () => {
     const b = await bridge({ edge });
     const status = await new Promise<string>((ok) => {
-      const ws = new WebSocket(b.doorUrl);
+      const ws = new WebSocket(b.endpointUrl);
       ws.onopen = () => (ws.close(), ok("open"));
       ws.onerror = () => ok("refused");
     });

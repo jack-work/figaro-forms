@@ -98,11 +98,11 @@ class Handover {
     try {
       leg.socket.send(frame);
     } catch (e) {
-      this.log(`door send failed: ${e instanceof Error ? e.message : String(e)}`);
+      this.log(`upstream send failed: ${e instanceof Error ? e.message : String(e)}`);
       if (!request) return;
       leg.pending.delete(key);
       this.asked.delete(key);
-      this.events.message(`{"jsonrpc":"2.0","id":${key},"error":{"code":-32003,"message":"gateway: the door connection is closed; send again"}}`);
+      this.events.message(`{"jsonrpc":"2.0","id":${key},"error":{"code":-32003,"message":"gateway: the upstream connection is closed; send again"}}`);
     }
   }
 
@@ -171,7 +171,7 @@ class Handover {
     try {
       const expires = await this.o.renew((from.expires ?? this.now()) + 1_000);
       if (from.expires !== undefined && (expires === undefined || expires <= from.expires)) {
-        this.log(`door handover skipped: no bearer outlasting the current one`);
+        this.log(`upstream handover skipped: no bearer outlasting the current one`);
         return;
       }
       const started = this.now();
@@ -189,7 +189,7 @@ class Handover {
         return;
       }
       if (answered.some((ok) => !ok)) {
-        this.log(`door handover abandoned: a follow failed on the new leg (${why})`);
+        this.log(`upstream handover abandoned: a follow failed on the new leg (${why})`);
         this.o.moved?.("error", why, 0);
         this.next = undefined;
         this.recorded = undefined;
@@ -206,10 +206,10 @@ class Handover {
         return;
       }
       this.switchTo(next);
-      this.log(`door handover done (${why}): ${follows.length} follows moved in ${this.now() - started} ms${caught ? "" : ", the old leg never caught up"}`);
+      this.log(`upstream handover done (${why}): ${follows.length} follows moved in ${this.now() - started} ms${caught ? "" : ", the old leg never caught up"}`);
       this.o.moved?.("ok", why, this.now() - started);
     } catch (e) {
-      this.log(`door handover failed (${why}): ${e instanceof Error ? e.message : String(e)}`);
+      this.log(`upstream handover failed (${why}): ${e instanceof Error ? e.message : String(e)}`);
       this.o.moved?.("error", why, 0);
       if (this.next) this.drop(this.next);
       this.next = undefined;
@@ -427,7 +427,7 @@ class Handover {
     }
     for (const key of leg.pending) {
       this.asked.delete(key);
-      if (leg !== this.current) this.events.message(`{"jsonrpc":"2.0","id":${key},"error":{"code":-32003,"message":${JSON.stringify(`gateway: the door connection ended before answering (${why})`)}}}`);
+      if (leg !== this.current) this.events.message(`{"jsonrpc":"2.0","id":${key},"error":{"code":-32003,"message":${JSON.stringify(`gateway: the upstream connection ended before answering (${why})`)}}}`);
     }
     leg.pending.clear();
   }
@@ -450,7 +450,7 @@ class Handover {
     }
     if (leg === this.current) {
       if (this.moving) {
-        this.log(`door leg closed before the handover finished (${reason}); waiting for the new leg`);
+        this.log(`upstream leg closed before the handover finished (${reason}); waiting for the new leg`);
         this.lost = reason;
         return;
       }

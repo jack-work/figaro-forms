@@ -34,7 +34,7 @@ export interface Bridge {
   readonly server: Server;
   readonly token: string;
   readonly origin: string;
-  readonly doorUrl: string;
+  readonly endpointUrl: string;
   readonly pageUrl: string | undefined;
   close(): Promise<void>;
 }
@@ -211,9 +211,9 @@ export async function startBridge(o: BridgeOptions): Promise<Bridge> {
   const staticRoot = o.staticDir ? resolve(o.staticDir) : undefined;
   const origins = new Set(o.origins ?? []);
   const frames = (o.frameOrigins ?? []).map(frameOrigin);
-  const doorReach = new Set([...origins].map((x) => (URL.canParse(x) ? new URL(x).origin : x)));
-  const both = frames.find((f) => doorReach.has(f));
-  if (both) throw new Error(`${both} is given to both --frame-src and --origin: a framed page must never be an origin the door admits`);
+  const admittedOrigins = new Set([...origins].map((x) => (URL.canParse(x) ? new URL(x).origin : x)));
+  const both = frames.find((f) => admittedOrigins.has(f));
+  if (both) throw new Error(`${both} is given to both --frame-src and --origin: a framed page must never be an origin the bridge admits`);
   const policy = csp(frames);
 
   const own = new Set<string>();
@@ -262,7 +262,7 @@ export async function startBridge(o: BridgeOptions): Promise<Bridge> {
       sock.end("HTTP/1.1 421 Misdirected Request\r\nConnection: close\r\nContent-Length: 0\r\n\r\n");
       return;
     }
-    if (url.pathname !== "/door" || !sameSecret(given, token) || !originOk) {
+    if (url.pathname !== "/rpc" || !sameSecret(given, token) || !originOk) {
       sock.end("HTTP/1.1 403 Forbidden\r\nConnection: close\r\nContent-Length: 0\r\n\r\n");
       return;
     }
@@ -290,7 +290,7 @@ export async function startBridge(o: BridgeOptions): Promise<Bridge> {
     server,
     token,
     origin,
-    doorUrl: `${origin.replace(/^http/, "ws")}/door?token=${token}`,
+    endpointUrl: `${origin.replace(/^http/, "ws")}/rpc?token=${token}`,
     pageUrl: staticRoot ? `${origin}/#token=${token}` : undefined,
     close: () =>
       new Promise<void>((ok) => {

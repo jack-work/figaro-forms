@@ -5,7 +5,7 @@ import { parseArgs } from "node:util";
 import { defaultSocket, startBridge } from "./bridge.js";
 import type { EdgeGate } from "./edge.js";
 
-const usage = `figaro-forms-bridge: a loopback WebSocket door for a browser page, relayed to a figaro daemon's unix socket.
+const usage = `figaro-forms-bridge: a loopback WebSocket endpoint for a browser page, relayed to a figaro daemon's unix socket.
 
 Usage: figaro-forms-bridge [--socket PATH] [--port N] [--static DIR [--frame-src ORIGIN]...] [--origin URL]... [--write [--write-system]]
        figaro-forms-bridge --edge --peer ADDR... --admin USER [--edge-secret-file PATH] --port N [--socket PATH]
@@ -15,7 +15,7 @@ Usage: figaro-forms-bridge [--socket PATH] [--port N] [--static DIR [--frame-src
   --edge         serve GET /hierarchy and GET /drift and nothing else, to an edge proxy
                  reaching loopback through a tunnel: every request must come from a
                  --peer, carry the edge secret in X-Figaro-Edge, and name --admin in
-                 Remote-User. No door, no pages, no bearer
+                 Remote-User. No endpoint, no pages, no bearer
   --peer ADDR    with --edge, an address the edge proxy connects from (repeatable)
   --admin USER   with --edge, the one Remote-User served
   --edge-secret-file PATH
@@ -29,7 +29,7 @@ Usage: figaro-forms-bridge [--socket PATH] [--port N] [--static DIR [--frame-src
                  let the static page frame pages from ORIGIN (repeatable), e.g.
                  http://127.0.0.1:8765; never the bridge's own origin, whose
                  pages could read the token, and never an --origin: framed
-                 pages must not reach the door
+                 pages must not reach the endpoint
   --origin URL   also admit pages from URL (repeatable), e.g. http://127.0.0.1:8765;
                  every page served on that origin gets the bridge's reach, which is
                  the owner's
@@ -40,7 +40,7 @@ Usage: figaro-forms-bridge [--socket PATH] [--port N] [--static DIR [--frame-src
 
 FIGARO_FORMS_BRIDGE_TOKEN, when set, is the token; it is then never printed.
 Otherwise every connection needs the token printed at start. The page URL carries it in
-the fragment (#token=...); the door URL in its query (?token=...). The token is
+the fragment (#token=...); the endpoint URL in its query (?token=...). The token is
 printed once on stdout: never pipe it into a log or journal others can read.`;
 
 const { values } = parseArgs({
@@ -105,10 +105,10 @@ try {
   if (edge) {
     process.stdout.write(`edge ${b.origin}/hierarchy ${b.origin}/drift\n`);
   } else if (given) {
-    process.stdout.write(`door ${b.doorUrl.replace(/token=.*$/, "token=<FIGARO_FORMS_BRIDGE_TOKEN>")}\n`);
+    process.stdout.write(`endpoint ${b.endpointUrl.replace(/token=.*$/, "token=<FIGARO_FORMS_BRIDGE_TOKEN>")}\n`);
     if (b.pageUrl) process.stdout.write(`page ${b.origin}/#token=<FIGARO_FORMS_BRIDGE_TOKEN>\n`);
   } else {
-    process.stdout.write(`door ${b.doorUrl}\n`);
+    process.stdout.write(`endpoint ${b.endpointUrl}\n`);
     if (b.pageUrl) process.stdout.write(`page ${b.pageUrl}\n`);
   }
   const mode = edge ? `edge for ${edge.admin} from ${(edge.peers ?? []).join(",")}` : values.write ? (values["write-system"] ? "read-write, owner-held keys included" : "read-write, owner-held keys refused") : "read-only";

@@ -6,7 +6,7 @@ function chosen(): string {
   return new URLSearchParams(location.hash.slice(1)).get("aria") ?? "";
 }
 
-export function AriaPage(props: { readonly door: string }) {
+export function AriaPage(props: { readonly endpoint: string }) {
   const conn = useAriaConnection();
   const [aria, setAria] = useState(chosen);
   const [typed, setTyped] = useState("");
@@ -35,7 +35,7 @@ export function AriaPage(props: { readonly door: string }) {
       <header className="top">
         <span className="brand">figaro aria</span>
         <span className={`conn conn-${conn}`}>{conn}</span>
-        <span className="door">{props.door}</span>
+        <span className="endpoint">{props.endpoint}</span>
       </header>
       <nav className="side">
         <button type="button" className="action" onClick={refresh}>

@@ -37,7 +37,7 @@ async function rig(tracer: Tracer): Promise<{ fake: FakeAria; speech: FakeSpeech
   const gw = await startGateway({
     listen: { port: 0 },
     edge: { secret, admin: "gluck", peers: ["127.0.0.1"] },
-    door: () => fake.dial,
+    upstream: () => fake.dial,
     speech: speechOverSocket(speech.path),
     speechSocket: speech.path,
     store: "gluck",
@@ -84,16 +84,16 @@ function recorder(): { tracer: Tracer; spans: FinishedSpan[] } {
 const quaParams = (fake: FakeAria): Record<string, unknown> | undefined => fake.calls.find((c) => c.method === "figaro.qua")?.params as Record<string, unknown> | undefined;
 
 describe("traces through the gateway", () => {
-  it("spans a door call under the page's trace and hands figaro its own span as the parent", async () => {
+  it("spans an upstream call under the page's trace and hands figaro its own span as the parent", async () => {
     const { tracer, spans } = recorder();
     const { fake, port } = await rig(tracer);
     fake.answers.set("figaro.qua", { ok: true, cursor: 1 });
-    const { ws, got } = await open(`ws://127.0.0.1:${port}/door?session=${sa}`);
+    const { ws, got } = await open(`ws://127.0.0.1:${port}/rpc?session=${sa}`);
     ws.send(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "figaro.qua", params: { figaro_id: id, text: "private words", traceparent: tp } }));
     await until("answer", () => got.some((f) => f.id === 1));
     await until("span", () => spans.length === 1);
     const sp = spans[0]!;
-    expect(sp).toMatchObject({ name: "door figaro.qua", traceId, parentSpanId: pageSpan, error: undefined });
+    expect(sp).toMatchObject({ name: "upstream figaro.qua", traceId, parentSpanId: pageSpan, error: undefined });
     expect(sp.attributes).toEqual({ "rpc.method": "figaro.qua", "figaro.aria": id, "figchat.session": sa });
     expect(JSON.stringify(sp.attributes) + sp.name).not.toContain("private words");
     expect(quaParams(fake)?.traceparent).toBe(`00-${traceId}-${sp.spanId}-01`);
@@ -102,7 +102,7 @@ describe("traces through the gateway", () => {
   it("refuses a traceparent that is not W3C, naming it, and passes the page's own through when not tracing", async () => {
     const { fake, port } = await rig(noTracer);
     fake.answers.set("figaro.qua", { ok: true, cursor: 1 });
-    const { ws, got } = await open(`ws://127.0.0.1:${port}/door`);
+    const { ws, got } = await open(`ws://127.0.0.1:${port}/rpc`);
     ws.send(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "figaro.qua", params: { figaro_id: id, text: "x", traceparent: "00-nothex-00f067aa0ba902b7-01" } }));
     ws.send(JSON.stringify({ jsonrpc: "2.0", id: 2, method: "figaro.qua", params: { figaro_id: id, text: "x", traceparent: tp } }));
     ws.send(JSON.stringify({ jsonrpc: "2.0", id: 3, method: "figaro.fork", params: { figaro_id: id, traceparent: tp } }));
@@ -115,12 +115,12 @@ describe("traces through the gateway", () => {
   it("replaces a caller's traceparent on any method with the gateway's span when tracing", async () => {
     const { tracer, spans } = recorder();
     const { fake, port } = await rig(tracer);
-    const { ws, got } = await open(`ws://127.0.0.1:${port}/door`);
+    const { ws, got } = await open(`ws://127.0.0.1:${port}/rpc`);
     ws.send(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "figaro.form", params: { figaro_id: id, traceparent: tp } }));
     await until("answer", () => got.some((f) => f.id === 1));
     await until("span", () => spans.length === 1);
     const sent = fake.calls.find((c) => c.method === "figaro.form")?.params.traceparent;
-    expect(spans[0]).toMatchObject({ name: "door figaro.form", traceId, parentSpanId: pageSpan });
+    expect(spans[0]).toMatchObject({ name: "upstream figaro.form", traceId, parentSpanId: pageSpan });
     expect(sent).toBe(`00-${traceId}-${spans[0]!.spanId}-01`);
   });
 
@@ -129,7 +129,7 @@ describe("traces through the gateway", () => {
       const { tracer, spans } = recorder();
       const { fake, port } = await rig(traced ? tracer : noTracer);
       fake.answers.set("figaro.qua", { ok: true, cursor: 1 });
-      const { ws, got } = await open(`ws://127.0.0.1:${port}/door`);
+      const { ws, got } = await open(`ws://127.0.0.1:${port}/rpc`);
       ws.send(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "figaro.qua", params: { figaro_id: id, text: "x" } }));
       await until("answer", () => got.some((f) => f.id === 1));
       const sent = quaParams(fake)?.traceparent;
@@ -147,16 +147,16 @@ describe("traces through the gateway", () => {
     fake.answers.set("figaro.qua", { ok: true, cursor: 1 });
     const audio = await open(`ws://127.0.0.1:${port}/audio/${id}?session=${sa}`);
     await until("ready", () => audio.got.some((f) => f.type === "ready"));
-    const door = await open(`ws://127.0.0.1:${port}/door?session=${sa}`);
-    door.ws.send(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "figaro.qua", params: { figaro_id: id, text: "x", traceparent: tp } }));
-    await until("answer", () => door.got.some((f) => f.id === 1));
+    const rpc = await open(`ws://127.0.0.1:${port}/rpc?session=${sa}`);
+    rpc.ws.send(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "figaro.qua", params: { figaro_id: id, text: "x", traceparent: tp } }));
+    await until("answer", () => rpc.got.some((f) => f.id === 1));
     fake.openTurn(id, 1, "x");
     fake.update(id, 1, [prose(0, "Hello there. Rest")]);
     fake.seal(id, 1);
     fake.done(id);
     await until("end", () => audio.got.some((f) => f.type === "audio.end"));
     await until("tts span", () => spans.some((s) => s.name === "tts"));
-    const qua = spans.find((s) => s.name === "door figaro.qua")!;
+    const qua = spans.find((s) => s.name === "upstream figaro.qua")!;
     const tts = spans.find((s) => s.name === "tts")!;
     expect(tts).toMatchObject({ traceId, parentSpanId: qua.spanId });
     expect(tts.attributes).toMatchObject({ "figaro.aria": id, "tts.turn": 1, "figchat.session": sa });
@@ -194,7 +194,7 @@ describe("OTLP export", () => {
   it("writes OTLP/HTTP JSON with typed attributes and an error status", () => {
     const body = JSON.parse(
       otlpBody("figaro-gateway", [
-        { name: "door figaro.qua", traceId, spanId: "1111111111111111", parentSpanId: pageSpan, startNs: 1n, endNs: 2n, attributes: { s: "x", n: 3, b: true }, error: "door closed" },
+        { name: "upstream figaro.qua", traceId, spanId: "1111111111111111", parentSpanId: pageSpan, startNs: 1n, endNs: 2n, attributes: { s: "x", n: 3, b: true }, error: "upstream closed" },
       ]),
     ) as { resourceSpans: { resource: unknown; scopeSpans: { spans: Record<string, unknown>[] }[] }[] };
     expect(body.resourceSpans[0]!.resource).toEqual({ attributes: [{ key: "service.name", value: { stringValue: "figaro-gateway" } }] });
@@ -207,7 +207,7 @@ describe("OTLP export", () => {
         { key: "n", value: { intValue: "3" } },
         { key: "b", value: { boolValue: true } },
       ],
-      status: { code: 2, message: "door closed" },
+      status: { code: 2, message: "upstream closed" },
     });
   });
 

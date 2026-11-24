@@ -14,7 +14,7 @@ describe.skipIf(!runDir || !formId)("live: the bridge on a dev daemon's CLI sock
   it("through the bridge on the CLI socket, read-only refuses before the daemon sees it", async () => {
     const br = await startBridge({ socket: join(runDir as string, "angelus.sock") });
     cleanups.push(() => br.close());
-    const c = new FormsClient({ dial: webSocketDial({ url: br.doorUrl }), client: "live-br" });
+    const c = new FormsClient({ dial: webSocketDial({ url: br.endpointUrl }), client: "live-br" });
     cleanups.push(() => c.close());
     const f = c.retain(formId);
     await f.ready();

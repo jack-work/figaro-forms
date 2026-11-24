@@ -17,7 +17,7 @@ const examples: readonly Example[] = [
   { ref: forms.reaped, title: "Reaped", note: "arias waiting to be purged" },
 ];
 
-export function App(props: { readonly door: string }) {
+export function App(props: { readonly endpoint: string }) {
   const client = useFormsClient();
   const conn = useConnectionState();
   const [extra, setExtra] = useState<Example[]>([]);
@@ -58,7 +58,7 @@ export function App(props: { readonly door: string }) {
       <header className="top">
         <span className="brand">figaro forms</span>
         <span className={`conn conn-${conn}`}>{conn}</span>
-        <span className="door">{props.door}</span>
+        <span className="endpoint">{props.endpoint}</span>
       </header>
       <nav className="side">
         <ul>

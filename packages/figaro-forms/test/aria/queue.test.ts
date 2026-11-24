@@ -214,7 +214,7 @@ describe("queue actions send the calls the pager sends", () => {
   });
 });
 
-describe("the gateway door", () => {
+describe("the gateway", () => {
   it("surfaces its refusal of a queue call as a denial, not a silent no-op", async () => {
     const { fake, client } = world();
     for (const m of ["figaro.queue.delete", "figaro.queue.update"]) fake.refuseMethod.set(m, { code: -32020, message: `gateway: ${m} is not allowed` });

@@ -30,20 +30,20 @@ export function apiKey(key: TokenSource): Credential {
   return { ...bearer(key), name: "api-key" };
 }
 
-export function doorUrl(path = "/door", base?: string | URL): URL {
+export function endpointUrl(path = "/rpc", base?: string | URL): URL {
   const from = base ?? (typeof location !== "undefined" ? location.href : undefined);
-  if (from === undefined) throw new Error("doorUrl: no base URL outside a browser");
+  if (from === undefined) throw new Error("endpointUrl: no base URL outside a browser");
   const u = new URL(path, from);
   if (u.protocol === "http:") u.protocol = "ws:";
   else if (u.protocol === "https:") u.protocol = "wss:";
   return u;
 }
 
-export function bridgeDoor(href?: string): URL {
+export function bridgeEndpoint(href?: string): URL {
   const page = new URL(href ?? (typeof location !== "undefined" ? location.href : ""));
   const token = new URLSearchParams(page.hash.slice(1)).get("token");
-  if (!token) throw new Error("bridgeDoor: the page URL has no #token=; open the URL the bridge printed");
-  const door = doorUrl("/door", page);
-  door.searchParams.set("token", token);
-  return door;
+  if (!token) throw new Error("bridgeEndpoint: the page URL has no #token=; open the URL the bridge printed");
+  const endpoint = endpointUrl("/rpc", page);
+  endpoint.searchParams.set("token", token);
+  return endpoint;
 }

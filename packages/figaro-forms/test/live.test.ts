@@ -57,7 +57,7 @@ function until(r: Replica, pred: () => boolean, ms = 5000): Promise<void> {
 }
 
 describe.skipIf(!runDir || !formId)("live: a dev daemon", () => {
-  it("through the web door as the owner, edits land and a second writer's deltas arrive", async () => {
+  it("through the daemon's web socket as the owner, edits land and a second writer's deltas arrive", async () => {
     const url = await edge(join(runDir as string, "web.sock"), "tester");
     const a = new FormsClient({ dial: webSocketDial({ url }), client: "live-a" });
     const b = new FormsClient({ dial: webSocketDial({ url }), client: "live-b" });
@@ -79,7 +79,7 @@ describe.skipIf(!runDir || !formId)("live: a dev daemon", () => {
     expect(fa.root).toEqual(fb.root);
   });
 
-  it("through the web door as a reader, a set is refused and rolled back", async () => {
+  it("through the daemon's web socket as a reader, a set is refused and rolled back", async () => {
     const url = await edge(join(runDir as string, "web.sock"), "reader");
     const c = new FormsClient({ dial: webSocketDial({ url }), client: "live-r" });
     cleanups.push(() => c.close());

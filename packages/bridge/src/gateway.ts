@@ -21,7 +21,7 @@ export type GatewayListen = { readonly path: string; readonly mode?: number } | 
 export interface GatewayOptions {
   readonly listen: GatewayListen;
   readonly edge: EdgeGate;
-  readonly door: (user: string, session: string) => Dial;
+  readonly upstream: (user: string, session: string) => Dial;
   readonly speech: SpeechDial;
   readonly speechSocket?: string;
   readonly store: string;
@@ -91,18 +91,18 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
 
   const log = o.log ?? ((line: string) => process.stderr.write(`figaro-gateway: ${line}\n`));
   const renew = o.faults ? o.faults.renew(o.renew) : o.renew;
-  const doorFor = (user: string, session: string, who: Who): Dial => {
-    const base = o.faults ? o.faults.door(o.door(user, session), who) : o.door(user, session);
+  const upstreamFor = (user: string, session: string, who: Who): Dial => {
+    const base = o.faults ? o.faults.upstream(o.upstream(user, session), who) : o.upstream(user, session);
     let legs = 0;
     const dial: Dial = async (events) => {
       const kind = legs++ === 0 ? (who.audio ? "audio" : "page") : "handover";
       const t = Date.now();
       try {
         const s = await base(events);
-        metrics.ms("figchat.gateway.door.dial_ms", Date.now() - t, { "figchat.session": session, kind, outcome: "ok" });
+        metrics.ms("figchat.gateway.upstream.dial_ms", Date.now() - t, { "figchat.session": session, kind, outcome: "ok" });
         return s;
       } catch (e) {
-        metrics.ms("figchat.gateway.door.dial_ms", Date.now() - t, { "figchat.session": session, kind, outcome: "error" });
+        metrics.ms("figchat.gateway.upstream.dial_ms", Date.now() - t, { "figchat.session": session, kind, outcome: "error" });
         throw e;
       }
     };
@@ -117,8 +117,8 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
   let shared: AriaClient | undefined;
   const tracer = o.tracer ?? noTracer;
   const metrics = o.metrics ?? noMetrics;
-  const seenSessions = { door: new Set<string>(), audio: new Set<string>() };
-  const reconnect = (path: "door" | "audio", session: string): void => {
+  const seenSessions = { page: new Set<string>(), audio: new Set<string>() };
+  const reconnect = (path: "page" | "audio", session: string): void => {
     if (session === noSession) return;
     if (seenSessions[path].has(session)) metrics.count("figchat.gateway.reconnects", { "figchat.session": session, kind: path });
     else seenSessions[path].add(session);
@@ -129,8 +129,8 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
     ...(o.metrics ? { metrics: o.metrics } : {}),
     ...(o.audioLeaveGraceMs !== undefined ? { leaveGraceMs: o.audioLeaveGraceMs } : {}),
     connect: () => {
-      log("audio: dialing the door");
-      return (shared = new AriaClient({ dial: doorFor(e.admin, noSession, { session: noSession, audio: true }) }));
+      log("audio: dialing the upstream");
+      return (shared = new AriaClient({ dial: upstreamFor(e.admin, noSession, { session: noSession, audio: true }) }));
     },
     speech: o.faults ? o.faults.speech(o.speech) : o.speech,
     store: o.store,
@@ -230,12 +230,12 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
     const audio = target?.[2];
     const asked = target?.[1];
     let take: ReturnType<GatewaySocket>;
-    if (path === "/door") {
+    if (path === "/rpc") {
       wss.handleUpgrade(req, sock, head, (ws) => {
         track(ws);
-        meterDoor(ws, req.socket, session);
+        meterUpstream(ws, req.socket, session);
         o.faults?.page(ws, { session, audio: false });
-        proxyUpstream(ws, doorFor(String(req.headers["remote-user"]), session, { session, audio: false }), hub, log, session, tracer, o.attachments, maxPayload);
+        proxyUpstream(ws, upstreamFor(String(req.headers["remote-user"]), session, { session, audio: false }), hub, log, session, tracer, o.attachments, maxPayload);
       });
     } else if (audio !== undefined && ariaIdPattern.test(audio)) {
       wss.handleUpgrade(req, sock, head, (ws) => {
@@ -255,8 +255,8 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
     }
   });
 
-  function meterDoor(ws: WebSocket, sock: import("node:net").Socket, session: string): void {
-    const sp = tracer.recording ? tracer.start("door session", undefined, { "figchat.session": session }) : undefined;
+  function meterUpstream(ws: WebSocket, sock: import("node:net").Socket, session: string): void {
+    const sp = tracer.recording ? tracer.start("upstream session", undefined, { "figchat.session": session }) : undefined;
     const wire0 = { out: sock.bytesWritten, in: sock.bytesRead };
     let out = 0;
     let outFrames = 0;
@@ -286,11 +286,11 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
         void o.dictations.turnOpened(session, aria, part.turn as number, audioId);
       }
     };
-    reconnect("door", session);
+    reconnect("page", session);
     const send = ws.send.bind(ws) as (data: unknown, ...rest: unknown[]) => void;
     (ws as unknown as { send: (data: unknown, ...rest: unknown[]) => void }).send = (data, ...rest) => {
       out += typeof data === "string" ? Buffer.byteLength(data) : Buffer.isBuffer(data) ? data.length : 0;
-      if (outFrames++ === 0) metrics.ms("figchat.gateway.door.first_frame_ms", Date.now() - opened, { "figchat.session": session });
+      if (outFrames++ === 0) metrics.ms("figchat.gateway.upstream.first_frame_ms", Date.now() - opened, { "figchat.session": session });
       if (typeof data === "string") {
         if (data.includes('"code":-32020')) metrics.count("figchat.gateway.errors", { "figchat.session": session, kind: "refused" });
         if (awaitingTurn.size > 0 && data.includes('"figaro.aria"') && data.includes('"inquiry"')) openedTurn(data);
@@ -323,14 +323,14 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
       if (typeof audioId === "string" && text !== "" && o.dictations.holds(session, aria, audioId)) awaitingTurn.set(audioId, { aria, text });
     });
     ws.once("close", (code: number, reason: Buffer) => {
-      if (code === 1011) metrics.count("figchat.gateway.errors", { "figchat.session": session, kind: "door_closed" });
+      if (code === 1011) metrics.count("figchat.gateway.errors", { "figchat.session": session, kind: "upstream_closed" });
       const lived = Date.now() - opened;
       const wireOut = sock.bytesWritten - wire0.out;
       const wireIn = sock.bytesRead - wire0.in;
       const deflate = ws.extensions.includes("permessage-deflate");
-      log(`door: session closed code=${code} reason=${redact(reason.toString())} lived_ms=${lived} frames_out=${outFrames} bytes_out=${out} wire_out=${wireOut} frames_in=${inFrames} bytes_in=${inBytes} wire_in=${wireIn} deflate=${deflate} session=${session}`);
+      log(`upstream: session closed code=${code} reason=${redact(reason.toString())} lived_ms=${lived} frames_out=${outFrames} bytes_out=${out} wire_out=${wireOut} frames_in=${inFrames} bytes_in=${inBytes} wire_in=${wireIn} deflate=${deflate} session=${session}`);
       if (sp) {
-        for (const [k, v] of Object.entries({ "door.frames_out": outFrames, "door.bytes_out": out, "door.wire_out": wireOut, "door.frames_in": inFrames, "door.bytes_in": inBytes, "door.wire_in": wireIn, "door.deflate": deflate, "ws.close_code": code, "ws.lived_ms": lived })) sp.set(k, v);
+        for (const [k, v] of Object.entries({ "upstream.frames_out": outFrames, "upstream.bytes_out": out, "upstream.wire_out": wireOut, "upstream.frames_in": inFrames, "upstream.bytes_in": inBytes, "upstream.wire_in": wireIn, "upstream.deflate": deflate, "ws.close_code": code, "ws.lived_ms": lived })) sp.set(k, v);
         sp.end();
       }
     });
@@ -396,7 +396,7 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
       }
     });
     try {
-      const timeout = new Promise<never>((_, fail) => setTimeout(() => fail(new Error("the door did not answer")), o.joinTimeoutMs ?? 10_000).unref());
+      const timeout = new Promise<never>((_, fail) => setTimeout(() => fail(new Error("the upstream did not answer")), o.joinTimeoutMs ?? 10_000).unref());
       const left = await Promise.race([hub.join(aria, listener), timeout]);
       if (closed) {
         left();

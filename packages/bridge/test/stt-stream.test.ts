@@ -35,7 +35,7 @@ async function rig(limits: Limits = {}, socket?: string): Promise<{ speech: Fake
   const gw = await startGateway({
     listen: { port: 0 },
     edge: { secret, admin: "gluck", peers: ["127.0.0.1"] },
-    door: () => new FakeAria().dial,
+    upstream: () => new FakeAria().dial,
     speech: speechOverSocket(path),
     speechSocket: path,
     store: "gluck",

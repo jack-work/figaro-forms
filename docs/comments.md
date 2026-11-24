@@ -113,7 +113,7 @@ second tie.
   per comment.
 - `figaro set <key> <json-object>` from the CLI merges into an existing object
   (measured by the notifier's author). Field omission is therefore not erasure,
-  and every field is always written. Through the form door
+  and every field is always written. Through a form replica
   (`Replica.set`) setting an existing key replaces the value whole; a CLI-driven
   rewrite of `resolved` and `unread` was checked against a live daemon on
   2026-11-23 and replaced as expected.

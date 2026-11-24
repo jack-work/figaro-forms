@@ -32,7 +32,7 @@ describe.skipIf(!ready)("the demo aria page in a real browser, through an edge t
     });
     const wss = new WebSocketServer({ noServer: true });
     server.on("upgrade", (req, sock, head) => {
-      if (req.url !== "/door") {
+      if (req.url !== "/rpc") {
         sock.destroy();
         return;
       }

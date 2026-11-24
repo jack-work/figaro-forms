@@ -28,7 +28,7 @@ class Page {
   }
   static open(port: number): Promise<Page> {
     return new Promise((ok, fail) => {
-      const ws = new WebSocket(`ws://127.0.0.1:${port}/door`, { headers, perMessageDeflate: process.env.LOAD_DEFLATE !== "0", maxPayload: 256 << 20 });
+      const ws = new WebSocket(`ws://127.0.0.1:${port}/rpc`, { headers, perMessageDeflate: process.env.LOAD_DEFLATE !== "0", maxPayload: 256 << 20 });
       const p = new Page(ws);
       ws.once("open", () => ok(p));
       ws.once("error", fail);
@@ -46,7 +46,7 @@ class Page {
 }
 
 describe(`load: ${figaros} figaros, a ${turns}-turn aria, ${pages} pages, ${deltas} deltas a turn`, () => {
-  it("paints and streams through /door; reports latency, bytes and memory", async () => {
+  it("paints and streams through /rpc; reports latency, bytes and memory", async () => {
     const fake = new FakeAria();
     fake.pageNodes = 200;
     for (let i = 0; i < figaros; i++) fake.rows.push({ id: i.toString(16).padStart(32, "0"), mantra: `mantra ${i}`, state: "dormant", message_count: i % 300 } as never);
@@ -54,7 +54,7 @@ describe(`load: ${figaros} figaros, a ${turns}-turn aria, ${pages} pages, ${delt
     for (let t = 1; t <= turns; t++) fake.finishedTurn(long, t, `question ${t}`, [{ type: "prose", role: "output", markdown: `answer ${t} `.repeat(20) } as never]);
     const speech = await startFakeSpeech();
     cleanups.push(() => speech.stop());
-    const gw = await startGateway({ listen: { port: 0 }, edge: { secret, admin: "gluck", peers: ["127.0.0.1"] }, door: () => fake.dial, speech: speechOverSocket(speech.path), speechSocket: speech.path, store: "gluck", log: () => {}, maxFrameBytes: 256 << 20 });
+    const gw = await startGateway({ listen: { port: 0 }, edge: { secret, admin: "gluck", peers: ["127.0.0.1"] }, upstream: () => fake.dial, speech: speechOverSocket(speech.path), speechSocket: speech.path, store: "gluck", log: () => {}, maxFrameBytes: 256 << 20 });
     cleanups.push(() => gw.close());
     const addr = gw.server.address();
     const port = typeof addr === "object" && addr ? addr.port : 0;
@@ -85,7 +85,7 @@ describe(`load: ${figaros} figaros, a ${turns}-turn aria, ${pages} pages, ${delt
     const lines = [
       `pages ${pages}, paint all in ${paint.toFixed(0)} ms, stream of ${deltas} deltas to all in ${stream.toFixed(0)} ms`,
       ...Object.entries(lat).map(([k, xs]) => `${k}: p50 ${pct(xs, 0.5).toFixed(1)} ms, p95 ${pct(xs, 0.95).toFixed(1)} ms, reply ${bytes[k]} B`),
-      `process rss ${mb(before)} -> ${mb(after)} (fake door and gateway in one process)`,
+      `process rss ${mb(before)} -> ${mb(after)} (fake daemon and gateway in one process)`,
     ];
     console.log(lines.join("\n"));
     expect(lat.list!.length).toBe(pages);

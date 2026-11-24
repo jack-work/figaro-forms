@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { FormsClient } from "../src/client.js";
-import { FakeDoor, settle } from "./fake-door.js";
+import { FakeDaemon, settle } from "./fake-daemon.js";
 import type { Replica } from "../src/replica.js";
 
 function setup(seed: Record<string, unknown> = { title: "demo", a: { b: 1, c: 2 }, z: { y: 1 } }) {
-  const door = new FakeDoor();
-  door.add("@f1", seed as never);
-  const client = new FormsClient({ dial: door.dial, client: "t1", retryMinMs: 1, retryMaxMs: 5, replica: { confirmTimeoutMs: 50 } });
-  return { door, client };
+  const daemon = new FakeDaemon();
+  daemon.add("@f1", seed as never);
+  const client = new FormsClient({ dial: daemon.dial, client: "t1", retryMinMs: 1, retryMaxMs: 5, replica: { confirmTimeoutMs: 50 } });
+  return { daemon, client };
 }
 
 function counter(r: Replica, path: string) {
@@ -16,12 +16,12 @@ function counter(r: Replica, path: string) {
   return c;
 }
 
-describe("FormsClient against a fake door", () => {
+describe("FormsClient against a fake daemon", () => {
   it("follows before it reads, so no delta between the two is lost", async () => {
-    const { door, client } = setup();
+    const { daemon, client } = setup();
     const f = client.retain("@f1");
     await f.ready();
-    const methods = door.conns[0]?.received.map((x) => x.method);
+    const methods = daemon.conns[0]?.received.map((x) => x.method);
     expect(methods?.indexOf("figaro.follow")).toBeLessThan(methods?.indexOf("figaro.form") ?? -1);
     expect(f.root).toEqual({ title: "demo", a: { b: 1, c: 2 }, z: { y: 1 } });
     expect(f.status.phase).toBe("ready");
@@ -29,7 +29,7 @@ describe("FormsClient against a fake door", () => {
   });
 
   it("notifies only the subscribers whose path a remote delta touches", async () => {
-    const { door, client } = setup();
+    const { daemon, client } = setup();
     const f = client.retain("@f1");
     await f.ready();
     const root = counter(f, "");
@@ -38,7 +38,7 @@ describe("FormsClient against a fake door", () => {
     const ac = counter(f, "a.c");
     const z = counter(f, "z");
     const zBefore = f.get("z");
-    door.write("@f1", { object: { Update: { a: { object: { Update: { b: { scalar: { Before: 1, After: 5 } } } } } } } });
+    daemon.write("@f1", { object: { Update: { a: { object: { Update: { b: { scalar: { Before: 1, After: 5 } } } } } } } });
     await settle();
     expect(f.get("a.b")).toBe(5);
     expect([root.n, a.n, ab.n, ac.n, z.n]).toEqual([1, 1, 1, 0, 0]);
@@ -47,24 +47,24 @@ describe("FormsClient against a fake door", () => {
   });
 
   it("updates status before it calls a path subscriber", async () => {
-    const { door, client } = setup();
+    const { daemon, client } = setup();
     const f = client.retain("@f1");
     await f.ready();
     const seen: number[] = [];
     f.subscribe("a.b", () => seen.push(f.status.version));
-    door.write("@f1", { object: { Update: { a: { object: { Update: { b: { scalar: { Before: 1, After: 5 } } } } } } } });
+    daemon.write("@f1", { object: { Update: { a: { object: { Update: { b: { scalar: { Before: 1, After: 5 } } } } } } } });
     await settle();
     expect(seen).toEqual([2]);
     client.close();
   });
 
   it("replaces a whole subtree when one patch deletes then sets the same key", async () => {
-    const { door, client } = setup();
+    const { daemon, client } = setup();
     const f = client.retain("@f1");
     await f.ready();
     const ab = counter(f, "a.b");
     const z = counter(f, "z");
-    door.write("@f1", { object: { Delete: { a: { b: 1, c: 2 } }, Set: { a: { q: true } } } });
+    daemon.write("@f1", { object: { Delete: { a: { b: 1, c: 2 } }, Set: { a: { q: true } } } });
     await settle();
     expect(f.get("a")).toEqual({ q: true });
     expect(ab.n).toBe(1);
@@ -73,24 +73,24 @@ describe("FormsClient against a fake door", () => {
   });
 
   it("shows an edit at once and settles it when its own delta arrives", async () => {
-    const { door, client } = setup();
+    const { daemon, client } = setup();
     const f = client.retain("@f1");
     await f.ready();
-    door.holdReplies = true;
+    daemon.holdReplies = true;
     const done = f.set("title", "edited");
     expect(f.get("title")).toBe("edited");
     expect(f.status.pending).toBe(1);
     await settle();
     expect(f.status.pending).toBe(0);
-    door.release();
+    daemon.release();
     await expect(done).resolves.toEqual({ ok: true, version: 2 });
     expect(f.confirmed).toMatchObject({ title: "edited" });
     client.close();
   });
 
   it("rolls an edit back when the daemon refuses it, and says why", async () => {
-    const { door, client } = setup();
-    door.refuse = () => "remove \"nope\": no such key";
+    const { daemon, client } = setup();
+    daemon.refuse = () => "remove \"nope\": no such key";
     const f = client.retain("@f1");
     await f.ready();
     const title = counter(f, "title");
@@ -103,25 +103,25 @@ describe("FormsClient against a fake door", () => {
   });
 
   it("refuses a denied key locally without sending anything", async () => {
-    const { door, client } = setup();
-    door.forms.get("@f1")!.access = { mode: "write", deny: [{ key: "system", kind: "system-managed", reason: "the daemon owns system.*", except: ["system.mood"] }] };
+    const { daemon, client } = setup();
+    daemon.forms.get("@f1")!.access = { mode: "write", deny: [{ key: "system", kind: "system-managed", reason: "the daemon owns system.*", except: ["system.mood"] }] };
     const f = client.retain("@f1");
     await f.ready();
-    const sent = door.conns[0]!.received.length;
+    const sent = daemon.conns[0]!.received.length;
     const res = await f.set("system.model", "x");
     expect(res).toEqual({ ok: false, refusal: { key: "system.model", kind: "system-managed", reason: "the daemon owns system.*" } });
-    expect(door.conns[0]!.received.length).toBe(sent);
+    expect(daemon.conns[0]!.received.length).toBe(sent);
     expect(f.get("system")).toBeUndefined();
     expect((await f.set("system.mood", "calm")).ok).toBe(true);
     client.close();
   });
 
   it("re-reads on a version gap and lands on the daemon's state", async () => {
-    const { door, client } = setup();
+    const { daemon, client } = setup();
     const f = client.retain("@f1");
     await f.ready();
-    door.skipVersion("@f1", { object: { Set: { missed: 1 } } });
-    door.write("@f1", { object: { Set: { seen: 2 } } });
+    daemon.skipVersion("@f1", { object: { Set: { missed: 1 } } });
+    daemon.write("@f1", { object: { Set: { seen: 2 } } });
     await settle();
     expect(f.root).toMatchObject({ missed: 1, seen: 2 });
     expect(f.status.version).toBe(3);
@@ -129,11 +129,11 @@ describe("FormsClient against a fake door", () => {
   });
 
   it("re-reads when the form is reincarnated", async () => {
-    const { door, client } = setup();
+    const { daemon, client } = setup();
     const f = client.retain("@f1");
     await f.ready();
-    door.reincarnate("@f1", { fresh: true });
-    door.write("@f1", { object: { Set: { more: 1 } } });
+    daemon.reincarnate("@f1", { fresh: true });
+    daemon.write("@f1", { object: { Set: { more: 1 } } });
     await settle();
     expect(f.root).toEqual({ fresh: true, more: 1 });
     expect(f.status.incarnation).toBe(2);
@@ -141,48 +141,48 @@ describe("FormsClient against a fake door", () => {
   });
 
   it("survives a dropped connection mid-edit without applying the edit twice", async () => {
-    const { door, client } = setup({ n: 0 });
+    const { daemon, client } = setup({ n: 0 });
     const f = client.retain("@f1");
     await f.ready();
-    door.holdReplies = true;
+    daemon.holdReplies = true;
     const done = f.edit({ object: { Update: { n: { scalar: { Before: 0, After: 1 } } } } });
     await settle();
-    door.drop();
-    door.holdReplies = false;
+    daemon.drop();
+    daemon.holdReplies = false;
     await settle(60);
     await expect(done).resolves.toMatchObject({ ok: true });
-    expect(door.forms.get("@f1")!.version).toBe(2);
+    expect(daemon.forms.get("@f1")!.version).toBe(2);
     expect(f.root).toEqual({ n: 1 });
     expect(f.status.pending).toBe(0);
-    expect(door.dials).toBeGreaterThan(1);
+    expect(daemon.dials).toBeGreaterThan(1);
     client.close();
   });
 
   it("retries a set the daemon calls unavailable", async () => {
-    const { door, client } = setup();
-    door.unavailable = 2;
+    const { daemon, client } = setup();
+    daemon.unavailable = 2;
     const f = client.retain("@f1");
     await f.ready();
     await expect(f.set("title", "again")).resolves.toMatchObject({ ok: true });
-    expect(door.forms.get("@f1")!.value).toMatchObject({ title: "again" });
+    expect(daemon.forms.get("@f1")!.value).toMatchObject({ title: "again" });
     client.close();
   });
 
   it("stops tracking on a delta schema it cannot read", async () => {
-    const { door, client } = setup();
+    const { daemon, client } = setup();
     const f = client.retain("@f1");
     await f.ready();
-    door.pushRaw("@f1", { schema: 3, aria_id: "@f1", version: 2, patch: {} });
+    daemon.pushRaw("@f1", { schema: 3, aria_id: "@f1", version: 2, patch: {} });
     await settle();
     expect(f.status.phase).toBe("incompatible");
     client.close();
   });
 
   it("marks a killed form gone and keeps its last state", async () => {
-    const { door, client } = setup();
+    const { daemon, client } = setup();
     const f = client.retain("@f1");
     await f.ready();
-    door.kill("@f1");
+    daemon.kill("@f1");
     await settle();
     expect(f.status.phase).toBe("gone");
     expect(f.get("title")).toBe("demo");
@@ -190,25 +190,25 @@ describe("FormsClient against a fake door", () => {
   });
 
   it("reconnects at once on door.lapsed and follows again", async () => {
-    const { door, client } = setup();
+    const { daemon, client } = setup();
     const f = client.retain("@f1");
     await f.ready();
-    door.lapse();
+    daemon.lapse();
     await settle(30);
-    expect(door.dials).toBe(2);
-    door.write("@f1", { object: { Set: { after: 1 } } });
+    expect(daemon.dials).toBe(2);
+    daemon.write("@f1", { object: { Set: { after: 1 } } });
     await settle();
     expect(f.get("after")).toBe(1);
     client.close();
   });
 
   it("routes an intrinsic delta to the intrinsic form only", async () => {
-    const { door, client } = setup();
+    const { daemon, client } = setup();
     const state = client.retain("@f1");
     const runtime = client.retain("@f1/runtime");
     await state.ready();
     await settle();
-    door.pushRaw("@f1", { schema: 2, aria_id: "@f1", intrinsic: "runtime", version: 2, incarnation: 1, patch: { object: { Set: { busy: true } } } });
+    daemon.pushRaw("@f1", { schema: 2, aria_id: "@f1", intrinsic: "runtime", version: 2, incarnation: 1, patch: { object: { Set: { busy: true } } } });
     await settle();
     expect(state.get("busy")).toBeUndefined();
     expect(runtime.status.phase).toBe("ready");
@@ -216,9 +216,9 @@ describe("FormsClient against a fake door", () => {
   });
 
   it("coalesces edits inside the debounce window into one set", async () => {
-    const door = new FakeDoor();
-    door.add("@f1", { a: 0, b: 0 });
-    const client = new FormsClient({ dial: door.dial, client: "t1", replica: { debounceMs: 20 } });
+    const daemon = new FakeDaemon();
+    daemon.add("@f1", { a: 0, b: 0 });
+    const client = new FormsClient({ dial: daemon.dial, client: "t1", replica: { debounceMs: 20 } });
     const f = client.retain("@f1");
     await f.ready();
     const one = f.set("a", 1);
@@ -226,20 +226,20 @@ describe("FormsClient against a fake door", () => {
     const three = f.set("a", 3);
     expect(f.root).toEqual({ a: 3, b: 2 });
     await Promise.all([one, two, three]);
-    const sets = door.conns[0]!.received.filter((x) => x.method === "figaro.set");
+    const sets = daemon.conns[0]!.received.filter((x) => x.method === "figaro.set");
     expect(sets).toHaveLength(1);
-    expect(door.forms.get("@f1")!.value).toEqual({ a: 3, b: 2 });
+    expect(daemon.forms.get("@f1")!.value).toEqual({ a: 3, b: 2 });
     client.close();
   });
 
   it("keeps the identity of every subtree a reload did not change", async () => {
-    const { door, client } = setup();
+    const { daemon, client } = setup();
     const f = client.retain("@f1");
     await f.ready();
     const z = f.get("z");
     const a = f.get("a");
-    door.skipVersion("@f1", { object: { Update: { a: { object: { Set: { d: 4 } } } } } });
-    door.write("@f1", { object: { Set: { t: 1 } } });
+    daemon.skipVersion("@f1", { object: { Update: { a: { object: { Set: { d: 4 } } } } } });
+    daemon.write("@f1", { object: { Set: { t: 1 } } });
     await settle();
     expect(f.get("z")).toBe(z);
     expect(f.get("a")).not.toBe(a);
@@ -261,69 +261,69 @@ describe("FormsClient against a fake door", () => {
   });
 
   it("continues the sequence of a client id the daemon has already seen", async () => {
-    const { door, client } = setup();
+    const { daemon, client } = setup();
     const first = client.retain("@f1");
     await first.ready();
     await first.set("title", "one");
     await first.set("title", "two");
     client.close();
-    const again = new FormsClient({ dial: door.dial, client: "t1" });
+    const again = new FormsClient({ dial: daemon.dial, client: "t1" });
     const f = again.retain("@f1");
     const early = f.set("title", "before ready");
     await f.ready();
     await expect(early).resolves.toMatchObject({ ok: true });
     await expect(f.set("title", "three")).resolves.toMatchObject({ ok: true });
-    expect(door.forms.get("@f1")!.value).toMatchObject({ title: "three" });
-    expect(door.forms.get("@f1")!.version).toBe(5);
+    expect(daemon.forms.get("@f1")!.value).toMatchObject({ title: "three" });
+    expect(daemon.forms.get("@f1")!.version).toBe(5);
     again.close();
   });
 
   it("follows forms only and unfollows a released form when the daemon offers both", async () => {
-    const door = new FakeDoor();
-    door.capabilities = [...door.capabilities, "follow.channels", "unfollow"];
-    door.add("@f1", { a: 1 });
-    const client = new FormsClient({ dial: door.dial, client: "u1", releaseGraceMs: 5 });
+    const daemon = new FakeDaemon();
+    daemon.capabilities = [...daemon.capabilities, "follow.channels", "unfollow"];
+    daemon.add("@f1", { a: 1 });
+    const client = new FormsClient({ dial: daemon.dial, client: "u1", releaseGraceMs: 5 });
     const f = client.retain("@f1");
     await f.ready();
-    const follow = door.conns[0]!.received.find((x) => x.method === "figaro.follow");
+    const follow = daemon.conns[0]!.received.find((x) => x.method === "figaro.follow");
     expect(follow?.params).toEqual({ figaro_id: "@f1", channels: ["forms"] });
     client.release("@f1");
     await new Promise((r) => setTimeout(r, 30));
-    expect(door.conns[0]!.received.filter((x) => x.method === "figaro.unfollow").map((x) => x.params)).toEqual([{ figaro_id: "@f1" }]);
-    expect(door.conns[0]!.follows.has("@f1")).toBe(false);
+    expect(daemon.conns[0]!.received.filter((x) => x.method === "figaro.unfollow").map((x) => x.params)).toEqual([{ figaro_id: "@f1" }]);
+    expect(daemon.conns[0]!.follows.has("@f1")).toBe(false);
     const again = client.retain("@f1");
     await again.ready();
-    expect(door.conns[0]!.follows.has("@f1")).toBe(true);
+    expect(daemon.conns[0]!.follows.has("@f1")).toBe(true);
     client.close();
   });
 
   it("keeps following while an intrinsic of the same aria is still held", async () => {
-    const door = new FakeDoor();
-    door.capabilities = [...door.capabilities, "follow.channels", "unfollow"];
-    door.add("@f1", { a: 1 });
-    const client = new FormsClient({ dial: door.dial, client: "u3", releaseGraceMs: 5 });
+    const daemon = new FakeDaemon();
+    daemon.capabilities = [...daemon.capabilities, "follow.channels", "unfollow"];
+    daemon.add("@f1", { a: 1 });
+    const client = new FormsClient({ dial: daemon.dial, client: "u3", releaseGraceMs: 5 });
     const f = client.retain("@f1");
     client.retain("@f1/runtime");
     await f.ready();
     client.release("@f1");
     await new Promise((r) => setTimeout(r, 30));
-    expect(door.conns[0]!.received.some((x) => x.method === "figaro.unfollow")).toBe(false);
+    expect(daemon.conns[0]!.received.some((x) => x.method === "figaro.unfollow")).toBe(false);
     client.release("@f1/runtime");
     await new Promise((r) => setTimeout(r, 30));
-    expect(door.conns[0]!.received.filter((x) => x.method === "figaro.unfollow")).toHaveLength(1);
+    expect(daemon.conns[0]!.received.filter((x) => x.method === "figaro.unfollow")).toHaveLength(1);
     client.close();
   });
 
   it("sends neither channels nor unfollow to a daemon that offers neither", async () => {
-    const door = new FakeDoor();
-    door.add("@f1", { a: 1 });
-    const client = new FormsClient({ dial: door.dial, client: "u2", releaseGraceMs: 5 });
+    const daemon = new FakeDaemon();
+    daemon.add("@f1", { a: 1 });
+    const client = new FormsClient({ dial: daemon.dial, client: "u2", releaseGraceMs: 5 });
     const f = client.retain("@f1");
     const rt = client.retain("@f1/runtime");
     await f.ready();
     client.release("@f1");
     await new Promise((r) => setTimeout(r, 30));
-    const sent = door.conns[0]!.received;
+    const sent = daemon.conns[0]!.received;
     expect(sent.find((x) => x.method === "figaro.follow")?.params).toEqual({ figaro_id: "@f1" });
     expect(sent.some((x) => x.method === "figaro.unfollow")).toBe(false);
     void rt;

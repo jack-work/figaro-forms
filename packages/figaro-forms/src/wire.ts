@@ -18,7 +18,7 @@ export const method = {
   formCreate: "form.create",
   formDelta: "form.delta",
   closed: "figaro.closed",
-  doorLapsed: "door.lapsed",
+  lapsed: "door.lapsed",
 } as const;
 
 export type Capability =

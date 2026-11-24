@@ -160,7 +160,7 @@ class Follower {
       replayed = await this.replay(client, turn);
     } catch (e) {
       drop();
-      if (!s.cancelled) refuse("door", "could not read the turn", e instanceof Error ? e.message : String(e));
+      if (!s.cancelled) refuse("upstream", "could not read the turn", e instanceof Error ? e.message : String(e));
       return;
     }
     if (s.cancelled) return;

@@ -165,20 +165,20 @@ export function redialAfterRejection(dial: Dial, rejected: (generation: number) 
   };
 }
 
-export interface DoorTokenSource {
+export interface UpstreamTokenSource {
   flag?: string | undefined;
   credentialsDirectory?: string | undefined;
   tokenMode: boolean;
   exists: (path: string) => boolean;
 }
 
-export function doorTokenPath(s: DoorTokenSource): string | undefined {
+export function upstreamTokenPath(s: UpstreamTokenSource): string | undefined {
   if (s.tokenMode) {
-    if (s.flag) throw new Error("--token-url and --door-token-file are alternatives");
+    if (s.flag) throw new Error("--token-url and --upstream-token-file are alternatives");
     return undefined;
   }
   if (s.flag) return s.flag;
   if (!s.credentialsDirectory) return undefined;
-  const path = `${s.credentialsDirectory}/door`;
+  const path = `${s.credentialsDirectory}/upstream-token`;
   return s.exists(path) ? path : undefined;
 }

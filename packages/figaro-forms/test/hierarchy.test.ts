@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 import { Connection, RpcError } from "../src/rpc.js";
 import { stateOf } from "../src/hierarchy/feed.js";
 import { HierarchyFeed, hierarchyHttp, readHierarchy, type HierarchyReply, type HierarchyState } from "../src/hierarchy/index.js";
-import { FakeDoor } from "./fake-door.js";
+import { FakeDaemon } from "./fake-daemon.js";
 
-function door(): FakeDoor {
-  const d = new FakeDoor();
+function daemon(): FakeDaemon {
+  const d = new FakeDaemon();
   d.add("@king", { "role-name": "King", charter: "Governs.", "target-aria": "ak", system: { key: "secret-system" }, handoff: "/private/handoff" });
   d.add("@eng", { "role-name": "Engineer", lifecycle: { status: "active", note: "secret-note" }, "reports-to": "@king", owns: ["figaro"], lanes: { "aria-log": "fleet.lane.figaro.aria-log", bad: 7 } });
   d.add("@spy", { "role-name": "Hidden Seat", charter: "secret-charter" });
@@ -28,7 +28,7 @@ function door(): FakeDoor {
   return d;
 }
 
-function caller(d: FakeDoor): (m: string, p: unknown) => Promise<unknown> {
+function caller(d: FakeDaemon): (m: string, p: unknown) => Promise<unknown> {
   const conn = new Connection({ dial: d.dial, retryMinMs: 1, retryMaxMs: 1 });
   return (m, p) => conn.call(m, p);
 }
@@ -37,7 +37,7 @@ const at = { now: () => 1234 };
 
 describe("readHierarchy: the server decides what the caller sees", () => {
   it("serves the owner one order with only public keys", async () => {
-    const d = door();
+    const d = daemon();
     const r = await readHierarchy(caller(d), at);
     expect(r.status).toBe("current");
     if (r.status !== "current") return;
@@ -57,7 +57,7 @@ describe("readHierarchy: the server decides what the caller sees", () => {
   });
 
   it("draws a form under the form it was placed under", async () => {
-    const d = door();
+    const d = daemon();
     d.add("@backend", { "role-name": "Backend" });
     d.rows.push({ id: "@backend", kind: "form", state: "form", target_aria: "ab", parent: "", present: "@king" });
     d.rows.push({ id: "ab", kind: "conversation", state: "active" });
@@ -69,7 +69,7 @@ describe("readHierarchy: the server decides what the caller sees", () => {
   });
 
   it("omits what the daemon hides, and every reference to it", async () => {
-    const d = door();
+    const d = daemon();
     const hidden = new Set(["@king", "@spy", "@spyling", "ak", "as", "hid"]);
     d.sees = (id) => !hidden.has(id);
     const r = await readHierarchy(caller(d), at);
@@ -85,13 +85,13 @@ describe("readHierarchy: the server decides what the caller sees", () => {
   });
 
   it("gives a caller who may see nothing no nodes", async () => {
-    const d = door();
+    const d = daemon();
     d.sees = () => false;
     expect(await readHierarchy(caller(d), at)).toEqual({ status: "empty", observed_at: 1234 });
   });
 
   it("gives a caller the daemon refuses no nodes", async () => {
-    const d = door();
+    const d = daemon();
     d.listDenied = "figaro.list: not yours";
     const r = await readHierarchy(caller(d), at);
     expect(r).toEqual({ status: "denied", reason: "figaro.list: not yours" });
@@ -99,7 +99,7 @@ describe("readHierarchy: the server decides what the caller sees", () => {
   });
 
   it("refuses a hidden root and a missing root alike", async () => {
-    const d = door();
+    const d = daemon();
     d.sees = (id) => id !== "@spy";
     const hidden = await readHierarchy(caller(d), { ...at, root: "@spy" });
     const missing = await readHierarchy(caller(d), { ...at, root: "@nope" });
@@ -110,7 +110,7 @@ describe("readHierarchy: the server decides what the caller sees", () => {
   });
 
   it("drops a listed form the caller may not read, with its subtree", async () => {
-    const call = caller(door());
+    const call = caller(daemon());
     const deny = (m: string, p: unknown): Promise<unknown> =>
       m === "figaro.form" && (p as { figaro_id: string }).figaro_id === "@spy" ? Promise.reject(new RpcError(-32020, "not yours")) : call(m, p);
     const r = await readHierarchy(deny, at);

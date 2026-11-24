@@ -32,7 +32,7 @@ async function rig(compress?: boolean): Promise<{ fake: FakeAria; port: number; 
   const gw = await startGateway({
     listen: { port: 0 },
     edge: { secret, admin: "gluck", peers: ["127.0.0.1"] },
-    door: () => fake.dial,
+    upstream: () => fake.dial,
     speech: speechOverSocket(speech.path),
     speechSocket: speech.path,
     store: "gluck",
@@ -46,7 +46,7 @@ async function rig(compress?: boolean): Promise<{ fake: FakeAria; port: number; 
 }
 
 async function session(port: number, offer: boolean, calls: number): Promise<{ ext: string; wire: number; raw: number }> {
-  const ws = new WebSocket(`ws://127.0.0.1:${port}/door`, { headers: good, perMessageDeflate: offer });
+  const ws = new WebSocket(`ws://127.0.0.1:${port}/rpc`, { headers: good, perMessageDeflate: offer });
   cleanups.push(() => ws.terminate());
   await new Promise<void>((ok, fail) => {
     ws.once("open", () => ok());
@@ -66,22 +66,22 @@ async function session(port: number, offer: boolean, calls: number): Promise<{ e
   return { ext, wire, raw };
 }
 
-describe("compression on /door", () => {
+describe("compression on /rpc", () => {
   it("negotiates permessage-deflate and sends repeated JSON at a fraction of its size", async () => {
     const { fake, port, lines, spans } = await rig();
     fake.rows = Array.from({ length: 60 }, (_, i) => ({ id: `${String(i).padStart(32, "0")}`, mantra: `a mantra ${i % 5}`, state: "dormant" }) as never);
     const r = await session(port, true, 20);
     expect(r.ext).toContain("permessage-deflate");
     expect(r.wire * 8).toBeLessThan(r.raw);
-    await until("closed line", () => lines.some((l) => l.startsWith("door: session closed")));
-    const line = lines.find((l) => l.startsWith("door: session closed"))!;
+    await until("closed line", () => lines.some((l) => l.startsWith("upstream: session closed")));
+    const line = lines.find((l) => l.startsWith("upstream: session closed"))!;
     expect(line).toMatch(/frames_out=20 bytes_out=\d+ wire_out=\d+ frames_in=20 bytes_in=\d+ wire_in=\d+ deflate=true session=-$/);
     const out = Number(/bytes_out=(\d+)/.exec(line)![1]);
     const wire = Number(/wire_out=(\d+)/.exec(line)![1]);
     expect(out).toBe(r.raw);
     expect(wire * 8).toBeLessThan(out);
-    await until("span", () => spans.some((s) => s.name === "door session"));
-    expect(spans.find((s) => s.name === "door session")!.attributes).toMatchObject({ "door.frames_out": 20, "door.bytes_out": out, "door.deflate": true });
+    await until("span", () => spans.some((s) => s.name === "upstream session"));
+    expect(spans.find((s) => s.name === "upstream session")!.attributes).toMatchObject({ "upstream.frames_out": 20, "upstream.bytes_out": out, "upstream.deflate": true });
   });
 
   it("serves a client that does not offer it, and turns it off with compress false", async () => {
@@ -91,25 +91,25 @@ describe("compression on /door", () => {
       const r = await session(port, offer, 3);
       expect(r.ext).toBe("");
       expect(r.wire).toBeGreaterThan(r.raw);
-      await until("closed line", () => lines.some((l) => l.startsWith("door: session closed")));
-      expect(lines.find((l) => l.startsWith("door: session closed"))).toContain("deflate=false");
+      await until("closed line", () => lines.some((l) => l.startsWith("upstream: session closed")));
+      expect(lines.find((l) => l.startsWith("upstream: session closed"))).toContain("deflate=false");
     }
   });
 });
 
-describe("the session close line on /door", () => {
+describe("the session close line on /rpc", () => {
   it("names the close code, the reason and how long the socket lived", async () => {
     const { port, lines, spans } = await rig();
-    const ws = new WebSocket(`ws://127.0.0.1:${port}/door`, { headers: good });
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/rpc`, { headers: good });
     cleanups.push(() => ws.terminate());
     await new Promise<void>((ok, fail) => {
       ws.once("open", () => ok());
       ws.once("error", fail);
     });
     ws.close(4001, "page hidden");
-    await until("closed line", () => lines.some((l) => l.startsWith("door: session closed")));
-    expect(lines.find((l) => l.startsWith("door: session closed"))).toMatch(/ code=4001 reason=page hidden lived_ms=\d+ /);
-    await until("span", () => spans.some((s) => s.name === "door session"));
-    expect(spans.find((s) => s.name === "door session")!.attributes).toMatchObject({ "ws.close_code": 4001 });
+    await until("closed line", () => lines.some((l) => l.startsWith("upstream: session closed")));
+    expect(lines.find((l) => l.startsWith("upstream: session closed"))).toMatch(/ code=4001 reason=page hidden lived_ms=\d+ /);
+    await until("span", () => spans.some((s) => s.name === "upstream session"));
+    expect(spans.find((s) => s.name === "upstream session")!.attributes).toMatchObject({ "ws.close_code": 4001 });
   });
 });

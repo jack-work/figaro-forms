@@ -42,7 +42,7 @@ describe("an audio listener that comes back mid-turn", () => {
     const gw = await startGateway({
       listen: { port: 0 },
       edge: { secret, admin: "gluck", peers: ["127.0.0.1"] },
-      door: () => fake.dial,
+      upstream: () => fake.dial,
       speech: speechOverSocket(speech.path),
       speechSocket: speech.path,
       store: "gluck",
@@ -96,7 +96,7 @@ describe("an audio listener that comes back mid-turn", () => {
     const gw = await startGateway({
       listen: { port: 0 },
       edge: { secret, admin: "gluck", peers: ["127.0.0.1"] },
-      door: () => fake.dial,
+      upstream: () => fake.dial,
       speech: speechOverSocket(speech.path),
       speechSocket: speech.path,
       store: "gluck",

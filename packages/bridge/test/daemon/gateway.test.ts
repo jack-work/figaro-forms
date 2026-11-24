@@ -30,7 +30,7 @@ describe.skipIf(!bin)("gateway against a disposable figaro daemon (FIGARO_BIN)",
     gw = await startGateway({
       listen: { port: 0 },
       edge: { secret, admin: "gluck", peers: ["127.0.0.1"] },
-      door: (user) => daemon.dial(user),
+      upstream: (user) => daemon.dial(user),
       speech: speechOverSocket(speech.path),
       speechSocket: speech.path,
       store: "gluck",
@@ -45,7 +45,7 @@ describe.skipIf(!bin)("gateway against a disposable figaro daemon (FIGARO_BIN)",
     await daemon?.stop();
   }, 60_000);
 
-  it("speaks a tool turn's prose, in order, while the turn runs, prompted through /door", async () => {
+  it("speaks a tool turn's prose, in order, while the turn runs, prompted through /rpc", async () => {
     const id = daemon.newAria("seed");
     await sleep(800);
     const audio = new WebSocket(`ws://127.0.0.1:${port}/audio/${id}`, { headers: good });
@@ -53,13 +53,13 @@ describe.skipIf(!bin)("gateway against a disposable figaro daemon (FIGARO_BIN)",
     audio.on("message", (d, binary) => frames.push(binary ? (d as Buffer) : (JSON.parse(d.toString()) as Record<string, unknown>)));
     await until("ready", () => frames.some((f) => !Buffer.isBuffer(f) && f.type === "ready"));
 
-    const door = new WebSocket(`ws://127.0.0.1:${port}/door`, { headers: good });
+    const rpc = new WebSocket(`ws://127.0.0.1:${port}/rpc`, { headers: good });
     const replies: Record<string, unknown>[] = [];
-    door.on("message", (d) => replies.push(JSON.parse(d.toString()) as Record<string, unknown>));
-    await new Promise<void>((ok) => door.once("open", () => ok()));
-    door.send(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "angelus.hello", params: { version: 1 } }));
+    rpc.on("message", (d) => replies.push(JSON.parse(d.toString()) as Record<string, unknown>));
+    await new Promise<void>((ok) => rpc.once("open", () => ok()));
+    rpc.send(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "angelus.hello", params: { version: 1 } }));
     await until("hello", () => replies.some((r) => r.id === 1));
-    door.send(JSON.stringify({ jsonrpc: "2.0", id: 2, method: "figaro.qua", params: { figaro_id: id, text: "[tool] run it" } }));
+    rpc.send(JSON.stringify({ jsonrpc: "2.0", id: 2, method: "figaro.qua", params: { figaro_id: id, text: "[tool] run it" } }));
     await until("qua", () => replies.some((r) => r.id === 2));
     expect(replies.find((r) => r.id === 2)).toHaveProperty("result");
 
@@ -69,7 +69,7 @@ describe.skipIf(!bin)("gateway against a disposable figaro daemon (FIGARO_BIN)",
     const start = frames.find((f) => !Buffer.isBuffer(f) && f.type === "audio.start") as Record<string, unknown>;
     expect(start).toMatchObject({ turn: 2, key: `gluck/${id}:2/out` });
     audio.close();
-    door.close();
+    rpc.close();
   });
 
   it("joined mid-turn, speaks from the join point on and not the words already said", async () => {

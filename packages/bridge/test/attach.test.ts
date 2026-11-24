@@ -63,7 +63,7 @@ async function rig(store: AttachStore | undefined): Promise<{ fake: FakeAria; po
   const gw = await startGateway({
     listen: { port: 0 },
     edge: { secret, admin: "gluck", peers: ["127.0.0.1"] },
-    door: () => fake.dial,
+    upstream: () => fake.dial,
     speech: speechOverSocket(speech.path),
     speechSocket: speech.path,
     store: "gluck",
@@ -96,9 +96,9 @@ function upload(port: number, body: Buffer, headers: Record<string, string> = {}
   });
 }
 
-function door(port: number): Promise<{ ws: WebSocket; got: Record<string, unknown>[] }> {
+function rpc(port: number): Promise<{ ws: WebSocket; got: Record<string, unknown>[] }> {
   return new Promise((ok, fail) => {
-    const ws = new WebSocket(`ws://127.0.0.1:${port}/door`, { headers: good });
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/rpc`, { headers: good });
     const got: Record<string, unknown>[] = [];
     ws.on("message", (d) => got.push(JSON.parse(d.toString()) as Record<string, unknown>));
     ws.once("open", () => ok({ ws, got }));
@@ -108,7 +108,7 @@ function door(port: number): Promise<{ ws: WebSocket; got: Record<string, unknow
 }
 
 async function qua(port: number, params: Record<string, unknown>): Promise<Record<string, unknown>> {
-  const d = await door(port);
+  const d = await rpc(port);
   d.ws.send(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "figaro.qua", params: { figaro_id: id, ...params } }));
   await until("answer", () => d.got.some((f) => f.id === 1));
   return d.got.find((f) => f.id === 1)!;
@@ -135,7 +135,7 @@ describe("attachments", () => {
     expect(sent.attachments).toBeUndefined();
     expect(sent.images).toEqual([{ mime_type: "image/jpeg", data: Buffer.from("scaled heic").toString("base64") }]);
     expect(sent.text).toBe('what do these say?\n\nAttached PDF "Invoice «4471».pdf", 2 pages, its text:\n```\nInvoice 4471 total 93.50\n```');
-    expect(lines).toContain(`door: call method=figaro.qua aria=${id} attachments=2 session=-`);
+    expect(lines).toContain(`upstream: call method=figaro.qua aria=${id} attachments=2 session=-`);
     expect(lines.join("\n")).not.toContain("IMG_0042");
     expect(lines.join("\n")).not.toContain("Invoice");
   });

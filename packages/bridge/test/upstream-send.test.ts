@@ -51,28 +51,28 @@ const deadAfter = (dial: Dial, sends: number): Dial => async (events) => {
   return socket;
 };
 
-async function gateway(o: { door: Dial; faults?: Faults }): Promise<number> {
+async function gateway(o: { upstream: Dial; faults?: Faults }): Promise<number> {
   const speech = await startFakeSpeech();
   cleanups.push(() => speech.stop());
-  const gw = await startGateway({ listen: { port: 0 }, edge: { secret, admin: "gluck", peers: ["127.0.0.1"] }, door: () => o.door, speech: speechOverSocket(speech.path), speechSocket: speech.path, store: "gluck", log: () => {}, ...(o.faults ? { faults: o.faults } : {}) });
+  const gw = await startGateway({ listen: { port: 0 }, edge: { secret, admin: "gluck", peers: ["127.0.0.1"] }, upstream: () => o.upstream, speech: speechOverSocket(speech.path), speechSocket: speech.path, store: "gluck", log: () => {}, ...(o.faults ? { faults: o.faults } : {}) });
   cleanups.push(() => gw.close());
   const addr = gw.server.address();
   return typeof addr === "object" && addr ? addr.port : 0;
 }
 
-describe("a door that fails a send", () => {
+describe("an upstream that fails a send", () => {
   it("never takes the gateway down: the page's socket closes 1011 and the next page is served", async () => {
     const errors = watchCrashes();
     const fake = new FakeAria();
     fake.addAria(id);
-    const port = await gateway({ door: deadAfter(fake.dial, 0) });
-    const ws = new WebSocket(`ws://127.0.0.1:${port}/door`, { headers });
+    const port = await gateway({ upstream: deadAfter(fake.dial, 0) });
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/rpc`, { headers });
     cleanups.push(() => ws.terminate());
     const closed = new Promise<number>((ok) => ws.once("close", (c) => ok(c)));
     await new Promise((ok) => ws.once("open", ok));
     ws.send(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "figaro.follow", params: { figaro_id: id } }));
     expect(await closed).toBe(1011);
-    const again = new WebSocket(`ws://127.0.0.1:${port}/door`, { headers });
+    const again = new WebSocket(`ws://127.0.0.1:${port}/rpc`, { headers });
     cleanups.push(() => again.terminate());
     await new Promise((ok) => again.once("open", ok));
     expect(errors).toEqual([]);
@@ -86,7 +86,7 @@ describe("a door that fails a send", () => {
     const sock = await handoverDial(deadAfter(fake.dial, 0), { renew: async () => undefined })({ message: (f) => replies.push(JSON.parse(f) as Record<string, unknown>), closed: () => {} });
     cleanups.push(() => sock.close());
     sock.send(JSON.stringify({ jsonrpc: "2.0", id: 7, method: "figaro.qua", params: { figaro_id: id, text: "x" } }));
-    expect(replies).toEqual([{ jsonrpc: "2.0", id: 7, error: { code: -32003, message: "gateway: the door connection is closed; send again" } }]);
+    expect(replies).toEqual([{ jsonrpc: "2.0", id: 7, error: { code: -32003, message: "gateway: the upstream connection is closed; send again" } }]);
     sock.send(JSON.stringify({ jsonrpc: "2.0", method: "note" }));
     await tick(20);
     expect(errors).toEqual([]);
@@ -98,13 +98,13 @@ describe("a door that fails a send", () => {
     fake.addAria(id);
     fake.addForm("@recent", {});
     const faults = new Faults();
-    faults.apply({ op: "door.bearer", ms: 3_000 });
-    faults.apply({ op: "door.delay", reply: 5, ms: 2_400, count: 1 });
+    faults.apply({ op: "upstream.bearer", ms: 3_000 });
+    faults.apply({ op: "upstream.delay", reply: 5, ms: 2_400, count: 1 });
     let legs = 0;
-    const base = faults.door(fake.dial, { session: "-", audio: false });
-    const door: Dial = async (events) => (++legs === 1 ? base(events) : deadAfter(base, 1)(events));
+    const base = faults.upstream(fake.dial, { session: "-", audio: false });
+    const redialing: Dial = async (events) => (++legs === 1 ? base(events) : deadAfter(base, 1)(events));
     const replies: Record<string, unknown>[] = [];
-    const sock = await handoverDial(door, { renew: faults.renew(undefined), quietMs: 50 })({ message: (f) => replies.push(JSON.parse(f) as Record<string, unknown>), closed: () => {} });
+    const sock = await handoverDial(redialing, { renew: faults.renew(undefined), quietMs: 50 })({ message: (f) => replies.push(JSON.parse(f) as Record<string, unknown>), closed: () => {} });
     cleanups.push(() => sock.close());
     sock.send(JSON.stringify({ jsonrpc: "2.0", id: 4, method: "figaro.follow", params: { figaro_id: "@recent" } }));
     await until("follow answer", () => replies.some((r) => r.id === 4));
@@ -122,22 +122,22 @@ describe("a door that fails a send", () => {
     fake.addAria(id);
     fake.addForm("@recent", {});
     const faults = new Faults();
-    const port = await gateway({ door: fake.dial, faults });
-    const client = new AriaClient({ dial: webSocketDial({ url: `ws://127.0.0.1:${port}/door`, credential: { name: "edge", upgrade: () => ({ headers }) }, WebSocket: WebSocket as never }), retryMinMs: 20 });
+    const port = await gateway({ upstream: fake.dial, faults });
+    const client = new AriaClient({ dial: webSocketDial({ url: `ws://127.0.0.1:${port}/rpc`, credential: { name: "edge", upgrade: () => ({ headers }) }, WebSocket: WebSocket as never }), retryMinMs: 20 });
     cleanups.push(() => client.close());
     await client.attach(id).ready();
     const audio = new WebSocket(`ws://127.0.0.1:${port}/audio/${id}`, { headers });
     cleanups.push(() => audio.terminate());
     await new Promise((ok) => audio.once("message", ok));
     for (const [bearer, notice] of [[1_500, false], [3_000, false], [1_500, true], [null, false]] as const) {
-      faults.apply({ op: "door.bearer", ms: bearer });
+      faults.apply({ op: "upstream.bearer", ms: bearer });
       await tick(300);
-      faults.apply({ op: "door.lapse", notice });
+      faults.apply({ op: "upstream.lapse", notice });
       await tick(800);
     }
-    faults.apply({ op: "door.lapse", notice: false, ms: 0 });
+    faults.apply({ op: "upstream.lapse", notice: false, ms: 0 });
     await tick(500);
-    const fresh = new AriaClient({ dial: webSocketDial({ url: `ws://127.0.0.1:${port}/door`, credential: { name: "edge", upgrade: () => ({ headers }) }, WebSocket: WebSocket as never }), retryMinMs: 20 });
+    const fresh = new AriaClient({ dial: webSocketDial({ url: `ws://127.0.0.1:${port}/rpc`, credential: { name: "edge", upgrade: () => ({ headers }) }, WebSocket: WebSocket as never }), retryMinMs: 20 });
     cleanups.push(() => fresh.close());
     await fresh.attach(id).ready();
     expect(errors).toEqual([]);
@@ -147,8 +147,8 @@ describe("a door that fails a send", () => {
     const fake = new FakeAria();
     fake.addAria(id);
     fake.answers.set("figaro.qua", { ok: true, cursor: 1 });
-    const port = await gateway({ door: fake.dial });
-    const ws = new WebSocket(`ws://127.0.0.1:${port}/door`, { headers });
+    const port = await gateway({ upstream: fake.dial });
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/rpc`, { headers });
     cleanups.push(() => ws.terminate());
     const got: Record<string, unknown>[] = [];
     ws.on("message", (d) => got.push(JSON.parse(d.toString()) as Record<string, unknown>));

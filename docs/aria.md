@@ -45,15 +45,15 @@ additions, none on the wire:
   `snapshot()`, `loadOlder`, `ensure`, the phases, and the version-repeat drop
   described under "The fold".
 - Wire-side names that are not Go types: `AriaFrame` (a `Page` plus the `figaro_id`
-  the door adds), `TurnDone` (`DoneEntry` plus `figaro_id`), `AriaRow` and
+  the daemon adds), `TurnDone` (`DoneEntry` plus `figaro_id`), `AriaRow` and
   `ListResponse` (the subset of the daemon's `figaro.list` rows this client reads).
 - `QuaImage` limits (4 images, 10 MiB each) are the daemon's and are not enforced
   client-side.
 
-## Reaching the door
+## Reaching a daemon
 
-The same door a `FormsClient` dials: JSON-RPC 2.0, one frame per WebSocket text
-message. Behind the edge that is the same-origin `/door` with `edgeSession()`; from
+The same endpoint a `FormsClient` dials: JSON-RPC 2.0, one frame per WebSocket text
+message. Behind the edge that is the same-origin `/rpc` with `edgeSession()`; from
 Node, `bearer(token)` or `apiKey(key)`. The first call on a connection is
 `angelus.hello {version: 1}`; its answer names the capabilities and the caller's
 principal. The client does this on every connect.
@@ -186,7 +186,7 @@ beginning `error` with the daemon's words. `idle: false` means a queued message
 starts another turn. `rpc.DoneEntry` carries no turn number. See "Which turn ended"
 for how the library supplies it. `figaro.closed {figaro_id}`
 says the aria's endpoint closed (kill, drain); the connection stays up.
-`door.lapsed {reason, after_ms}` says the connection will be closed by the door's
+`door.lapsed {reason, after_ms}` says the connection will be closed by the daemon's
 age limit; reconnect.
 
 ## The fold: messages, the open tail, the cursor
@@ -337,9 +337,9 @@ A fork needs `fork` on the aria and `use` on its sandbox, so a policy that grant
 ```ts
 import { AriaClient } from "figaro-forms/aria";
 import { webSocketDial } from "figaro-forms";
-import { doorUrl, edgeSession } from "figaro-forms/auth";
+import { endpointUrl, edgeSession } from "figaro-forms/auth";
 
-const client = new AriaClient({ dial: webSocketDial({ url: doorUrl("/door"), credential: edgeSession() }) });
+const client = new AriaClient({ dial: webSocketDial({ url: endpointUrl("/rpc"), credential: edgeSession() }) });
 const stream = client.attach(id);
 stream.onFrame(({ nodes }) => nodes.forEach(({ turn, id, node }) => render(turn, id, node)));
 stream.onTurnEnd((end) => finish(end.turn, end.done?.reason));
