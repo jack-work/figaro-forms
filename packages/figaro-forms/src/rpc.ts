@@ -38,13 +38,15 @@ export class CallTimeout extends Error {
   }
 }
 
-export type ConnectionState = "connecting" | "open" | "waiting" | "closed";
+export type ConnectionState = "connecting" | "open" | "waiting" | "signedout" | "closed";
 
 export interface ConnectionOptions {
   readonly dial: Dial;
   readonly callTimeoutMs?: number;
   readonly retryMinMs?: number;
   readonly retryMaxMs?: number;
+  readonly stableMs?: number;
+  readonly youngDeathsBeforeSignedOut?: number;
   readonly onOpen?: (conn: Connection) => Promise<void> | void;
 }
 
@@ -73,6 +75,8 @@ export class Connection {
   private readonly stateListeners = new Set<(s: ConnectionState) => void>();
   private waiters: { resolve(): void; reject(e: unknown): void }[] = [];
   private retry = 0;
+  private socketAt = 0;
+  private youngDeaths = 0;
   private retryTimer: ReturnType<typeof setTimeout> | undefined;
   private current: ConnectionState = "connecting";
   private lastError = "";
@@ -82,7 +86,9 @@ export class Connection {
     this.opts = {
       callTimeoutMs: 10_000,
       retryMinMs: 250,
-      retryMaxMs: 10_000,
+      retryMaxMs: 30_000,
+      stableMs: 60_000,
+      youngDeathsBeforeSignedOut: 5,
       ...opts,
     };
     void this.connect();
@@ -120,6 +126,7 @@ export class Connection {
   }
 
   async call<T>(method: string, params: unknown): Promise<T> {
+    if (this.current === "signedout") throw new ConnectionLost(this.lastError || "signed out");
     if (this.current !== "open") await this.opened();
     return this.send<T>(method, params);
   }
@@ -190,6 +197,7 @@ export class Connection {
       return;
     }
     this.socket = socket;
+    this.socketAt = Date.now();
     try {
       await this.opts.onOpen?.(this);
     } catch (e) {
@@ -200,7 +208,6 @@ export class Connection {
       return;
     }
     if (gen !== this.generation) return;
-    this.retry = 0;
     this.lastError = "";
     this.setState("open");
     const ws = this.waiters;
@@ -214,6 +221,17 @@ export class Connection {
     this.lastError = reason;
     this.fail(reason);
     if (this.current === "closed") return;
+    if (this.socketAt > 0) {
+      if (Date.now() - this.socketAt < this.opts.stableMs) this.youngDeaths++;
+      else this.youngDeaths = this.retry = 0;
+      this.socketAt = 0;
+    }
+    if (this.youngDeaths >= this.opts.youngDeathsBeforeSignedOut) {
+      this.setState("signedout");
+      for (const w of this.waiters) w.reject(new ConnectionLost(reason));
+      this.waiters = [];
+      return;
+    }
     this.setState("waiting");
     const delay = Math.min(this.opts.retryMaxMs, this.opts.retryMinMs * 2 ** this.retry);
     this.retry++;
@@ -221,12 +239,17 @@ export class Connection {
   }
 
   reconnectNow(): void {
-    if (this.current === "closed") return;
+    if (this.current === "closed" || this.current === "signedout") return;
     if (this.retryTimer) clearTimeout(this.retryTimer);
     const s = this.socket;
-    this.retry = 0;
     this.lost("reconnecting");
     s?.close();
+  }
+
+  resume(): void {
+    if (this.current !== "signedout") return;
+    this.youngDeaths = this.retry = 0;
+    void this.connect();
   }
 
   private fail(reason: string): void {

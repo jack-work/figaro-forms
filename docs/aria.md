@@ -302,7 +302,14 @@ the open message holds the nodes so far, and everything after it arrives as
 deltas. Nothing earlier in that turn is replayed as a delta.
 
 On any lost connection the state is kept, the phase becomes `offline`, and the
-connection retries with backoff. When it opens again the stream reads forward from
+connection retries with backoff: jittered, doubling from 250 ms to 30 s, reset
+only once a socket has stayed up for a minute. A socket that dies inside its
+first minute (a lapse, a refused or unanswered hello, an upstream drop) counts
+as a young death; after five in a row the connection state becomes `signedout`
+and it stops dialing, since a fresh sign-in or page load is what fixes a session
+the server keeps dropping. `connection.resume()` starts it again. A dial that
+fails outright is the network, not the session, and retries without limit.
+When it opens again the stream reads forward from
 its cursor turn and folds the result into what it holds. A close marker for a
 version never reached triggers the same re-read without a reconnect. Phases: `connecting`, `catching-up`,
 `live`, `offline`, `refused`, `gone`, `closed`, `detached`.
