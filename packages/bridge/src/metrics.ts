@@ -1,5 +1,4 @@
-import { request as httpRequest } from "node:http";
-import { request as httpsRequest } from "node:https";
+import { otlpCollector } from "./otlp.js";
 
 export const bounds = [5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 30000];
 
@@ -88,39 +87,8 @@ export interface MetricsExporter {
 }
 
 export function otlpMetrics(o: { endpoint: string; service: string; log: (line: string) => void; everyMs?: number; deadlineMs?: number }): MetricsExporter {
-  const url = new URL("v1/metrics", o.endpoint.endsWith("/") ? o.endpoint : o.endpoint + "/");
-  if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error(`--otlp-endpoint ${o.endpoint} is not an http(s) URL`);
+  const { post } = otlpCollector({ endpoint: o.endpoint, path: "v1/metrics", label: "metrics", dropped: "points", log: o.log, ...(o.deadlineMs !== undefined ? { deadlineMs: o.deadlineMs } : {}) });
   const rec = new Recorder();
-  let last = 0;
-  const complain = (line: string): void => {
-    if (Date.now() - last < 60_000) return;
-    last = Date.now();
-    o.log(`metrics: ${line} (further errors this minute are not logged)`);
-  };
-  const post = (body: string): Promise<void> =>
-    new Promise((ok) => {
-      let settled = false;
-      const done = (why?: string): void => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timer);
-        if (why) complain(why);
-        ok();
-      };
-      const send = url.protocol === "https:" ? httpsRequest : httpRequest;
-      const req = send(url, { method: "POST", headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) } }, (res) => {
-        res.resume();
-        const status = res.statusCode ?? 0;
-        res.once("end", () => done(status >= 300 ? `collector answered ${status}; points dropped` : undefined));
-      });
-      const timer = setTimeout(() => {
-        req.destroy();
-        done("collector too slow; points dropped");
-      }, o.deadlineMs ?? 10_000);
-      timer.unref();
-      req.once("error", (e) => done(`collector unreachable (${e.message}); points dropped`));
-      req.end(body);
-    });
   let running: Promise<void> | undefined;
   const flush = (): Promise<void> => {
     const body = rec.drain(o.service);

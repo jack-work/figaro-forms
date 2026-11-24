@@ -1,6 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { request as httpRequest } from "node:http";
-import { request as httpsRequest } from "node:https";
+import { otlpCollector } from "./otlp.js";
 
 export const traceparentPattern = /^00-([0-9a-f]{32})-([0-9a-f]{16})-([0-9a-f]{2})$/;
 const zeroTrace = "0".repeat(32);
@@ -121,45 +120,11 @@ export interface Exporter {
 }
 
 export function otlpExporter(o: OtlpOptions): Exporter {
-  const url = new URL("v1/traces", o.endpoint.endsWith("/") ? o.endpoint : o.endpoint + "/");
-  if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error(`--otlp-endpoint ${o.endpoint} is not an http(s) URL`);
+  const { post, complain } = otlpCollector({ endpoint: o.endpoint, path: "v1/traces", label: "traces", dropped: "batch", log: o.log, ...(o.deadlineMs !== undefined ? { deadlineMs: o.deadlineMs } : {}) });
   const maxBatch = o.maxBatch ?? 256;
   const maxQueue = o.maxQueue ?? 4096;
   const closeMs = o.closeMs ?? 3_000;
   const queue: FinishedSpan[] = [];
-  let lastComplaint = 0;
-  const complain = (line: string): void => {
-    const now = Date.now();
-    if (now - lastComplaint < 60_000) return;
-    lastComplaint = now;
-    o.log(`traces: ${line} (further errors this minute are not logged)`);
-  };
-  const deadlineMs = o.deadlineMs ?? 10_000;
-  const post = (body: string): Promise<void> =>
-    new Promise((ok) => {
-      let settled = false;
-      const settle = (why?: string): void => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(deadline);
-        if (why) complain(why);
-        ok();
-      };
-      const send = url.protocol === "https:" ? httpsRequest : httpRequest;
-      const req = send(url, { method: "POST", headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) } }, (res) => {
-        res.resume();
-        const status = res.statusCode ?? 0;
-        res.once("end", () => settle(status >= 300 ? `collector answered ${status}; batch dropped` : undefined));
-        res.once("error", (e) => settle(`collector reply failed (${e.message}); batch dropped`));
-      });
-      const deadline = setTimeout(() => {
-        req.destroy();
-        settle(`collector took over ${deadlineMs} ms; batch dropped`);
-      }, deadlineMs);
-      deadline.unref();
-      req.once("error", (e) => settle(`collector unreachable (${e.message}); batch dropped`));
-      req.end(body);
-    });
   let inFlight = 0;
   let running: Promise<void> | undefined;
   const drain = async (): Promise<void> => {

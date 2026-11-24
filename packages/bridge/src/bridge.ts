@@ -1,4 +1,4 @@
-import { randomBytes, timingSafeEqual } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
@@ -8,6 +8,7 @@ import { WebSocketServer, type WebSocket } from "ws";
 import { RpcError, touchedKeys, type Patch } from "figaro-forms";
 import { hierarchyHttp, readHierarchy, type HierarchyReply } from "figaro-forms/hierarchy";
 import { wellKnownKeys } from "figaro-forms/semantics";
+import { edgeRefusal, sameSecret, type EdgeGate } from "./edge.js";
 import { cachedDrift, DriftCheckFailed, mapDrift, parseCheck, runCheck, type CheckRun, type DriftDaemon, type DriftReport, type DriftSource, type LiveForm } from "./drift.js";
 
 export const readMethods = ["angelus.hello", "figaro.follow", "figaro.form"] as const;
@@ -28,14 +29,6 @@ export interface BridgeOptions {
   readonly driftCommand?: string;
   readonly checkRun?: () => Promise<CheckRun>;
 }
-
-export interface EdgeGate {
-  readonly secret: string;
-  readonly peers: readonly string[];
-  readonly admin: string;
-}
-
-export const edgeHeader = "x-figaro-edge";
 
 export interface Bridge {
   readonly server: Server;
@@ -79,12 +72,6 @@ export function frameOrigin(raw: string): string {
 function csp(frames: readonly string[]): string {
   const frame = frames.length ? `; frame-src ${frames.join(" ")}` : "";
   return `default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'${frame}`;
-}
-
-function sameToken(a: string, b: string): boolean {
-  const x = Buffer.from(a);
-  const y = Buffer.from(b);
-  return x.length === y.length && timingSafeEqual(x, y);
 }
 
 const daemonWritten = wellKnownKeys.filter((d) => d.mode !== "user" && !d.key.startsWith("system.")).map((d) => d.key);
@@ -212,8 +199,9 @@ export async function startBridge(o: BridgeOptions): Promise<Bridge> {
       throw new Error("--edge serves GET /hierarchy and GET /drift alone: drop --write, --static, --origin and --frame-src");
     }
     if (Buffer.byteLength(edge.secret) < 32) throw new Error("--edge: the edge secret is shorter than 32 bytes");
-    if (edge.peers.length === 0) throw new Error("--edge needs --peer: the address the edge proxy connects from");
-    const bad = edge.peers.find((p) => isIP(p) === 0);
+    const peers = edge.peers ?? [];
+    if (peers.length === 0) throw new Error("--edge needs --peer: the address the edge proxy connects from");
+    const bad = peers.find((p) => isIP(p) === 0);
     if (bad !== undefined) throw new Error(`--peer ${bad}: not an IP address`);
     if (!edge.admin) throw new Error("--edge needs --admin: the Remote-User the edge signs in");
   }
@@ -274,7 +262,7 @@ export async function startBridge(o: BridgeOptions): Promise<Bridge> {
       sock.end("HTTP/1.1 421 Misdirected Request\r\nConnection: close\r\nContent-Length: 0\r\n\r\n");
       return;
     }
-    if (url.pathname !== "/door" || !sameToken(given, token) || !originOk) {
+    if (url.pathname !== "/door" || !sameSecret(given, token) || !originOk) {
       sock.end("HTTP/1.1 403 Forbidden\r\nConnection: close\r\nContent-Length: 0\r\n\r\n");
       return;
     }
@@ -360,14 +348,6 @@ function relay(ws: WebSocket, path: string, allowed: ReadonlySet<string>, write:
   });
 }
 
-export function edgeRefusal(edge: EdgeGate, req: IncomingMessage): string | undefined {
-  const peer = (req.socket.remoteAddress ?? "").replace(/^::ffff:/, "");
-  const given = req.headers[edgeHeader];
-  if (!edge.peers.includes(peer) || typeof given !== "string" || !sameToken(given, edge.secret)) return "not from the edge";
-  if (req.headers["remote-user"] !== edge.admin) return "admin only";
-  return undefined;
-}
-
 const readHead = { "Content-Type": "application/json", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer" };
 
 async function serveRead(path: string, socket: string, token: string | undefined, drift: DriftSource, req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -377,7 +357,7 @@ async function serveRead(path: string, socket: string, token: string | undefined
   }
   if (token !== undefined) {
     const auth = req.headers.authorization ?? "";
-    if (!sameToken(auth.startsWith("Bearer ") ? auth.slice(7) : "", token)) {
+    if (!sameSecret(auth.startsWith("Bearer ") ? auth.slice(7) : "", token)) {
       const { code, body } = hierarchyHttp({ status: "signedout", reason: `${path} needs the bridge token as a bearer` });
       res.writeHead(code, readHead).end(JSON.stringify(body));
       return;

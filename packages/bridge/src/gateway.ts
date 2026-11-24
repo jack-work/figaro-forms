@@ -1,4 +1,3 @@
-import { timingSafeEqual } from "node:crypto";
 import { chmod, rm } from "node:fs/promises";
 import { createServer, request, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { WebSocketServer, type WebSocket } from "ws";
@@ -6,7 +5,7 @@ import type { Dial } from "figaro-forms";
 import { AriaClient, ariaRefusal, AriaUnavailable } from "figaro-forms/aria";
 import { AudioHub, ariaIdPattern, type AudioListener } from "./audio.js";
 import { noSession, proxyDoor, redact, sessionHeader, sessionOf } from "./door.js";
-import { edgeHeader } from "./bridge.js";
+import { edgeRefusal, type EdgeGate } from "./edge.js";
 import type { SpeechDial } from "./speech.js";
 import { keyStored } from "./stt.js";
 import { noTracer, parseTraceparent, type Tracer } from "./trace.js";
@@ -16,17 +15,11 @@ import type { Faults, Who } from "./faults.js";
 import { noMetrics, type Metrics } from "./metrics.js";
 import type { Dictations } from "./dictation.js";
 
-export interface GatewayEdge {
-  readonly secret: string;
-  readonly admin: string;
-  readonly peers?: readonly string[];
-}
-
 export type GatewayListen = { readonly path: string; readonly mode?: number } | { readonly port: number; readonly host?: string };
 
 export interface GatewayOptions {
   readonly listen: GatewayListen;
-  readonly edge: GatewayEdge;
+  readonly edge: EdgeGate;
   readonly door: (user: string, session: string) => Dial;
   readonly speech: SpeechDial;
   readonly speechSocket?: string;
@@ -56,23 +49,6 @@ export interface Gateway {
   readonly audio: AudioHub;
   readonly address: string;
   close(): Promise<void>;
-}
-
-const sameToken = (a: string, b: string): boolean => {
-  const x = Buffer.from(a);
-  const y = Buffer.from(b);
-  return x.length === y.length && timingSafeEqual(x, y);
-};
-
-export function gatewayRefusal(edge: GatewayEdge, req: IncomingMessage): string | undefined {
-  if (edge.peers) {
-    const peer = (req.socket.remoteAddress ?? "").replace(/^::ffff:/, "");
-    if (!edge.peers.includes(peer)) return "not from the edge";
-  }
-  const given = req.headers[edgeHeader];
-  if (typeof given !== "string" || !sameToken(given, edge.secret)) return "not from the edge";
-  if (req.headers["remote-user"] !== edge.admin) return "admin only";
-  return undefined;
 }
 
 const keyPattern = /^[a-z0-9-]{1,63}\/[0-9a-f]{32}:\d{1,20}\/(in|out)$/;
@@ -167,7 +143,7 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
 
   const attach = o.attachments ? attachRoute(o.attachments, log, (req) => sessionOf(req, false)) : undefined;
   const server = createServer((req, res) => {
-    const refusal = gatewayRefusal(e, req);
+    const refusal = edgeRefusal(e, req);
     if (refusal) {
       res.writeHead(403, { "Content-Type": "text/plain; charset=utf-8" }).end(refusal);
       return;
@@ -239,7 +215,7 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
   };
 
   server.on("upgrade", (req, sock, head) => {
-    if (gatewayRefusal(e, req) || !originOk(req, origins)) {
+    if (edgeRefusal(e, req) || !originOk(req, origins)) {
       refuseUpgrade(sock, "403 Forbidden");
       return;
     }

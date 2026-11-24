@@ -45,7 +45,10 @@ Imports point down the list. Nothing in a lower layer knows a higher one exists.
 `packages/bridge` is a Node program, not a library. `bridge.ts` serves the
 form protocol to the page, `gateway.ts` the transcript protocol for the chat web, and the remaining
 files are what the gateway routes to: speech, dictation, attachments,
-token handover, tracing and metrics.
+token handover, tracing and metrics. `edge.ts` is the one check that a request
+comes from the trusted edge proxy as the admin, used by both servers, and
+`otlp.ts` is the one collector client that `trace.ts` and `metrics.ts` post
+through.
 
 ## Entry points
 

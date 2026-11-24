@@ -2,7 +2,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
-import { defaultSocket, startBridge, type EdgeGate } from "./bridge.js";
+import { defaultSocket, startBridge } from "./bridge.js";
+import type { EdgeGate } from "./edge.js";
 
 const usage = `figaro-forms-bridge: a loopback WebSocket door for a browser page, relayed to a figaro daemon's unix socket.
 
@@ -110,7 +111,7 @@ try {
     process.stdout.write(`door ${b.doorUrl}\n`);
     if (b.pageUrl) process.stdout.write(`page ${b.pageUrl}\n`);
   }
-  const mode = edge ? `edge for ${edge.admin} from ${edge.peers.join(",")}` : values.write ? (values["write-system"] ? "read-write, owner-held keys included" : "read-write, owner-held keys refused") : "read-only";
+  const mode = edge ? `edge for ${edge.admin} from ${(edge.peers ?? []).join(",")}` : values.write ? (values["write-system"] ? "read-write, owner-held keys included" : "read-write, owner-held keys refused") : "read-only";
   process.stderr.write(`figaro-forms-bridge: ${mode}, listening on ${b.origin}\n`);
   const stop = (): void => void b.close().then(() => process.exit(0));
   process.on("SIGINT", stop);
