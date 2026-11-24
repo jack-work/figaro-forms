@@ -1,8 +1,11 @@
-import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, createElement, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { useHeld, useStore } from "../react/shared.js";
 import type { ConnectionState } from "../rpc.js";
 import type { AriaClient, AriaList, ListOptions } from "./client.js";
-import { boundFormFeedOf, recentFeedOf, treeFeedOf, type BoundFormState, type Feed, type RecentState, type TreeState } from "./surface.js";
+import { boundFormFeedOf, type BoundFormState } from "./bound-form.js";
+import type { Feed } from "./feeds.js";
+import { recentFeedOf, type RecentState } from "./recent.js";
+import { treeFeedOf, type TreeState } from "./tree.js";
 import type { AppliedFrame, AriaSnapshot, AriaStream, Phase } from "./stream.js";
 
 const Context = createContext<AriaClient | null>(null);

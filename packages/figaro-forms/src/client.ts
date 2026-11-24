@@ -1,4 +1,4 @@
-import { Connection, ConnectionLost, RpcError, type ConnectionState } from "./rpc.js";
+import { Connection, ConnectionLost, RpcError } from "./rpc.js";
 import { Link, type LinkOptions } from "./link.js";
 import { Registry } from "./registry.js";
 import { Replica, type ReplicaOptions } from "./replica.js";
