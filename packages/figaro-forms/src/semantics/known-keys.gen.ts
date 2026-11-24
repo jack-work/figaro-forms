@@ -352,6 +352,11 @@ export const wellKnownKeys: readonly KeyDoc[] = [
     "mode": "system"
   },
   {
+    "key": "runtime.context.limit",
+    "short": "The prompt capacity in tokens the daemon resolved for this figaro from its route, overrides and the model catalog; the number figaro status prints. Clients render it and never recompute it. Absent while unknown",
+    "mode": "system"
+  },
+  {
     "key": "runtime.retired",
     "short": "Set when a figaro retires, with the reason (\"manual\", \"context\"); written by the daemon from system.retired or its own retirement",
     "mode": "system"
