@@ -106,6 +106,69 @@ describe("treeAtom", () => {
     client.close();
   });
 
+  it("draws an aria under the role form it is placed under, and the role row names its holder", async () => {
+    const { fake, client, store } = world();
+    fake.addForm("@arias", {
+      arias: {
+        "@eng-role": {
+          id: "@er1",
+          kind: "form",
+          state: "form",
+          name: "Engineer",
+          target: "e1",
+          active_at: 50,
+          forks: { holder: { id: "e1", state: "idle", mantra: "Engineer", active_at: 50, parent: "@er1" } },
+        },
+      },
+    });
+    const tree = treeAtom(client);
+    const off = store.sub(tree, () => {});
+    await settle();
+    const t = store.get(tree);
+    expect(t.roots).toEqual(["@er1"]);
+    expect(t.nodes.get("@er1")).toMatchObject({ kind: "role", roleName: "Engineer", target: "e1", children: ["e1"], handle: "@eng-role" });
+    expect(t.nodes.get("e1")).toMatchObject({ kind: "aria", parent: "@er1" });
+    off();
+    client.close();
+  });
+
+  it("hides a row past its reap time like figaro list does, unless it is active or bound, and keeps its children", async () => {
+    const { fake, client, store } = world();
+    const past = Date.now() - 1000;
+    fake.addForm("@arias", {
+      arias: {
+        gone: { id: "g1", state: "dormant", retired_at: 5, reaps_at: past, active_at: 5, forks: { kid: { id: "k1", state: "idle", active_at: 6 } } },
+        busy: { id: "b1", state: "active", reaps_at: past, active_at: 4 },
+        held: { id: "h1", state: "idle", bound: true, reaps_at: past, active_at: 3 },
+      },
+    });
+    const tree = treeAtom(client);
+    const off = store.sub(tree, () => {});
+    await settle();
+    const t = store.get(tree);
+    expect(t.nodes.has("g1")).toBe(false);
+    expect(t.reaped.has("g1")).toBe(false);
+    expect(t.roots).toEqual(["k1", "b1", "h1"]);
+    expect(t.nodes.get("k1")?.parent).toBeUndefined();
+    off();
+    client.close();
+  });
+
+  it("hides a row when its reap time arrives while the tree is open", async () => {
+    const { fake, client, store } = world();
+    fake.addForm("@arias", { arias: { soon: { id: "s1", state: "dormant", reaps_at: Date.now() + 80, active_at: 5 } } });
+    const tree = treeAtom(client);
+    const off = store.sub(tree, () => {});
+    await settle();
+    expect(store.get(tree).nodes.has("s1")).toBe(true);
+    for (let i = 0; i < 200 && store.get(tree).nodes.has("s1"); i++) await tick(10);
+    const t = store.get(tree);
+    expect(t.nodes.has("s1")).toBe(false);
+    expect(t.reaped.has("s1")).toBe(false);
+    off();
+    client.close();
+  });
+
   it("puts the daemon you are talking to first", async () => {
     const { fake, client, store } = world();
     fake.addForm("@troupe", { n1: { self: false, form: "n1/@arias" }, n9: { self: true, form: "@arias" } });

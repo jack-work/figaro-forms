@@ -41,4 +41,24 @@ describe.skipIf(!bin)("the web tree against a disposable figaro daemon (FIGARO_B
     await until("child back at the top", () => drawn().top);
     off();
   });
+
+  it("draws a role form as a row naming its holder, with an aria placed under the role beneath it", async () => {
+    const holder = daemon.newAria("holder");
+    const made = daemon.figaro("form", "new", "-j", "-S", `name=Strategist,role-name=Strategist,target-aria=${holder}`);
+    const role = /@[0-9a-f]+/.exec(made)?.[0];
+    if (!role) throw new Error(`no role form id in ${made}`);
+    const feed = treeFeedOf(client);
+    const off = feed.subscribe(() => {});
+    const until = async (what: string, ok: () => boolean): Promise<void> => {
+      for (let i = 0; i < 200 && !ok(); i++) await sleep(50);
+      expect(ok(), what).toBe(true);
+    };
+    daemon.figaro("place", holder, "--under", role);
+    await until("holder under its role row", () => feed.get().nodes.get(holder)?.parent === role);
+    const row = feed.get().nodes.get(role);
+    expect(row).toMatchObject({ kind: "role", roleName: "Strategist", target: holder });
+    expect(row?.children).toContain(holder);
+    expect(feed.get().roots).not.toContain(holder);
+    off();
+  }, 30_000);
 });

@@ -8,10 +8,14 @@ import { byRecent, moreOf, num, rowsOf, text } from "./rows.js";
 export const troupeFormID = "@troupe";
 
 export type NodeStatus = "live" | "retired" | "reaped";
+export type NodeKind = "aria" | "role";
 
 export interface TreeNode {
   readonly id: string;
+  readonly kind: NodeKind;
   readonly label: string;
+  readonly roleName: string | undefined;
+  readonly target: string | undefined;
   readonly handle: string | undefined;
   readonly mantra: string | undefined;
   readonly parent: string | undefined;
@@ -24,6 +28,8 @@ export interface TreeNode {
   readonly activeAt: number | undefined;
   readonly ctx: number | undefined;
   readonly ctxLimit: number | undefined;
+  readonly reapsAt: number | undefined;
+  readonly bound: boolean;
 }
 
 export interface TreeDaemon {
@@ -74,7 +80,15 @@ export function parseRoleAddresses(s: string | undefined): string[] {
   return out;
 }
 
-function foldAriasForm(daemon: string, root: JsonObject, into: Map<string, TreeNode>): string[] {
+const lapsed = (n: Pick<TreeNode, "reapsAt" | "state" | "bound">, now: number): boolean => n.reapsAt !== undefined && n.reapsAt <= now && n.state !== "active" && !n.bound;
+
+interface Folded {
+  readonly roots: string[];
+  readonly hidden: Set<string>;
+  wake: number | undefined;
+}
+
+function foldAriasForm(daemon: string, root: JsonObject, into: Map<string, TreeNode>, now: number, out: Folded): void {
   const walk = (level: Json | undefined, parent: string | undefined): string[] => {
     const entries = rowsOf(level)
       .map(([label, row]) => ({ label, row, id: text(row.id), activeAt: num(row.active_at) }))
@@ -83,41 +97,53 @@ function foldAriasForm(daemon: string, root: JsonObject, into: Map<string, TreeN
       .sort(byRecent);
     const ids: string[] = [];
     for (const e of entries) {
-      if (into.has(e.id)) continue;
-      ids.push(e.id);
-      const children = walk(e.row.forks, e.id);
+      if (into.has(e.id) || out.hidden.has(e.id)) continue;
       const state = text(e.row.state) ?? "";
       const retired = (num(e.row.retired_at) ?? 0) > 0 || state === "retired";
-      into.set(e.id, {
+      const node = {
         id: e.id,
+        kind: (text(e.row.kind) === "form" ? "role" : "aria") as NodeKind,
         label: e.label,
+        roleName: text(e.row.name),
+        target: text(e.row.target),
         handle: e.label !== e.id ? e.label : undefined,
         mantra: text(e.row.mantra),
         parent: parent ?? text(e.row.parent),
-        children,
         daemon,
         state,
-        status: retired ? "retired" : "live",
+        status: (retired ? "retired" : "live") as NodeStatus,
         roles: parseRoleAddresses(text(e.row.role)),
         cwd: text(e.row.cwd),
         activeAt: e.activeAt,
         ctx: num(e.row.ctx),
         ctxLimit: num(e.row.ctx_limit),
-      });
+        reapsAt: num(e.row.reaps_at),
+        bound: e.row.bound === true,
+      };
+      if (lapsed(node, now)) {
+        out.hidden.add(e.id);
+        ids.push(...walk(e.row.forks, parent));
+        continue;
+      }
+      if (node.reapsAt !== undefined && node.state !== "active" && !node.bound && (out.wake === undefined || node.reapsAt < out.wake)) out.wake = node.reapsAt;
+      ids.push(e.id);
+      const children = walk(e.row.forks, e.id);
+      into.set(e.id, { ...node, children });
     }
     return ids;
   };
-  return walk(root.arias, undefined);
+  out.roots.push(...walk(root.arias, undefined));
 }
 
 export function foldTree(
   troupe: JsonObject,
   arias: ReadonlyMap<string, { readonly root: JsonObject; readonly phase: Phase; readonly error: string | undefined }>,
   prev?: Pick<TreeState, "nodes" | "reaped">,
-): Pick<TreeState, "daemons" | "roots" | "more" | "nodes" | "reaped"> {
+  now = Date.now(),
+): Pick<TreeState, "daemons" | "roots" | "more" | "nodes" | "reaped"> & { readonly wake: number | undefined } {
   const daemons: TreeDaemon[] = [];
   const nodes = new Map<string, TreeNode>();
-  const roots: string[] = [];
+  const out: Folded = { roots: [], hidden: new Set(), wake: undefined };
   const windowed = new Set<string>();
   const isSelf = (id: string): boolean => {
     const row = troupe[id];
@@ -134,17 +160,17 @@ export function foldTree(
     const more = got ? moreOf(got.root) : 0;
     daemons.push({ id, self: row.self === true, form, phase: got?.phase ?? "loading", error: got?.error, more });
     if (more > 0) windowed.add(id);
-    if (got) roots.push(...foldAriasForm(id, got.root, nodes));
+    if (got) foldAriasForm(id, got.root, nodes, now, out);
   }
   const reaped = new Map<string, TreeNode>();
   if (prev) {
     const present = new Set(daemons.filter((d) => d.phase === "ready").map((d) => d.id));
     for (const [id, n] of [...prev.nodes, ...prev.reaped]) {
-      if (nodes.has(id) || !present.has(n.daemon) || windowed.has(n.daemon)) continue;
+      if (nodes.has(id) || out.hidden.has(id) || !present.has(n.daemon) || windowed.has(n.daemon)) continue;
       reaped.set(id, { ...n, children: [], status: "reaped" });
     }
   }
-  return { daemons, roots, more: daemons.reduce((n, d) => n + d.more, 0), nodes, reaped };
+  return { daemons, roots: out.roots, more: daemons.reduce((n, d) => n + d.more, 0), nodes, reaped, wake: out.wake };
 }
 
 export class TreeFeed extends Feed<TreeState> {
@@ -157,6 +183,7 @@ export class TreeFeed extends Feed<TreeState> {
     const troupe = forms.retain(troupeFormID);
     const held = new Map<string, { replica: Replica; off: () => void }>();
     let prev: Pick<TreeState, "nodes" | "reaped"> | undefined;
+    let wakeTimer: ReturnType<typeof setTimeout> | undefined;
 
     const recompute = (): void => {
       const wanted = new Map<string, string>();
@@ -195,8 +222,10 @@ export class TreeFeed extends Feed<TreeState> {
         ready = ready && readyOf(r);
         error ??= errorOf(r);
       }
-      const folded = foldTree(troupe.root, arias, prev);
+      const { wake, ...folded } = foldTree(troupe.root, arias, prev);
       prev = folded;
+      clearTimeout(wakeTimer);
+      wakeTimer = wake === undefined ? undefined : setTimeout(recompute, Math.min(Math.max(wake - Date.now(), 0) + 1, 2 ** 31 - 1));
       this.publish({ ready, freshness, error, ...folded });
     };
 
@@ -204,6 +233,7 @@ export class TreeFeed extends Feed<TreeState> {
     const offStatus = troupe.onStatus(recompute);
     recompute();
     return () => {
+      clearTimeout(wakeTimer);
       offTree();
       offStatus();
       for (const [form, h] of held) {
