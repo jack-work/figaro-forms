@@ -345,14 +345,15 @@ export async function startGateway(o: GatewayOptions): Promise<Gateway> {
       const text = typeof q.params?.text === "string" ? q.params.text.trim() : "";
       if (typeof audioId === "string" && text !== "" && o.dictations.holds(session, aria, audioId)) awaitingTurn.set(audioId, { aria, text });
     });
-    ws.once("close", (code: number) => {
+    ws.once("close", (code: number, reason: Buffer) => {
       if (code === 1011) metrics.count("figchat.gateway.errors", { "figchat.session": session, kind: "door_closed" });
+      const lived = Date.now() - opened;
       const wireOut = sock.bytesWritten - wire0.out;
       const wireIn = sock.bytesRead - wire0.in;
       const deflate = ws.extensions.includes("permessage-deflate");
-      log(`door: session closed frames_out=${outFrames} bytes_out=${out} wire_out=${wireOut} frames_in=${inFrames} bytes_in=${inBytes} wire_in=${wireIn} deflate=${deflate} session=${session}`);
+      log(`door: session closed code=${code} reason=${redact(reason.toString())} lived_ms=${lived} frames_out=${outFrames} bytes_out=${out} wire_out=${wireOut} frames_in=${inFrames} bytes_in=${inBytes} wire_in=${wireIn} deflate=${deflate} session=${session}`);
       if (sp) {
-        for (const [k, v] of Object.entries({ "door.frames_out": outFrames, "door.bytes_out": out, "door.wire_out": wireOut, "door.frames_in": inFrames, "door.bytes_in": inBytes, "door.wire_in": wireIn, "door.deflate": deflate })) sp.set(k, v);
+        for (const [k, v] of Object.entries({ "door.frames_out": outFrames, "door.bytes_out": out, "door.wire_out": wireOut, "door.frames_in": inFrames, "door.bytes_in": inBytes, "door.wire_in": wireIn, "door.deflate": deflate, "ws.close_code": code, "ws.lived_ms": lived })) sp.set(k, v);
         sp.end();
       }
     });

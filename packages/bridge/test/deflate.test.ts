@@ -96,3 +96,20 @@ describe("compression on /door", () => {
     }
   });
 });
+
+describe("the session close line on /door", () => {
+  it("names the close code, the reason and how long the socket lived", async () => {
+    const { port, lines, spans } = await rig();
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/door`, { headers: good });
+    cleanups.push(() => ws.terminate());
+    await new Promise<void>((ok, fail) => {
+      ws.once("open", () => ok());
+      ws.once("error", fail);
+    });
+    ws.close(4001, "page hidden");
+    await until("closed line", () => lines.some((l) => l.startsWith("door: session closed")));
+    expect(lines.find((l) => l.startsWith("door: session closed"))).toMatch(/ code=4001 reason=page hidden lived_ms=\d+ /);
+    await until("span", () => spans.some((s) => s.name === "door session"));
+    expect(spans.find((s) => s.name === "door session")!.attributes).toMatchObject({ "ws.close_code": 4001 });
+  });
+});
