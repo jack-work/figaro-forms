@@ -19,22 +19,10 @@ export {
 export { ariaRefusal, AriaUnavailable, type AriaRefusal, type RefusalKind } from "./errors.js";
 export { spliceBytes } from "./utf8.js";
 export * from "./wire.js";
-export {
-  type AriaFacts,
-  boundFormWriterOf,
-  type BoundFormWriter,
-  queueFeed,
-  queueFeedOf,
-  troupeFormID,
-  type BoundFormState,
-  type NodeStatus,
-  type QueueState,
-  type RecentRow,
-  type RecentState,
-  type TreeDaemon,
-  type TreeNode,
-  type TreeState,
-} from "./surface.js";
+export { boundFormWriterOf, type BoundFormState, type BoundFormWriter } from "./bound-form.js";
+export type { AriaFacts } from "./facts.js";
+export { troupeFormID, type NodeStatus, type TreeDaemon, type TreeNode, type TreeState } from "./tree.js";
+export type { RecentRow, RecentState } from "./recent.js";
 export {
   addComment,
   commentsByTurn,
@@ -55,6 +43,8 @@ export {
   foldQueue,
   queueActions,
   queueActionsOf,
+  queueFeed,
+  queueFeedOf,
   queueIntrinsic,
   queueMark,
   queueMethod,
@@ -64,6 +54,7 @@ export {
   type QueueRejection,
   type QueueResult,
   type QueueRow,
+  type QueueState,
   type QueueRowState,
   type QueueUpdateResponse,
   type QueueView,

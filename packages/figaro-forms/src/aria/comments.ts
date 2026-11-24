@@ -1,7 +1,7 @@
 import { compareStrings, isObject, type Json, type JsonObject } from "../json.js";
 import type { EditResult } from "../replica.js";
 import { formatQuote, parseQuote, type QuoteCoord, type QuoteRange } from "./quote.js";
-import type { BoundFormWriter } from "./surface.js";
+import type { BoundFormWriter } from "./bound-form.js";
 
 const commentsKey = "comments";
 

@@ -2,7 +2,9 @@ import { createStore } from "jotai/vanilla";
 import { describe, expect, it } from "vitest";
 import { AriaClient } from "../../src/aria/client.js";
 import { ariaFactsAtom, boundFormAtom, recentAtom, treeAtom } from "../../src/aria/jotai.js";
-import { boundFormWriterOf, foldRecent, parseRoleAddresses } from "../../src/aria/surface.js";
+import { boundFormWriterOf } from "../../src/aria/bound-form.js";
+import { foldRecent } from "../../src/aria/recent.js";
+import { parseRoleAddresses } from "../../src/aria/tree.js";
 import { FakeAria, settle, tick } from "./fake-aria.js";
 
 function world() {

@@ -3,7 +3,12 @@ import { holdTicker, memoByClient } from "../jotai/shared.js";
 import type { ConnectionState } from "../rpc.js";
 import type { AriaClient, AriaList, ListOptions } from "./client.js";
 import type { AriaRow } from "./wire.js";
-import { ariaFactsFeedOf, boundFormFeedOf, queueFeedOf, recentFeedOf, treeFeedOf, type AriaFacts, type BoundFormState, type Feed, type QueueState, type RecentState, type TreeState } from "./surface.js";
+import { boundFormFeedOf, type BoundFormState } from "./bound-form.js";
+import { ariaFactsFeedOf, type AriaFacts } from "./facts.js";
+import type { Feed } from "./feeds.js";
+import { queueFeedOf, type QueueState } from "./queue.js";
+import { recentFeedOf, type RecentState } from "./recent.js";
+import { treeFeedOf, type TreeState } from "./tree.js";
 import type { AppliedFrame, AriaSnapshot, AriaStream, Phase } from "./stream.js";
 
 function ticker(client: AriaClient, aria: string, listen: (s: AriaStream, bump: () => void) => () => void) {

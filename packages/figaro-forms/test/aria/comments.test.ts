@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { AriaClient } from "../../src/aria/client.js";
 import { addComment, commentsByTurn, deleteComment, endBlockOf, foldComments, replyToComment, type CommentEnv } from "../../src/aria/comments.js";
 import { parseQuote, type QuoteRange } from "../../src/aria/quote.js";
-import { boundFormWriterOf } from "../../src/aria/surface.js";
+import { boundFormWriterOf } from "../../src/aria/bound-form.js";
 import type { JsonObject } from "../../src/json.js";
 import { FakeAria } from "./fake-aria.js";
 

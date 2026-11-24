@@ -1,6 +1,9 @@
 import { isObject, type Json, type JsonObject } from "../json.js";
 import { glyphs } from "../glyphs.gen.js";
+import type { FormsClient } from "../client.js";
+import type { Freshness } from "../replica.js";
 import type { AriaClient } from "./client.js";
+import { errorOf, feedOf, idle, ReplicaFeed, readyOf, type Feed } from "./feeds.js";
 import type { InterruptResponse } from "./wire.js";
 
 export const queueIntrinsic = "queue";
@@ -128,3 +131,21 @@ export function queueActions(client: AriaClient, aria: string, epoch: () => stri
 }
 
 export const queueActionsOf = (client: AriaClient, aria: string): QueueActions => queueActions(client, aria, () => foldQueue(client.forms.peek(queueRef(aria)).root).epoch);
+
+export interface QueueState extends QueueView {
+  readonly aria: string;
+  readonly ready: boolean;
+  readonly freshness: Freshness;
+  readonly error: string | undefined;
+}
+
+export function queueFeed(forms: () => FormsClient, aria: string): Feed<QueueState> {
+  return new ReplicaFeed<QueueState>(
+    forms,
+    queueRef(aria),
+    (r) => ({ aria, ready: readyOf(r), freshness: r.status.freshness, error: errorOf(r), ...foldQueue(r.root) }),
+    { aria, ...idle, ...emptyQueue },
+  );
+}
+
+export const queueFeedOf = (client: AriaClient, aria: string): Feed<QueueState> => feedOf(client, `queue\0${aria}`, () => queueFeed(() => client.forms, aria));

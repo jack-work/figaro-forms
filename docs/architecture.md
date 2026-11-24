@@ -38,8 +38,12 @@ Imports point down the list. Nothing in a lower layer knows a higher one exists.
    transcript protocol and builds a `FormsClient` on the same dial when a feed
    needs a form. `stream.ts` attaches to one aria, catches up and follows.
    `fold.ts` turns pages and live deltas into messages, over the interval
-   store in `store.ts`. `surface.ts` and `queue.ts` fold the `@arias`,
-   `@recent`, bound and queue forms into feeds. `comments.ts` and `quote.ts`
+   store in `store.ts`. `feeds.ts` is the `Feed` base (a value that opens its
+   forms on the first subscriber and closes them on the last) and the
+   per-client feed registry; `tree.ts`, `recent.ts`, `bound-form.ts`, `facts.ts`
+   and `queue.ts` each fold one form (`@troupe` and the arias forms, `@recent`, an
+   aria's bound form, an aria's counts and mantra, its queue) into a feed, over
+   the row readers in `rows.ts`. `comments.ts` and `quote.ts`
    are transcript comments and the coordinate grammar they use.
 
 `packages/bridge` is a Node program, not a library. `bridge.ts` serves the
