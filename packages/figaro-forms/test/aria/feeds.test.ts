@@ -132,22 +132,6 @@ describe("treeAtom", () => {
     client.close();
   });
 
-  it("draws arias born of a plain form (no role name, no holder) as if the form were not there", async () => {
-    const { fake, client, store } = world();
-    fake.addForm("@arias", {
-      arias: { "@outfit": { id: "@o1", kind: "form", state: "form", forks: { kid: { id: "k1", state: "idle", parent: "@o1", active_at: 9 } } } },
-    });
-    const tree = treeAtom(client);
-    const off = store.sub(tree, () => {});
-    await settle();
-    const t = store.get(tree);
-    expect(t.roots).toEqual(["k1"]);
-    expect(t.nodes.has("@o1")).toBe(false);
-    expect(t.nodes.get("k1")?.parent).toBeUndefined();
-    off();
-    client.close();
-  });
-
   it("hides a row past its reap time like figaro list does, unless it is active or bound, and keeps its children", async () => {
     const { fake, client, store } = world();
     const past = Date.now() - 1000;

@@ -120,10 +120,6 @@ function foldAriasForm(daemon: string, root: JsonObject, into: Map<string, TreeN
         reapsAt: num(e.row.reaps_at),
         bound: e.row.bound === true,
       };
-      if (node.kind === "role" && node.roleName === undefined && node.target === undefined) {
-        ids.push(...walk(e.row.forks, parent ?? null));
-        continue;
-      }
       if (lapsed(node, now)) {
         out.hidden.add(e.id);
         ids.push(...walk(e.row.forks, parent ?? null));
