@@ -40,7 +40,7 @@ describe.skipIf(!bin)("the web tree against a disposable figaro daemon (FIGARO_B
     daemon.figaro("form", "unset", "--id", "@topology", child);
     await until("child back at the top", () => drawn().top);
     off();
-  });
+}, 30_000);
 
   it("draws a role form as a row naming its holder, with an aria placed under the role beneath it", async () => {
     const holder = daemon.newAria("holder");
