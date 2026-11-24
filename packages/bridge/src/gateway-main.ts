@@ -30,7 +30,8 @@ Usage: figaro-gateway --door-url URL --speech-socket PATH --admin USER --store N
   --door-token-file P   bearer for the door (default $CREDENTIALS_DIRECTORY/door);
                         without a file the door is dialled with no credential
   --token-url URL       mint the door bearer with an OAuth client_credentials grant at URL
-                        (e.g. https://auth.kelliher.info/api/oidc/token); fetched at start,
+                        (e.g. https://auth.kelliher.info/api/oidc/token); fetched at start
+                        (an unreachable or 5xx endpoint is retried for up to a minute),
                         refreshed at 80% of expires_in, and again after a 401 on dial
   --client-id ID        the client (e.g. figaro-gateway)
   --client-secret-file P  its secret (default $CREDENTIALS_DIRECTORY/client-secret); never logged

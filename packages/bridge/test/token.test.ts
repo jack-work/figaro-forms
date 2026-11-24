@@ -102,6 +102,33 @@ describe("client credentials", () => {
     expect(await c.token()).toBe("tok-5");
   });
 
+  it("retries an unavailable token endpoint at start with backoff, as when Authelia restarts beside the gateway", async () => {
+    vi.useFakeTimers();
+    const f = stub();
+    f.mode.status = 502;
+    const c = new ClientCredentials(opts("http://x/token", { fetch: f.fetch, retryMinMs: 1000, retryMaxMs: 4000 }));
+    cleanups.push(() => c.close());
+    const started = c.start();
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(f.calls).toBe(3);
+    f.mode.status = 200;
+    await vi.advanceTimersByTimeAsync(4_000);
+    await started;
+    expect(await c.token()).toBe("tok-4");
+  });
+
+  it("gives up at start once the retries would pass startWithinMs", async () => {
+    vi.useFakeTimers();
+    const f = stub();
+    f.mode.status = 503;
+    const c = new ClientCredentials(opts("http://x/token", { fetch: f.fetch, retryMinMs: 1000, retryMaxMs: 4000, startWithinMs: 10_000 }));
+    cleanups.push(() => c.close());
+    const started = expect(c.start()).rejects.toThrow("503");
+    await vi.advanceTimersByTimeAsync(20_000);
+    await started;
+    expect(f.calls).toBe(4);
+  });
+
   it("mints a token that lasts past a time only when the one it holds does not", async () => {
     const ep = await endpoint();
     let t = 1_000_000;

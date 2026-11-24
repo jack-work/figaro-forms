@@ -11,6 +11,16 @@ export interface ClientCredentialsOptions {
   readonly refreshAt?: number;
   readonly retryMinMs?: number;
   readonly retryMaxMs?: number;
+  readonly startWithinMs?: number;
+}
+
+class MintFailure extends Error {
+  constructor(
+    message: string,
+    readonly transient: boolean,
+  ) {
+    super(message);
+  }
 }
 
 interface Held {
@@ -38,7 +48,19 @@ export class ClientCredentials {
   }
 
   async start(): Promise<void> {
-    await this.mint();
+    const within = this.o.startWithinMs ?? 60_000;
+    let waited = 0;
+    for (;;) {
+      try {
+        await this.mint();
+        return;
+      } catch (e) {
+        const wait = this.backoff(this.failures - 1);
+        if (this.closed || !(e instanceof MintFailure) || !e.transient || waited + wait > within) throw e;
+        await new Promise<void>((ok) => setTimeout(ok, wait));
+        waited += wait;
+      }
+    }
   }
 
   async token(): Promise<string> {
@@ -79,7 +101,7 @@ export class ClientCredentials {
     try {
       secret = this.o.secret();
     } catch (e) {
-      throw this.failed(`client secret unreadable: ${e instanceof Error ? e.message.replace(/'[^']*'/g, "'<path>'") : "error"}`);
+      throw this.failed(false, `client secret unreadable: ${e instanceof Error ? e.message.replace(/'[^']*'/g, "'<path>'") : "error"}`);
     }
     const basic = Buffer.from(`${encodeURIComponent(this.o.clientId)}:${encodeURIComponent(secret)}`).toString("base64");
     let res: Response;
@@ -90,33 +112,33 @@ export class ClientCredentials {
         body: form,
       });
     } catch (e) {
-      throw this.failed(`token endpoint unreachable: ${e instanceof Error ? e.message : String(e)}`);
+      throw this.failed(true, `token endpoint unreachable: ${e instanceof Error ? e.message : String(e)}`);
     }
-    if (!res.ok) throw this.failed(`token endpoint answered ${res.status}`);
+    if (!res.ok) throw this.failed(res.status >= 500 || res.status === 429, `token endpoint answered ${res.status}`);
     let body: { access_token?: unknown; expires_in?: unknown };
     try {
       body = (await res.json()) as typeof body;
     } catch {
-      throw this.failed("token endpoint answered something that is not JSON");
+      throw this.failed(true, "token endpoint answered something that is not JSON");
     }
     const value = body.access_token;
     const lifetime = Number(body.expires_in);
-    if (typeof value !== "string" || value === "" || !Number.isFinite(lifetime) || lifetime <= 0) throw this.failed("token endpoint answered without access_token and expires_in");
+    if (typeof value !== "string" || value === "" || !Number.isFinite(lifetime) || lifetime <= 0) throw this.failed(false, "token endpoint answered without access_token and expires_in");
     this.held = { value, expiresAt: this.now() + lifetime * 1000 };
     this.minted++;
     this.failures = 0;
     this.schedule(lifetime * 1000 * (this.o.refreshAt ?? 0.8));
   }
 
-  private failed(why: string): Error {
+  private failed(transient: boolean, why: string): MintFailure {
     this.log(`${why}${this.held && this.now() < this.held.expiresAt ? "; keeping the token it has until it expires" : ""}`);
-    if (!this.closed && this.held) {
-      const min = this.o.retryMinMs ?? 1_000;
-      const max = this.o.retryMaxMs ?? 60_000;
-      this.schedule(Math.min(min * 2 ** this.failures, max));
-    }
+    if (!this.closed && this.held) this.schedule(this.backoff(this.failures));
     this.failures++;
-    return new Error(why);
+    return new MintFailure(why, transient);
+  }
+
+  private backoff(failures: number): number {
+    return Math.min((this.o.retryMinMs ?? 1_000) * 2 ** Math.max(failures, 0), this.o.retryMaxMs ?? 60_000);
   }
 
   private schedule(ms: number): void {
