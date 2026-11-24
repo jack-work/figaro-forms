@@ -48,13 +48,7 @@
         inherit version src npmDeps;
         nodejs = pkgs.nodejs_24;
         npmBuildScript = "build:all";
-        doCheck = true;
-        checkPhase = ''
-          runHook preCheck
-          npm run check
-          npm test --workspaces --if-present
-          runHook postCheck
-        '';
+        doCheck = false;
         installPhase = ''
           runHook preInstall
           mkdir -p $out/lib $out/demo $out/tarball
@@ -88,7 +82,17 @@
           '';
         });
 
-      checks = forAllSystems (pkgs: { workspace = self.packages.${pkgs.system}.workspace; });
+      checks = forAllSystems (pkgs: {
+        workspace = self.packages.${pkgs.system}.workspace.overrideAttrs (_: {
+          doCheck = true;
+          checkPhase = ''
+            runHook preCheck
+            npm run check
+            npm test --workspaces --if-present
+            runHook postCheck
+          '';
+        });
+      });
 
       devShells = forAllSystems (pkgs: {
         default = pkgs.mkShell { packages = [ pkgs.nodejs_24 pkgs.go pkgs.gitleaks ]; };
