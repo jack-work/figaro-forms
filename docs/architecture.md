@@ -83,6 +83,11 @@ sent or waiting, each with a sequence number) and `draft` (edits merged
 locally and not yet queued). What `get` and `subscribe` see is `confirmed`
 with `pending` and `draft` applied over it.
 
+`replica.ts` stays one file on purpose: the pure parts (`recompute`, `settle`)
+are already free functions at its foot, and every other step reads the state
+and drives the transport, timers and listeners in the same breath, so a
+second module would only pass a context back and forth.
+
 1. `set` or `unset` builds a patch against the visible tree, refuses it
    locally if `access` denies a touched key, and merges it into `draft` when
    `tryMerge` can.
