@@ -1,5 +1,6 @@
-import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useSyncExternalStore, type ReactNode } from "react";
-import type { FormsClient, FormRef } from "../client.js";
+import { createContext, createElement, useCallback, useContext, useMemo, type ReactNode } from "react";
+import { formKey, type FormsClient, type FormRef } from "../client.js";
+import { useHeld, useStore } from "./shared.js";
 import type { Json, JsonObject } from "../json.js";
 import type { Patch } from "../patch.js";
 import type { PathLike } from "../path.js";
@@ -19,17 +20,9 @@ export function useFormsClient(): FormsClient {
   return c;
 }
 
-const refKey = (ref: string | FormRef): string => (typeof ref === "string" ? ref : `${ref.id}/${ref.intrinsic ?? "state"}`);
-
 export function useReplica(ref: string | FormRef): Replica {
   const client = useFormsClient();
-  const key = refKey(ref);
-  const replica = useMemo(() => client.peek(ref), [client, key]);
-  useEffect(() => {
-    client.retain(ref);
-    return () => client.release(ref);
-  }, [client, key]);
-  return replica;
+  return useHeld(client, formKey(ref), () => client.peek(ref), () => client.retain(ref), () => client.release(ref)) as Replica;
 }
 
 export function useFormValue(ref: string | FormRef, path: PathLike): Json | undefined {
@@ -37,21 +30,21 @@ export function useFormValue(ref: string | FormRef, path: PathLike): Json | unde
   const pathKey = typeof path === "string" ? path : JSON.stringify(path);
   const subscribe = useCallback((fn: () => void) => r.subscribe(path, fn), [r, pathKey]);
   const get = useCallback(() => r.get(path), [r, pathKey]);
-  return useSyncExternalStore(subscribe, get, get);
+  return useStore(subscribe, get);
 }
 
 export function useForm(ref: string | FormRef): JsonObject {
   const r = useReplica(ref);
   const subscribe = useCallback((fn: () => void) => r.subscribe([], fn), [r]);
   const get = useCallback(() => r.root, [r]);
-  return useSyncExternalStore(subscribe, get, get);
+  return useStore(subscribe, get);
 }
 
 export function useFormStatus(ref: string | FormRef): FormStatus {
   const r = useReplica(ref);
   const subscribe = useCallback((fn: () => void) => r.onStatus(fn), [r]);
   const get = useCallback(() => r.status, [r]);
-  return useSyncExternalStore(subscribe, get, get);
+  return useStore(subscribe, get);
 }
 
 export interface FormEditor {
@@ -76,13 +69,13 @@ export function useConnectionState(): ConnectionState {
   const client = useFormsClient();
   const subscribe = useCallback((fn: () => void) => client.connection.onState(fn), [client]);
   const get = useCallback(() => client.connection.state, [client]);
-  return useSyncExternalStore(subscribe, get, get);
+  return useStore(subscribe, get);
 }
 
 export function useOpenState(open: OpenState): number {
   const subscribe = useCallback((fn: () => void) => open.subscribe(fn), [open]);
   const get = useCallback(() => open.version, [open]);
-  return useSyncExternalStore(subscribe, get, get);
+  return useStore(subscribe, get);
 }
 
 export interface UseFormViewOptions {
@@ -109,15 +102,15 @@ const noop = (): (() => void) => () => {};
 
 function useOptionalForm(ref: string | FormRef | undefined): JsonObject | undefined {
   const client = useFormsClient();
-  const key = ref === undefined ? "" : refKey(ref);
-  const replica = useMemo(() => (ref === undefined ? undefined : client.peek(ref)), [client, key]);
-  useEffect(() => {
-    if (ref === undefined) return;
-    client.retain(ref);
-    return () => client.release(ref);
-  }, [client, key]);
+  const replica = useHeld(
+    client,
+    ref === undefined ? undefined : formKey(ref),
+    () => client.peek(ref as string | FormRef),
+    () => client.retain(ref as string | FormRef),
+    () => client.release(ref as string | FormRef),
+  );
   const subscribe = useCallback((fn: () => void) => (replica ? replica.subscribe([], fn) : noop()), [replica]);
   const get = useCallback(() => (replica ? replica.root : empty), [replica]);
-  const v = useSyncExternalStore(subscribe, get, get);
+  const v = useStore(subscribe, get);
   return replica ? v : undefined;
 }

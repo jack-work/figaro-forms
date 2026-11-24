@@ -31,6 +31,11 @@ interface Entry {
 const keyOf = (id: string, intrinsic: string | undefined): string =>
   intrinsic && intrinsic !== "state" ? `${id}/${intrinsic}` : id;
 
+export function formKey(ref: string | FormRef): string {
+  const r = parseRef(ref);
+  return keyOf(r.id, r.intrinsic);
+}
+
 export function parseRef(ref: string | FormRef): FormRef {
   if (typeof ref !== "string") return ref;
   const slash = ref.lastIndexOf("/");
@@ -65,18 +70,15 @@ export class FormsClient extends Link {
   }
 
   peek(ref: string | FormRef): Replica {
-    const r = parseRef(ref);
-    return this.forms.peek(keyOf(r.id, r.intrinsic), () => this.entry(r)).replica;
+    return this.forms.peek(formKey(ref), () => this.entry(parseRef(ref))).replica;
   }
 
   retain(ref: string | FormRef): Replica {
-    const r = parseRef(ref);
-    return this.forms.retain(keyOf(r.id, r.intrinsic), () => this.entry(r)).replica;
+    return this.forms.retain(formKey(ref), () => this.entry(parseRef(ref))).replica;
   }
 
   release(ref: string | FormRef): void {
-    const r = parseRef(ref);
-    this.forms.release(keyOf(r.id, r.intrinsic));
+    this.forms.release(formKey(ref));
   }
 
   get open(): number {

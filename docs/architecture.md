@@ -31,7 +31,9 @@ Imports point down the list. Nothing in a lower layer knows a higher one exists.
    `glyphs*.ts` are the command and glyph catalogs.
 5. Bindings. `react/` and `jotai/` for forms, `aria/react.ts` and
    `aria/jotai.ts` for arias. They adapt a store to `useSyncExternalStore`
-   or an atom and add no state of their own.
+   or an atom and add no state of their own; `react/shared.ts` and
+   `jotai/shared.ts` hold the one subscribe-and-hold hook and the one
+   retained ticker atom both layers use.
 6. Arias, in `aria/`. `client.ts` (`AriaClient`) owns a connection for the
    transcript protocol and builds a `FormsClient` on the same dial when a feed
    needs a form. `stream.ts` attaches to one aria, catches up and follows.

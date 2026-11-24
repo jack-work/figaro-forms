@@ -1,41 +1,17 @@
 import { atom, type Atom, type WritableAtom } from "jotai/vanilla";
+import { holdTicker, memoByClient } from "../jotai/shared.js";
 import type { ConnectionState } from "../rpc.js";
 import type { AriaClient, AriaList, ListOptions } from "./client.js";
 import type { AriaRow } from "./wire.js";
 import { ariaFactsFeedOf, boundFormFeedOf, queueFeedOf, recentFeedOf, treeFeedOf, type AriaFacts, type BoundFormState, type Feed, type QueueState, type RecentState, type TreeState } from "./surface.js";
 import type { AppliedFrame, AriaSnapshot, AriaStream, Phase } from "./stream.js";
 
-const families = new WeakMap<AriaClient, Map<string, unknown>>();
-
-function memo<T>(client: AriaClient, key: string, make: () => T): T {
-  let m = families.get(client);
-  if (!m) {
-    m = new Map();
-    families.set(client, m);
-  }
-  let a = m.get(key) as T | undefined;
-  if (a === undefined) {
-    a = make();
-    m.set(key, a);
-  }
-  return a;
-}
-
-function ticker(client: AriaClient, aria: string, listen: (s: AriaStream, bump: () => void) => () => void): WritableAtom<number, [(n: number) => number], void> {
-  const tick = atom(0);
-  tick.onMount = (set) => {
-    const stream = client.retain(aria);
-    const off = listen(stream, () => set((n) => n + 1));
-    return () => {
-      off();
-      client.release(aria);
-    };
-  };
-  return tick as unknown as WritableAtom<number, [(n: number) => number], void>;
+function ticker(client: AriaClient, aria: string, listen: (s: AriaStream, bump: () => void) => () => void) {
+  return holdTicker(() => client.retain(aria), () => client.release(aria), listen);
 }
 
 export function ariaAtom(client: AriaClient, aria: string): Atom<AriaSnapshot> {
-  return memo(client, `s\0${aria}`, () => {
+  return memoByClient(client, `s\0${aria}`, () => {
     const tick = ticker(client, aria, (s, bump) => s.onChange(bump));
     return atom((get) => {
       get(tick);
@@ -45,7 +21,7 @@ export function ariaAtom(client: AriaClient, aria: string): Atom<AriaSnapshot> {
 }
 
 export function ariaPhaseAtom(client: AriaClient, aria: string): Atom<Phase> {
-  return memo(client, `p\0${aria}`, () => {
+  return memoByClient(client, `p\0${aria}`, () => {
     const tick = ticker(client, aria, (s, bump) => s.onChange(bump));
     return atom((get) => {
       get(tick);
@@ -55,7 +31,7 @@ export function ariaPhaseAtom(client: AriaClient, aria: string): Atom<Phase> {
 }
 
 export function ariaFrameAtom(client: AriaClient, aria: string): Atom<AppliedFrame | undefined> {
-  return memo(client, `f\0${aria}`, () => {
+  return memoByClient(client, `f\0${aria}`, () => {
     let latest: AppliedFrame | undefined;
     const tick = ticker(client, aria, (s, bump) =>
       s.onFrame((a) => {
@@ -71,7 +47,7 @@ export function ariaFrameAtom(client: AriaClient, aria: string): Atom<AppliedFra
 }
 
 export function ariaListAtom(client: AriaClient, o: ListOptions = {}): WritableAtom<Promise<AriaList>, [], void> {
-  return memo(client, `l\0${JSON.stringify(o)}`, () => {
+  return memoByClient(client, `l\0${JSON.stringify(o)}`, () => {
     const rev = atom(0);
     return atom(
       (get) => {
@@ -84,7 +60,7 @@ export function ariaListAtom(client: AriaClient, o: ListOptions = {}): WritableA
 }
 
 export function ariaConnectionAtom(client: AriaClient): Atom<ConnectionState> {
-  return memo(client, "c", () => {
+  return memoByClient(client, "c", () => {
     const tick = atom(0);
     tick.onMount = (set) => client.connection.onState(() => set((n) => n + 1));
     return atom((get) => {
@@ -106,7 +82,7 @@ export interface AriaRoster {
 export type RosterAction = "more" | "refresh";
 
 export function ariaRosterAtom(client: AriaClient, o: Omit<ListOptions, "before"> = {}): WritableAtom<AriaRoster, [RosterAction], Promise<void>> {
-  return memo(client, `r\0${JSON.stringify(o)}`, () => {
+  return memoByClient(client, `r\0${JSON.stringify(o)}`, () => {
     const initial: AriaRoster = { rows: [], next: undefined, refused: 0, refusedWhy: undefined, loading: true, error: undefined };
     const state = atom(initial);
     let generation = 0;
@@ -167,21 +143,21 @@ function feedAtom<T>(feed: Feed<T>): Atom<T> {
 }
 
 export function treeAtom(client: AriaClient): Atom<TreeState> {
-  return memo(client, "tree", () => feedAtom(treeFeedOf(client)));
+  return memoByClient(client, "tree", () => feedAtom(treeFeedOf(client)));
 }
 
 export function recentAtom(client: AriaClient): Atom<RecentState> {
-  return memo(client, "recent", () => feedAtom(recentFeedOf(client)));
+  return memoByClient(client, "recent", () => feedAtom(recentFeedOf(client)));
 }
 
 export function boundFormAtom(client: AriaClient, aria: string): Atom<BoundFormState> {
-  return memo(client, `bound\0${aria}`, () => feedAtom(boundFormFeedOf(client, aria)));
+  return memoByClient(client, `bound\0${aria}`, () => feedAtom(boundFormFeedOf(client, aria)));
 }
 
 export function ariaFactsAtom(client: AriaClient, aria: string): Atom<AriaFacts> {
-  return memo(client, `facts\0${aria}`, () => feedAtom(ariaFactsFeedOf(client, aria)));
+  return memoByClient(client, `facts\0${aria}`, () => feedAtom(ariaFactsFeedOf(client, aria)));
 }
 
 export function queueAtom(client: AriaClient, aria: string): Atom<QueueState> {
-  return memo(client, `queue\0${aria}`, () => feedAtom(queueFeedOf(client, aria)));
+  return memoByClient(client, `queue\0${aria}`, () => feedAtom(queueFeedOf(client, aria)));
 }

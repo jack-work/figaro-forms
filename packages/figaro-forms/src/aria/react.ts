@@ -1,4 +1,5 @@
-import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useHeld, useStore } from "../react/shared.js";
 import type { ConnectionState } from "../rpc.js";
 import type { AriaClient, AriaList, ListOptions } from "./client.js";
 import { boundFormFeedOf, recentFeedOf, treeFeedOf, type BoundFormState, type Feed, type RecentState, type TreeState } from "./surface.js";
@@ -18,13 +19,7 @@ export function useAriaClient(): AriaClient {
 
 export function useAriaStream(aria: string | undefined): AriaStream | undefined {
   const client = useAriaClient();
-  const stream = useMemo(() => (aria === undefined ? undefined : client.peek(aria)), [client, aria]);
-  useEffect(() => {
-    if (aria === undefined) return;
-    client.retain(aria);
-    return () => client.release(aria);
-  }, [client, aria]);
-  return stream;
+  return useHeld(client, aria, () => client.peek(aria as string), () => client.retain(aria as string), () => client.release(aria as string));
 }
 
 const never = (): (() => void) => () => {};
@@ -33,14 +28,14 @@ export function useAria(aria: string | undefined): AriaSnapshot | undefined {
   const stream = useAriaStream(aria);
   const subscribe = useCallback((fn: () => void) => (stream ? stream.onChange(fn) : never()), [stream]);
   const get = useCallback(() => stream?.snapshot(), [stream]);
-  return useSyncExternalStore(subscribe, get, get);
+  return useStore(subscribe, get);
 }
 
 export function useAriaPhase(aria: string | undefined): Phase | undefined {
   const stream = useAriaStream(aria);
   const subscribe = useCallback((fn: () => void) => (stream ? stream.onChange(fn) : never()), [stream]);
   const get = useCallback(() => stream?.state, [stream]);
-  return useSyncExternalStore(subscribe, get, get);
+  return useStore(subscribe, get);
 }
 
 export function useAriaFrames(aria: string | undefined, handler: (a: AppliedFrame) => void): void {
@@ -57,7 +52,7 @@ export function useAriaConnection(): ConnectionState {
   const client = useAriaClient();
   const subscribe = useCallback((fn: () => void) => client.connection.onState(fn), [client]);
   const get = useCallback(() => client.connection.state, [client]);
-  return useSyncExternalStore(subscribe, get, get);
+  return useStore(subscribe, get);
 }
 
 export interface AriaListState {
@@ -90,7 +85,7 @@ export function useAriaList(o: ListOptions = {}): AriaListState {
 }
 
 function useFeed<T>(feed: Feed<T>): T {
-  return useSyncExternalStore(feed.subscribe, feed.get, feed.get);
+  return useStore(feed.subscribe, feed.get);
 }
 
 export function useTree(): TreeState {
