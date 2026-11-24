@@ -89,7 +89,7 @@ interface Folded {
 }
 
 function foldAriasForm(daemon: string, root: JsonObject, into: Map<string, TreeNode>, now: number, out: Folded): void {
-  const walk = (level: Json | undefined, parent: string | undefined): string[] => {
+  const walk = (level: Json | undefined, parent: string | null | undefined): string[] => {
     const entries = rowsOf(level)
       .map(([label, row]) => ({ label, row, id: text(row.id), activeAt: num(row.active_at) }))
       .filter((e): e is typeof e & { id: string } => e.id !== undefined)
@@ -108,7 +108,7 @@ function foldAriasForm(daemon: string, root: JsonObject, into: Map<string, TreeN
         target: text(e.row.target),
         handle: e.label !== e.id ? e.label : undefined,
         mantra: text(e.row.mantra),
-        parent: parent ?? text(e.row.parent),
+        parent: parent === null ? undefined : (parent ?? text(e.row.parent)),
         daemon,
         state,
         status: (retired ? "retired" : "live") as NodeStatus,
@@ -120,9 +120,13 @@ function foldAriasForm(daemon: string, root: JsonObject, into: Map<string, TreeN
         reapsAt: num(e.row.reaps_at),
         bound: e.row.bound === true,
       };
+      if (node.kind === "role" && node.roleName === undefined && node.target === undefined) {
+        ids.push(...walk(e.row.forks, parent ?? null));
+        continue;
+      }
       if (lapsed(node, now)) {
         out.hidden.add(e.id);
-        ids.push(...walk(e.row.forks, parent));
+        ids.push(...walk(e.row.forks, parent ?? null));
         continue;
       }
       if (node.reapsAt !== undefined && node.state !== "active" && !node.bound && (out.wake === undefined || node.reapsAt < out.wake)) out.wake = node.reapsAt;
