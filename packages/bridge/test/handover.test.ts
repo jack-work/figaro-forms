@@ -277,9 +277,8 @@ describe("door handover", () => {
     await until("a second leg following", () => door.legs === 2 && fake.conns[fake.conns.length - 1]!.follows.size === 2, 4_000);
     sock.send(JSON.stringify({ jsonrpc: "2.0", id: 3, method: "figaro.unfollow", params: { figaro_id: "@recent" } }));
     await until("unfollow answer", () => p.replies.some((r) => r.id === 3));
-    await tick(800);
+    await until("the old leg closed", () => fake.conns.filter((c) => c.open).length === 1, 4_000);
     const open = fake.conns.filter((c) => c.open);
-    expect(open).toHaveLength(1);
     expect([...open[0]!.follows]).toEqual([id]);
     expect(p.closed).toEqual([]);
   }, 10_000);
