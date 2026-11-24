@@ -198,12 +198,10 @@ describe("WS /stt/stream", () => {
   });
 
   it("keeps a session alive while audio keeps coming, past idleMs", async () => {
-    const { port } = await rig({ idleMs: 150 });
+    const idleMs = 400;
+    const { port } = await rig({ idleMs });
     const c = await dial(port);
-    for (let i = 0; i < 5; i++) {
-      c.ws.send(frame(), { binary: true });
-      await tick(60);
-    }
+    for (const end = Date.now() + idleMs + 50; Date.now() < end; await tick(20)) c.ws.send(frame(), { binary: true });
     c.ws.send(JSON.stringify({ type: "end" }));
     expect((await c.closed).code).toBe(1000);
     expect(ofType(c, "done")).toHaveLength(1);
