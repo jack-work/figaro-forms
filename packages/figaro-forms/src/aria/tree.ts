@@ -91,7 +91,7 @@ interface Folded {
 function foldAriasForm(daemon: string, root: JsonObject, into: Map<string, TreeNode>, now: number, out: Folded): void {
   const walk = (level: Json | undefined, parent: string | null | undefined): string[] => {
     const entries = rowsOf(level)
-      .map(([label, row]) => ({ label, row, id: text(row.id), activeAt: num(row.active_at) }))
+      .map(([label, row]) => ({ label, row, id: text(row.id), activeAt: num(row.recency) ?? num(row.active_at) }))
       .filter((e): e is typeof e & { id: string } => e.id !== undefined)
       .map((e) => ({ ...e, sortKey: e.label }))
       .sort(byRecent);
@@ -114,7 +114,7 @@ function foldAriasForm(daemon: string, root: JsonObject, into: Map<string, TreeN
         status: (retired ? "retired" : "live") as NodeStatus,
         roles: parseRoleAddresses(text(e.row.role)),
         cwd: text(e.row.cwd),
-        activeAt: e.activeAt,
+        activeAt: num(e.row.active_at),
         ctx: num(e.row.ctx),
         ctxLimit: num(e.row.ctx_limit),
         reapsAt: num(e.row.reaps_at),
