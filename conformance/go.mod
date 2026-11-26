@@ -2,4 +2,4 @@ module github.com/jack-work/figaro-forms/conformance
 
 go 1.25.8
 
-require github.com/jack-work/figaro v0.91.0
+require github.com/jack-work/figaro v0.92.0

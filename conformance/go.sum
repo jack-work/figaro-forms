@@ -10,6 +10,8 @@ github.com/jack-work/figaro v0.88.0 h1:y8VXKuyA372eqAnNuuyqaybcSlysQ2ebWnS1cmaix
 github.com/jack-work/figaro v0.88.0/go.mod h1:vpSn9H9gTAL1cFZCfkPeLAECVfPcIOLH0XWeP0odRfk=
 github.com/jack-work/figaro v0.91.0 h1:JumNY2263lM6p9pEexl5MS4lVaVlCAqvxiRVxpvIraM=
 github.com/jack-work/figaro v0.91.0/go.mod h1:vpSn9H9gTAL1cFZCfkPeLAECVfPcIOLH0XWeP0odRfk=
+github.com/jack-work/figaro v0.92.0 h1:UrWfUWzs3U1knRCqo58p+lWkv07aPcuVIJzB81oC9NM=
+github.com/jack-work/figaro v0.92.0/go.mod h1:vpSn9H9gTAL1cFZCfkPeLAECVfPcIOLH0XWeP0odRfk=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu7U=

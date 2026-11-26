@@ -86,6 +86,7 @@ export const webCommands: { readonly [name in CommandName]: WebRoute } = {
   vault: nowhere(hostOnly("the vault lives")),
   setup: nowhere(hostOnly("it configures figaro")),
   keys: nowhere("it edits the pager's own keys.toml, a terminal client's file"),
+  sort: nowhere("it orders a terminal pager's form pit, a view the web does not have"),
   completion: nowhere("it prints shell completion scripts"),
   update: nowhere(hostOnly("it checks the installed binary")),
   upgrade: nowhere(hostOnly("it swaps the daemon's binary")),
