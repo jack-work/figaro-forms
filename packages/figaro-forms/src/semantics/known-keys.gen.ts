@@ -267,6 +267,11 @@ export const wellKnownKeys: readonly KeyDoc[] = [
     "mode": "user"
   },
   {
+    "key": "system.history",
+    "short": "Protected; \"short\" keeps this form's log to about one checkpoint interval: a checkpoint every 64 records, two kept, records below the older one dropped by the retention sweep, and done or cancelled queue entries deleted once they are older than [store] queue_grace_days. Studiers keep their own history in their librettos. Refused on a conversation-bound form",
+    "mode": "user"
+  },
+  {
     "key": "runtime.owner_made",
     "short": "Set at birth on a fork the owner made: it was admitted past every fan-out cap, still counts against them, and a capped figaro may retire it to make room",
     "mode": "system"
