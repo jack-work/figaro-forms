@@ -1570,6 +1570,13 @@ export const commandDocs: readonly CommandDoc[] = [
         ]
       },
       {
+        "long": "version",
+        "help": "show: print only the form's version, the number set --if-version takes",
+        "subwords": [
+          "show"
+        ]
+      },
+      {
         "long": "manifest",
         "value": "word",
         "help": "apply: TOML file of declared roles; replaces --id, --outfit and --managed",
@@ -1635,7 +1642,7 @@ export const commandDocs: readonly CommandDoc[] = [
     "name": "set",
     "group": "State",
     "help": "Patch a form key (no LLM round-trip)",
-    "usage": "set [--id \u003cid\u003e] \u003ckey\u003e \u003cvalue\u003e",
+    "usage": "set [--id \u003cid\u003e] [--if-version \u003cn\u003e] \u003ckey\u003e \u003cvalue\u003e",
     "args": [
       {
         "name": "key",
@@ -1651,6 +1658,11 @@ export const commandDocs: readonly CommandDoc[] = [
         "long": "id",
         "value": "aria",
         "help": "Target aria id (overrides pid binding)"
+      },
+      {
+        "long": "if-version",
+        "value": "word",
+        "help": "Refuse unless the form still stands at this version (state show --version prints it): a conditional write, e.g. a claim"
       }
     ],
     "complete": "set",
