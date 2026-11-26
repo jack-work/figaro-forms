@@ -357,11 +357,6 @@ export const wellKnownKeys: readonly KeyDoc[] = [
     "mode": "system"
   },
   {
-    "key": "runtime.plan_usage",
-    "short": "The subscription plan usage the daemon holds for this figaro's route in the model catalog: {plan, windows: [{window, used_percent, reset_at, status, stale}]}; what the pager's status line shows. Clients render it and never recompute it. Absent while the catalog has none",
-    "mode": "system"
-  },
-  {
     "key": "runtime.retired",
     "short": "Set when a figaro retires, with the reason (\"manual\", \"context\"); written by the daemon from system.retired or its own retirement",
     "mode": "system"
