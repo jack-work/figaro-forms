@@ -277,6 +277,11 @@ export const wellKnownKeys: readonly KeyDoc[] = [
     "mode": "system"
   },
   {
+    "key": "runtime.succession_of",
+    "short": "Set at birth on a fork a succession makes, naming the source it is to replace; removed once the source is retired. A daemon that starts with it still set finds a succession that died halfway and undoes it",
+    "mode": "system"
+  },
+  {
     "key": "runtime.forked_from",
     "short": "The trunk this branch was forked from (stamped at birth)",
     "mode": "system"
