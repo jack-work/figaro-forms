@@ -372,6 +372,11 @@ export const wellKnownKeys: readonly KeyDoc[] = [
     "mode": "system"
   },
   {
+    "key": "notes.\u003cid\u003e",
+    "short": "A note delivered by figaro note: one line, stamped with the time and the sender, the newest few kept. It renders as a reminder without starting a turn, and the daemon clears the ones a turn has shown",
+    "mode": "system"
+  },
+  {
     "key": "system.forked_from",
     "short": "Old name of runtime.forked_from: read for one release, never written",
     "mode": "system"

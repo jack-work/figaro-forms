@@ -236,9 +236,9 @@ describe("figaro-forms-bridge under --write", () => {
       expect(r.error?.message, what).toMatch(/^bridge: /);
     }
     expect(daemon.forms.get("@f1")!.value).toEqual({ title: "demo", system: { model: "m" } });
-    expect((await set({ object: { Set: { notes: { a: 1 } } } })).error).toBeUndefined();
+    expect((await set({ object: { Set: { memo: { a: 1 } } } })).error).toBeUndefined();
     expect((await s.call("form.create", { patch: { object: { Set: { title: "new" } } } })).error).toBeUndefined();
-    expect(daemon.forms.get("@f1")!.value).toEqual({ title: "demo", system: { model: "m" }, notes: { a: 1 } });
+    expect(daemon.forms.get("@f1")!.value).toEqual({ title: "demo", system: { model: "m" }, memo: { a: 1 } });
   });
 
   it("lets owner-held keys through only with --write-system", async () => {

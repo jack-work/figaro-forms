@@ -1,4 +1,4 @@
-export type CommandName = "help" | "show" | "send" | "read" | "new" | "listen" | "replay" | "hup" | "cut" | "queue" | "list" | "lsh" | "recent" | "back" | "forward" | "attend" | "outfit" | "study" | "drop" | "cast" | "bind" | "fork" | "normalize" | "export" | "import" | "promote" | "adopt" | "demote" | "place" | "kill" | "succeed" | "retire" | "reaped" | "move" | "state" | "set" | "setup" | "reroute" | "get" | "pwd" | "toggle" | "cd" | "unset" | "outfits" | "gc" | "status" | "scopes" | "name" | "provider" | "troupe" | "box" | "valet" | "models" | "serve" | "stop" | "upgrade" | "version" | "keys" | "doctor" | "vault" | "update" | "completion" | "decide" | "notifications" | "sort" | "history" | "login" | "comment";
+export type CommandName = "help" | "show" | "send" | "note" | "read" | "new" | "listen" | "replay" | "hup" | "cut" | "queue" | "list" | "lsh" | "recent" | "back" | "forward" | "attend" | "outfit" | "study" | "drop" | "cast" | "bind" | "fork" | "normalize" | "export" | "import" | "promote" | "adopt" | "demote" | "place" | "kill" | "succeed" | "retire" | "reaped" | "move" | "state" | "set" | "setup" | "reroute" | "get" | "pwd" | "toggle" | "cd" | "unset" | "outfits" | "gc" | "status" | "scopes" | "name" | "provider" | "troupe" | "box" | "valet" | "models" | "serve" | "stop" | "upgrade" | "version" | "keys" | "doctor" | "vault" | "update" | "completion" | "decide" | "notifications" | "sort" | "history" | "login" | "comment";
 
 export type CommandKind = "aria" | "form" | "outfit" | "patch" | "key" | "value" | "text" | "count" | "duration" | "path" | "word" | "verb";
 
@@ -260,6 +260,32 @@ export const commandDocs: readonly CommandDoc[] = [
     "raw": true,
     "complete": "send",
     "pager": "hosted"
+  },
+  {
+    "name": "note",
+    "group": "Prompt",
+    "help": "Leave a note an aria sees on its next turn, starting none",
+    "usage": "note [--id \u003cid\u003e] [-j] -- \u003ctext\u003e",
+    "args": [
+      {
+        "name": "text",
+        "kind": "text",
+        "repeats": true
+      }
+    ],
+    "flags": [
+      {
+        "long": "id",
+        "value": "aria",
+        "help": "Address a specific aria (default: the attended one)"
+      },
+      {
+        "long": "json",
+        "short": "j",
+        "help": "Print one JSON object and exit"
+      }
+    ],
+    "pager": "routed"
   },
   {
     "name": "read",

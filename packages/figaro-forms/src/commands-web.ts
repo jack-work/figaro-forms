@@ -77,6 +77,7 @@ export const webCommands: { readonly [name in CommandName]: WebRoute } = {
   reroute: nowhere(`rerouting dresses a form in outfits: ${delegated}`),
   outfit: nowhere(`outfit reload: ${delegated}`),
   decide: nowhere(gatewayLacks("asks for a decision")),
+  note: nowhere(gatewayLacks("leaves a note on an aria")),
   scopes: nowhere(gatewayLacks("lists an aria's grants")),
   import: nowhere(hostOnly("it reads a file")),
   export: nowhere(hostOnly("it writes a file")),
