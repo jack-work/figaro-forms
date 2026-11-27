@@ -1,6 +1,6 @@
 {
   "name": "figaro-forms-bridge",
-  "version": "0.24.8",
+  "version": "0.24.9",
   "description": "Loopback WebSocket bridge from a browser page to a figaro daemon's unix socket",
   "license": "SEE LICENSE IN LICENSE",
   "type": "module",
@@ -36,6 +36,6 @@
   },
   "dependencies": {
     "ws": "^8.22.2",
-    "figaro-forms": "0.24.8"
+    "figaro-forms": "0.24.9"
   }
 }
