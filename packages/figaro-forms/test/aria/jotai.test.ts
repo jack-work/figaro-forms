@@ -67,6 +67,25 @@ describe("aria atoms", () => {
     client.close();
   });
 
+  it("reads open when the socket opened after the first read and before the mount", async () => {
+    const fake = new FakeAria();
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const client = new AriaClient({ dial: async (events) => (await gate, fake.dial(events)) });
+    const opened = new Promise<void>((resolve) => {
+      const off = client.connection.onState((s) => s === "open" && (off(), resolve()));
+    });
+    const store = createStore();
+    const conn = ariaConnectionAtom(client);
+    expect(store.get(conn)).toBe("connecting");
+    release();
+    await opened;
+    const off = store.sub(conn, () => {});
+    expect(store.get(conn)).toBe("open");
+    off();
+    client.close();
+  });
+
   describe("roster", () => {
     const rows = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `a${i + 1}`, state: "idle" }));
 

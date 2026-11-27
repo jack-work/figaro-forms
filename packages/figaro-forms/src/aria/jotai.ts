@@ -66,12 +66,12 @@ export function ariaListAtom(client: AriaClient, o: ListOptions = {}): WritableA
 
 export function ariaConnectionAtom(client: AriaClient): Atom<ConnectionState> {
   return memoByClient(client, "c", () => {
-    const tick = atom(0);
-    tick.onMount = (set) => client.connection.onState(() => set((n) => n + 1));
-    return atom((get) => {
-      get(tick);
-      return client.connection.state;
-    });
+    const state = atom<ConnectionState>(client.connection.state);
+    state.onMount = (set) => {
+      set(client.connection.state);
+      return client.connection.onState(set);
+    };
+    return atom((get) => get(state));
   });
 }
 
